@@ -3,6 +3,7 @@
 {% block title %}Welcome to uDispute{% endblock %}
 {% block content %}
 <main class="flex justify-center items-center min-h-[75vh] px-4">
+  <div class="glass-bezel">
   <div class="glass-card glass-card--heavy glass-p text-center max-w-xl w-full glass-animate-in">
 
     <div class="glass-icon-well mx-auto mb-5" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
@@ -27,5 +28,101 @@
       </a>
     </div>
   </div>
+  </div>
 </main>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  // ── Onboarding tour — fires once for new users ──
+  document.addEventListener('DOMContentLoaded', function () {
+    // Build steps dynamically — only include elements that actually exist on the page
+    var tourSteps = [
+      {
+        welcome: true,
+        title: 'Welcome to uDispute!',
+        body: 'This is <strong style="color:var(--accent);">your</strong> credit repair command center. We\u2019re going to walk you through everything so you know exactly how to dispute inaccurate items on your credit report.'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.82rem;font-weight:600;opacity:0.85;">Takes about 60 seconds \u2014 u can skip anytime.</span>'
+      },
+      {
+        target: 'a[href*="upload_pdf"], a[href*="upload-pdf"]',
+        title: 'Dispute Mode \u2014 Upload a Credit Report',
+        body: '<strong>This is the main way to use uDispute.</strong> Upload your credit report as a PDF and our Vision AI reads the entire document \u2014 extracting every negative account (late payments, collections, charge-offs).'
+          + '<br><br>From there, you\u2019ll select which accounts to dispute, pick a legal strategy, and uDispute generates a fully personalized dispute letter backed by federal consumer protection law.'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.82rem;font-weight:600;opacity:0.85;">Tip: You can pull a free report from annualcreditreport.com</span>'
+      },
+      {
+        target: 'a[href*="manual_mode"], a[href*="manual-mode"]',
+        title: 'Manual Mode \u2014 Enter Details by Hand',
+        body: 'Don\u2019t have a PDF handy? No problem. Manual Mode lets you type in the account name, number, and status yourself.'
+          + '<br><br>You\u2019ll still get the same AI-generated dispute letter \u2014 just without the automated PDF extraction. Great for disputing a single account quickly.'
+      }
+    ];
+
+    // Pro/Business features — only add if the elements are actually in the DOM
+    if (document.querySelector('#packToggleBtn')) {
+      tourSteps.push({
+        target: '#packToggleBtn',
+        title: 'Prompt Packs \u2014 Your Legal Arsenal',
+        body: 'This is where uDispute gets powerful. Each prompt pack uses a different legal strategy to generate your dispute letters:'
+          + '<br><br>\u2022 <strong>Default</strong> \u2014 Clean first-round disputes. Start here.'
+          + '<br>\u2022 <strong>Consumer Law</strong> \u2014 Cites FCBA, FDCPA, and FCRA statutes.'
+          + '<br>\u2022 <strong>ACDV Enforcement</strong> \u2014 Demands full verification records from bureaus.'
+          + '<br>\u2022 <strong>Arbitration</strong> \u2014 The heavy hitter. References 15 U.S.C. \u00A71681e(b).'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.82rem;font-weight:600;opacity:0.85;">Switch packs anytime \u2014 uDispute auto-escalates across rounds.</span>'
+      });
+    }
+
+    if (document.querySelector('#openDisputeFolder')) {
+      tourSteps.push({
+        target: '#openDisputeFolder',
+        title: 'Dispute Folder \u2014 Your Filing Cabinet',
+        body: 'Everything you generate lives here. The Dispute Folder has three tabs:'
+          + '<br><br>\u2022 <strong>Logs</strong> \u2014 Daily journal entries tracking your progress and notes.'
+          + '<br>\u2022 <strong>Letters</strong> \u2014 Every dispute letter you\u2019ve created, saved and searchable.'
+          + '<br>\u2022 <strong>Docs</strong> \u2014 Upload supporting documents (ID, SSN card, utility bills) that get merged into your dispute packages.'
+          + '<br><br>Think of it as your personal dispute case file.',
+        noScroll: true
+      });
+    }
+
+    // Settings — always present
+    tourSteps.push({
+      target: 'a[href*="settings"]',
+      title: 'Settings \u2014 API Keys & Mailing',
+      body: 'This is where you configure automated mailing. uDispute uses <strong>DocuPost</strong> to send your dispute letters directly to credit bureaus via certified USPS mail.'
+        + '<br><br>Bring your own API key (BYOK) \u2014 paste it in Settings and your letters can be mailed with one click. Your key is encrypted and stored securely.'
+        + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.82rem;font-weight:600;opacity:0.85;">Don\u2019t have a DocuPost key yet? You can still download letters as PDFs and mail them yourself.</span>'
+    });
+
+    // Finale — always last
+    tourSteps.push({
+      welcome: true,
+      title: 'u\u2019re ready to go!',
+      body: 'Here\u2019s your game plan:'
+        + '<br><br><strong>1.</strong> Upload your credit report (or enter details manually)'
+        + '<br><strong>2.</strong> Select the negative accounts you want to dispute'
+        + '<br><strong>3.</strong> Pick a prompt pack and generate your letter'
+        + '<br><strong>4.</strong> Review, approve, and mail it to the bureaus'
+        + '<br><br><strong style="color:var(--accent);">u</strong> have the power to fix your credit. Let\u2019s get to work.'
+    });
+
+    // Debug: log which targets the tour can find
+    console.log('[Tour Debug] Steps:', tourSteps.length);
+    tourSteps.forEach(function (s, i) {
+      if (s.target) {
+        var found = document.querySelector(s.target);
+        console.log('[Tour Debug] Step ' + i + ': "' + s.title + '" → target "' + s.target + '" → ' + (found ? 'FOUND' : 'NOT FOUND'));
+      } else {
+        console.log('[Tour Debug] Step ' + i + ': "' + s.title + '" → welcome modal');
+      }
+    });
+
+    // Small delay so page animations finish first
+    setTimeout(function () {
+      GlassTour.start(tourSteps);
+    }, 1200);
+  });
+</script>
 {% endblock %}

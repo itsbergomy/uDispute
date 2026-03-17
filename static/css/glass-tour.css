@@ -1,0 +1,320 @@
+/* ═══════════════════════════════════════════════════════════
+   Glass Tour — Onboarding overlay system
+   Part of the Liquid Glass Design System v2
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Backdrop — frosted overlay with spotlight cutout ── */
+.glass-tour-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  pointer-events: auto;
+  transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.glass-tour-backdrop--entering {
+  opacity: 0;
+}
+
+.glass-tour-backdrop--visible {
+  opacity: 1;
+}
+
+/* ── Spotlight cutout — punched through the backdrop ── */
+.glass-tour-spotlight {
+  position: fixed;
+  z-index: 9991;
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 9999px rgba(30, 35, 50, 0.65),
+    0 0 40px 8px rgba(0, 113, 227, 0.15);
+  transition:
+    top 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    left 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+/* Subtle breathing pulse on the spotlight edge */
+.glass-tour-spotlight::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 19px;
+  border: 2px solid rgba(0, 113, 227, 0.3);
+  animation: tour-spotlight-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes tour-spotlight-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.01); }
+}
+
+/* ── Tooltip — glass card with arrow ── */
+.glass-tour-tooltip {
+  position: fixed;
+  z-index: 9992;
+  width: 420px;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  pointer-events: auto;
+
+  /* Glass card styling */
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.30) 50%,
+    rgba(255, 255, 255, 0.40) 100%
+  );
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 0 20px rgba(0, 113, 227, 0.08);
+  padding: 1.5rem;
+
+  /* Spring entrance */
+  transition:
+    top 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    left 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.glass-tour-tooltip--entering {
+  opacity: 0;
+  transform: translateY(20px) scale(0.95);
+}
+
+.glass-tour-tooltip--visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* ── Tooltip content ── */
+.glass-tour-step-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 4px 12px;
+  border-radius: 100px;
+  background: linear-gradient(135deg, #0077ed, #6e5ce6);
+  color: #fff;
+  margin-bottom: 0.75rem;
+  box-shadow:
+    0 3px 10px rgba(0, 113, 227, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.glass-tour-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary, #1d1d1f);
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+}
+
+.glass-tour-body {
+  font-size: 0.875rem;
+  color: #1d1d1f;
+  line-height: 1.65;
+  margin-bottom: 1.25rem;
+}
+
+/* Tip lines inside tour body — accent-colored and clearly legible */
+.glass-tour-body span[style*="color:var(--accent"] {
+  display: block;
+  margin-top: 0.25rem;
+  font-weight: 600;
+  opacity: 1 !important;
+}
+
+/* ── Navigation buttons ── */
+.glass-tour-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.glass-tour-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.glass-tour-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.12);
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.glass-tour-dot--active {
+  background: linear-gradient(135deg, #0077ed, #6e5ce6);
+  transform: scale(1.3);
+  box-shadow: 0 0 8px rgba(0, 113, 227, 0.3);
+}
+
+.glass-tour-dot--completed {
+  background: rgba(0, 113, 227, 0.35);
+}
+
+.glass-tour-btn-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.glass-tour-btn {
+  padding: 8px 18px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition:
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.2s ease;
+}
+
+.glass-tour-btn:active {
+  transform: scale(0.96);
+}
+
+.glass-tour-btn--skip {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-tertiary, #8e8e93);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.glass-tour-btn--skip:hover {
+  background: rgba(0, 0, 0, 0.07);
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.35), 0 0 32px rgba(255, 255, 255, 0.10);
+}
+
+.glass-tour-btn--next {
+  background: linear-gradient(135deg, #0077ed 0%, #005bb5 100%);
+  color: #fff;
+  box-shadow:
+    0 4px 14px rgba(0, 113, 227, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.glass-tour-btn--next:hover {
+  box-shadow:
+    0 6px 20px rgba(0, 113, 227, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 20px rgba(0, 113, 227, 0.2);
+  transform: translateY(-1px);
+}
+
+/* ── Welcome modal (no target — centered) ── */
+.glass-tour-welcome {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9992;
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  text-align: center;
+  pointer-events: auto;
+
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.60) 0%,
+    rgba(255, 255, 255, 0.35) 50%,
+    rgba(255, 255, 255, 0.45) 100%
+  );
+  backdrop-filter: blur(28px) saturate(1.5);
+  -webkit-backdrop-filter: blur(28px) saturate(1.5);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.14),
+    0 8px 20px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 0 30px rgba(0, 113, 227, 0.06);
+  padding: 2.5rem 2rem;
+
+  transition:
+    opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.glass-tour-welcome--entering {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.9);
+}
+
+.glass-tour-welcome--visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.glass-tour-welcome-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 1.25rem;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(0, 113, 227, 0.12), rgba(110, 92, 230, 0.12));
+  box-shadow:
+    inset 3px 3px 8px rgba(0, 0, 0, 0.05),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.5),
+    0 2px 4px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  font-size: 1.75rem;
+}
+
+.glass-tour-welcome .glass-tour-title {
+  font-size: 1.35rem;
+  margin-bottom: 0.65rem;
+}
+
+.glass-tour-welcome .glass-tour-body {
+  margin-bottom: 1.75rem;
+}
+
+.glass-tour-welcome .glass-tour-btn-group {
+  justify-content: center;
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .glass-tour-spotlight,
+  .glass-tour-tooltip,
+  .glass-tour-welcome {
+    transition: none;
+  }
+  .glass-tour-spotlight::after {
+    animation: none;
+  }
+}
+
+/* ── Mobile adjustments ── */
+@media (max-width: 640px) {
+  .glass-tour-tooltip {
+    width: calc(100vw - 24px);
+    border-radius: 16px;
+    padding: 1.25rem;
+  }
+  .glass-tour-welcome {
+    width: calc(100vw - 24px);
+    padding: 2rem 1.5rem;
+  }
+}

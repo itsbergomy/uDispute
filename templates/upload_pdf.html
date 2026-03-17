@@ -16,16 +16,87 @@
     <h2 class="text-2xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">Upload Credit Report PDF</h2>
     <p class="mb-8" style="color:var(--text-secondary);">Please upload your credit report to begin parsing for negative accounts.</p>
 
-    <form method="POST" action="{{ url_for('upload_pdf') }}" enctype="multipart/form-data">
-      <div class="glass-inset rounded-2xl p-8 mb-6" style="border:2px dashed rgba(0,113,227,0.25);">
+    <form method="POST" action="{{ url_for('upload_pdf') }}" enctype="multipart/form-data" id="uploadForm">
+      <div class="upload-area glass-inset rounded-2xl p-8 mb-6" style="border:2px dashed rgba(0,113,227,0.25);">
         <div class="mb-3">{{ icons.icon_inbox(size=32, uid='up2') }}</div>
-        <p class="text-sm font-medium mb-4" style="color:var(--text-secondary);">Drop your PDF here or click below</p>
+        <p class="upload-text text-sm font-medium mb-4" style="color:var(--text-secondary);">Drop your PDF here or click below</p>
         <label class="inline-block glass-btn glass-btn--primary glass-btn--pill cursor-pointer glass-shimmer-edge" style="position:relative;overflow:hidden;">
-          <input type="file" name="pdfFile" accept=".pdf" class="hidden" onchange="this.form.submit()" />
+          <input type="file" name="pdfFile" id="pdfFileInput" accept=".pdf" class="hidden" />
           Choose PDF
         </label>
       </div>
     </form>
   </div>
 </main>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    var input = document.getElementById('pdfFileInput');
+    var form = document.getElementById('uploadForm');
+    var uploadArea = document.querySelector('.upload-area');
+    var uploadText = document.querySelector('.upload-text');
+
+    function handleFile(file) {
+      if (!file) return;
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        uploadText.textContent = 'PDF files only — please try again';
+        uploadText.style.color = '#e74c3c';
+        uploadArea.style.borderColor = 'rgba(231,76,60,0.5)';
+        setTimeout(function() {
+          uploadText.textContent = 'Drop your PDF here or click below';
+          uploadText.style.color = '';
+          uploadArea.style.borderColor = 'rgba(0,113,227,0.25)';
+        }, 2000);
+        return;
+      }
+      var dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+
+      uploadText.textContent = file.name + ' — uploading...';
+      uploadArea.style.borderColor = 'rgba(0,200,83,0.5)';
+      form.submit();
+    }
+
+    // Click to select
+    input.addEventListener('change', function(e) {
+      handleFile(e.target.files[0]);
+    });
+
+    // Drag and drop
+    uploadArea.addEventListener('dragenter', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      uploadArea.style.borderColor = 'rgba(0,113,227,0.6)';
+      uploadArea.style.background = 'rgba(0,113,227,0.06)';
+      uploadText.textContent = 'Drop your file here';
+    });
+
+    uploadArea.addEventListener('dragover', function(e) {
+      e.preventDefault(); e.stopPropagation();
+    });
+
+    uploadArea.addEventListener('dragleave', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      uploadArea.style.borderColor = 'rgba(0,113,227,0.25)';
+      uploadArea.style.background = '';
+      uploadText.textContent = 'Drop your PDF here or click below';
+    });
+
+    uploadArea.addEventListener('drop', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      uploadArea.style.borderColor = 'rgba(0,113,227,0.25)';
+      uploadArea.style.background = '';
+      if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    // Prevent browser default on document
+    document.addEventListener('dragover', function(e) { e.preventDefault(); });
+    document.addEventListener('drop', function(e) { e.preventDefault(); });
+  });
+</script>
 {% endblock %}

@@ -46,24 +46,91 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const input = document.getElementById('creditReport');
-    const submitBtn = document.getElementById('submitBtn');
-    const btnText = document.getElementById('btnText');
-    const btnLoader = document.getElementById('btnLoader');
-    const uploadText = document.querySelector('.upload-text');
-    const uploadSub = document.querySelector('.upload-subtext');
+  document.addEventListener('DOMContentLoaded', function() {
+    var input = document.getElementById('creditReport');
+    var submitBtn = document.getElementById('submitBtn');
+    var btnText = document.getElementById('btnText');
+    var btnLoader = document.getElementById('btnLoader');
+    var uploadText = document.querySelector('.upload-text');
+    var uploadSub = document.querySelector('.upload-subtext');
+    var uploadArea = document.querySelector('.upload-area');
 
-    input.addEventListener('change', (e) => {
-      const file = e.target.files[0];
+    // -- Handle file selection (click or drop) --
+    function handleFile(file) {
       if (!file) return;
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        uploadText.textContent = 'PDF files only';
+        uploadSub.textContent = 'Please try again';
+        uploadArea.style.borderColor = 'rgba(231,76,60,0.5)';
+        setTimeout(function() {
+          uploadText.textContent = 'Click or drop a file here';
+          uploadSub.textContent = 'PDF only';
+          uploadArea.style.borderColor = 'rgba(0,113,227,0.25)';
+        }, 2000);
+        return;
+      }
+      // Assign file to the hidden input
+      var dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+
       uploadText.textContent = file.name;
       uploadSub.textContent = 'Ready for analysis';
+      uploadArea.style.borderColor = 'rgba(0,200,83,0.5)';
       submitBtn.disabled = false;
+    }
+
+    // Click-to-select
+    input.addEventListener('change', function(e) {
+      handleFile(e.target.files[0]);
     });
 
-    document.getElementById('uploadForm').addEventListener('submit', () => {
+    // -- Drag and Drop --
+    uploadArea.addEventListener('dragenter', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadArea.style.borderColor = 'rgba(0,113,227,0.6)';
+      uploadArea.style.background = 'rgba(0,113,227,0.06)';
+      uploadText.textContent = 'Drop your file here';
+    });
+
+    uploadArea.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadArea.style.borderColor = 'rgba(0,113,227,0.6)';
+      uploadArea.style.background = 'rgba(0,113,227,0.06)';
+    });
+
+    uploadArea.addEventListener('dragleave', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadArea.style.borderColor = 'rgba(0,113,227,0.25)';
+      uploadArea.style.background = '';
+      if (!input.files.length) {
+        uploadText.textContent = 'Click or drop a file here';
+      }
+    });
+
+    uploadArea.addEventListener('drop', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadArea.style.borderColor = 'rgba(0,113,227,0.25)';
+      uploadArea.style.background = '';
+
+      var files = e.dataTransfer.files;
+      if (files.length > 0) {
+        handleFile(files[0]);
+      }
+    });
+
+    // Prevent browser from opening the file if dropped outside the area
+    document.addEventListener('dragover', function(e) { e.preventDefault(); });
+    document.addEventListener('drop', function(e) { e.preventDefault(); });
+
+    // -- Submit handler --
+    document.getElementById('uploadForm').addEventListener('submit', function() {
       submitBtn.disabled = true;
       btnText.classList.add('hidden');
       btnLoader.classList.remove('hidden');

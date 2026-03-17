@@ -18,3 +18,4 @@ playwright
 huey
 python-docx
 cryptography
+gunicorn

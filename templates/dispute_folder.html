@@ -109,20 +109,174 @@
         </form>
       </div>
 
-      <!-- Mailed Letters -->
+      <!-- Mailed Letters — Sorted by Bureau → Date → Round -->
       <div id="panel-letters" class="tab-panel hidden">
-        {% for L in letters %}
-          <div class="mb-3 glass-card glass-card--light rounded-xl p-4">
-            <div class="text-xs" style="color:var(--text-tertiary);">{{ L.created_at }}</div>
-            <p class="mt-1 text-sm" style="color:var(--text-secondary);">{{ L.letter_text[:120] }}...</p>
+        {% set bureaus = ['Equifax', 'TransUnion', 'Experian'] %}
+        {% set has_letters = letters | length > 0 %}
+
+        {% if has_letters %}
+          <!-- Bureau filter pills -->
+          <div class="flex flex-wrap gap-2 mb-4">
+            <button class="glass-btn glass-btn--pill px-3 py-1 text-xs font-semibold bureau-filter active"
+                    data-bureau="all"
+                    style="background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);">
+              All Bureaus
+            </button>
+            {% for b in bureaus %}
+              {% set bureau_count = letters | selectattr('bureau', 'equalto', b) | list | length %}
+              {% if bureau_count > 0 %}
+                <button class="glass-btn glass-btn--pill px-3 py-1 text-xs font-semibold bureau-filter"
+                        data-bureau="{{ b }}"
+                        style="background:rgba(255,255,255,0.08);backdrop-filter:blur(8px);">
+                  {{ b }} <span style="opacity:0.6;margin-left:4px;">({{ bureau_count }})</span>
+                </button>
+              {% endif %}
+            {% endfor %}
+            {% set untagged = letters | rejectattr('bureau') | list | length %}
+            {% if untagged > 0 %}
+              <button class="glass-btn glass-btn--pill px-3 py-1 text-xs font-semibold bureau-filter"
+                      data-bureau="untagged"
+                      style="background:rgba(255,255,255,0.08);backdrop-filter:blur(8px);">
+                Untagged <span style="opacity:0.6;margin-left:4px;">({{ untagged }})</span>
+              </button>
+            {% endif %}
           </div>
+
+          <!-- Letter entries grouped by bureau -->
+          {% for b in bureaus %}
+            {% set bureau_letters = letters | selectattr('bureau', 'equalto', b) | list %}
+            {% if bureau_letters | length > 0 %}
+              <div class="bureau-group mb-5" data-bureau-group="{{ b }}">
+                <div class="flex items-center gap-2 mb-3">
+                  <div style="width:10px;height:10px;border-radius:50%;background:{% if b == 'Equifax' %}#e74c3c{% elif b == 'TransUnion' %}#3498db{% else %}#9b59b6{% endif %};"></div>
+                  <h3 class="text-sm font-bold" style="color:var(--text-primary);letter-spacing:0.04em;">{{ b }}</h3>
+                </div>
+                {% for L in bureau_letters | sort(attribute='created_at', reverse=true) %}
+                  <div class="mb-3 glass-card glass-card--light rounded-xl p-4 mailed-letter-card"
+                       data-bureau="{{ L.bureau or '' }}" data-round="{{ L.round_number or 1 }}">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap mb-1">
+                          <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                style="background:rgba(255,255,255,0.1);color:var(--text-secondary);">
+                            Round {{ L.round_number or 1 }}
+                          </span>
+                          {% if L.account_name %}
+                            <span class="text-xs" style="color:var(--text-tertiary);">{{ L.account_name }}</span>
+                          {% endif %}
+                          <span class="text-xs" style="color:var(--text-tertiary);">
+                            {{ L.created_at.strftime('%b %d, %Y · %I:%M %p') if L.created_at else '' }}
+                          </span>
+                        </div>
+                        <p class="text-sm mt-1" style="color:var(--text-secondary);line-height:1.5;">
+                          {{ L.letter_text[:180] }}{% if L.letter_text | length > 180 %}…{% endif %}
+                        </p>
+                      </div>
+                      {% if L.pdf_url %}
+                        <a href="{{ L.pdf_url }}" target="_blank"
+                           class="glass-btn glass-btn--primary glass-btn--pill text-xs px-3 py-1.5 flex items-center gap-1 flex-shrink-0"
+                           style="white-space:nowrap;">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                          </svg>
+                          View PDF
+                        </a>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          {% endfor %}
+
+          <!-- Untagged letters (no bureau assigned) -->
+          {% set untagged_letters = letters | rejectattr('bureau') | list %}
+          {% if untagged_letters | length > 0 %}
+            <div class="bureau-group mb-5" data-bureau-group="untagged">
+              <div class="flex items-center gap-2 mb-3">
+                <div style="width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,0.3);"></div>
+                <h3 class="text-sm font-bold" style="color:var(--text-primary);letter-spacing:0.04em;">Untagged</h3>
+              </div>
+              {% for L in untagged_letters | sort(attribute='created_at', reverse=true) %}
+                <div class="mb-3 glass-card glass-card--light rounded-xl p-4 mailed-letter-card"
+                     data-bureau="" data-round="{{ L.round_number or 1 }}">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 flex-wrap mb-1">
+                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                              style="background:rgba(255,255,255,0.1);color:var(--text-secondary);">
+                          Round {{ L.round_number or 1 }}
+                        </span>
+                        {% if L.account_name %}
+                          <span class="text-xs" style="color:var(--text-tertiary);">{{ L.account_name }}</span>
+                        {% endif %}
+                        <span class="text-xs" style="color:var(--text-tertiary);">
+                          {{ L.created_at.strftime('%b %d, %Y · %I:%M %p') if L.created_at else '' }}
+                        </span>
+                      </div>
+                      <p class="text-sm mt-1" style="color:var(--text-secondary);line-height:1.5;">
+                        {{ L.letter_text[:180] }}{% if L.letter_text | length > 180 %}…{% endif %}
+                      </p>
+                    </div>
+                    {% if L.pdf_url %}
+                      <a href="{{ L.pdf_url }}" target="_blank"
+                         class="glass-btn glass-btn--primary glass-btn--pill text-xs px-3 py-1.5 flex items-center gap-1 flex-shrink-0"
+                         style="white-space:nowrap;">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        View PDF
+                      </a>
+                    {% endif %}
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+
         {% else %}
-          <p class="text-sm" style="color:var(--text-tertiary);">No mailed letters recorded.</p>
-        {% endfor %}
+          <div class="text-center py-8">
+            <div style="font-size:2rem;opacity:0.4;margin-bottom:8px;">📬</div>
+            <p class="text-sm" style="color:var(--text-tertiary);">No mailed letters yet. Letters are automatically saved here when you generate a Dispute Package.</p>
+          </div>
+        {% endif %}
+
+        <!-- Manual letter recording -->
         <form action="{{ url_for('disputes.add_letter') }}" method="POST" class="mt-4 glass-inset rounded-xl p-5">
+          <div class="flex gap-3 mb-3">
+            <select name="bureau" class="glass-input text-sm" style="flex:1;">
+              <option value="">Bureau (optional)</option>
+              <option value="Equifax">Equifax</option>
+              <option value="TransUnion">TransUnion</option>
+              <option value="Experian">Experian</option>
+            </select>
+            <input name="round_number" type="number" min="1" value="1" class="glass-input text-sm" style="width:100px;" placeholder="Round" />
+            <input name="account_name" type="text" class="glass-input text-sm" style="flex:1;" placeholder="Account (optional)" />
+          </div>
           <textarea name="letter_text" required class="glass-input glass-textarea" placeholder="Paste letter text..."></textarea>
           <button type="submit" class="mt-2 glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge">Record Mailed Letter</button>
         </form>
+
+        <!-- Bureau filter script -->
+        <script>
+          (function(){
+            var filters = document.querySelectorAll('.bureau-filter');
+            filters.forEach(function(btn){
+              btn.addEventListener('click', function(){
+                filters.forEach(function(b){ b.classList.remove('active'); b.style.background='rgba(255,255,255,0.08)'; });
+                btn.classList.add('active');
+                btn.style.background='rgba(255,255,255,0.15)';
+                var bureau = btn.getAttribute('data-bureau');
+                var groups = document.querySelectorAll('.bureau-group');
+                groups.forEach(function(g){
+                  if (bureau === 'all') { g.style.display = ''; }
+                  else if (bureau === 'untagged') { g.style.display = g.getAttribute('data-bureau-group') === 'untagged' ? '' : 'none'; }
+                  else { g.style.display = g.getAttribute('data-bureau-group') === bureau ? '' : 'none'; }
+                });
+              });
+            });
+          })();
+        </script>
       </div>
 
       <!-- Correspondence / Uploads -->

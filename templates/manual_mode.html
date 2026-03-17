@@ -5,7 +5,7 @@
 <main class="flex justify-center items-center min-h-[75vh] px-4 py-10">
   <div class="glass-card glass-card--heavy glass-p max-w-xl w-full relative glass-animate-in">
     <a href="{% if current_user.plan == 'business' %}{{ url_for('business.business_dashboard') }}{% else %}{{ url_for('disputes.index') }}{% endif %}"
-       class="absolute top-6 left-6 glass-btn glass-btn--ghost p-3 rounded-full">
+       class="absolute top-6 left-6 z-10 glass-btn glass-btn--ghost p-3 rounded-full">
       &larr;
     </a>
 

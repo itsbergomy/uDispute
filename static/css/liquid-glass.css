@@ -1095,7 +1095,7 @@ body.glass-body p { color: var(--text-secondary); line-height: 1.7; }
   box-shadow:
     inset 2px 2px 6px rgba(0,0,0,0.1),
     inset -1px -1px 4px rgba(255,255,255,0.3) !important;
-  transform: translateY(1px) !important;
+  transform: scale(0.98) translateY(1px) !important;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1399,6 +1399,227 @@ body.glass-body p { color: var(--text-secondary); line-height: 1.7; }
   from { opacity: 1; transform: translateY(0); filter: blur(0); }
   to   { opacity: 0; transform: translateY(-6px); filter: blur(3px); }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Double-Bezel Card Architecture — Outer shell wrapper
+   Creates machined hardware depth (glass plate in aluminum tray)
+   ═══════════════════════════════════════════════════════════ */
+.glass-bezel {
+  padding: 3px;
+  border-radius: calc(var(--radius-lg) + 3px);
+  overflow: hidden;
+  background: linear-gradient(135deg,
+    rgba(255,255,255,0.30) 0%,
+    rgba(255,255,255,0.06) 40%,
+    rgba(0,0,0,0.02) 60%,
+    rgba(255,255,255,0.12) 100%);
+  box-shadow:
+    0 1px 3px rgba(0,0,0,0.06),
+    inset 0 1px 0 rgba(255,255,255,0.45),
+    inset 0 -1px 0 rgba(0,0,0,0.04);
+  transition: box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.glass-bezel:hover {
+  box-shadow:
+    0 2px 8px rgba(0,0,0,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.55),
+    inset 0 -1px 0 rgba(0,0,0,0.04);
+}
+.glass-bezel > .glass-card {
+  border-radius: var(--radius-lg) !important;
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
+  box-shadow: none;  /* bezel provides the outer shadow — no double shadow */
+}
+/* Smaller bezel for compact cards (metric panels, etc.) */
+.glass-bezel--sm {
+  padding: 2px;
+  border-radius: calc(var(--radius-md) + 2px);
+  overflow: hidden;
+}
+.glass-bezel--sm > .glass-card {
+  border-radius: var(--radius-md);
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Active Nav Indicator — Glowing dot under current page link
+   ═══════════════════════════════════════════════════════════ */
+.glass-nav-link {
+  position: relative;
+  padding-bottom: 4px;
+}
+.glass-nav-link--active::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(0,113,227,0.5), 0 0 3px var(--accent);
+  animation: glass-nav-pulse 2.5s ease-in-out infinite;
+}
+@keyframes glass-nav-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(0,113,227,0.4), 0 0 2px var(--accent); }
+  50%      { box-shadow: 0 0 12px rgba(0,113,227,0.6), 0 0 4px var(--accent); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Composed Empty States — Structured "nothing here yet" UI
+   ═══════════════════════════════════════════════════════════ */
+.glass-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+}
+.glass-empty__icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  background: linear-gradient(145deg, rgba(0,0,0,0.02), rgba(255,255,255,0.08));
+  box-shadow:
+    inset 3px 3px 6px rgba(0,0,0,0.06),
+    inset -2px -2px 5px rgba(255,255,255,0.4),
+    0 1px 2px rgba(0,0,0,0.03);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: var(--text-tertiary);
+  font-size: 1.4rem;
+}
+.glass-empty__title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.35rem;
+}
+.glass-empty__desc {
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+  line-height: 1.6;
+  max-width: 280px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Skeleton Loader — Animated shimmer for loading states
+   ═══════════════════════════════════════════════════════════ */
+@keyframes glass-skeleton-pulse {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.glass-skeleton {
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.06) 25%,
+    rgba(255,255,255,0.15) 50%,
+    rgba(255,255,255,0.06) 75%);
+  background-size: 200% 100%;
+  animation: glass-skeleton-pulse 1.8s ease-in-out infinite;
+  border-radius: 8px;
+  border: none;
+  color: transparent !important;
+  pointer-events: none;
+  user-select: none;
+}
+.glass-skeleton--line {
+  height: 14px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+}
+.glass-skeleton--circle {
+  border-radius: 50%;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Toast Notifications — Slide-in glass alerts with progress
+   ═══════════════════════════════════════════════════════════ */
+.glass-toast-container {
+  position: fixed;
+  top: 5rem;
+  right: 1.5rem;
+  z-index: 9000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 380px;
+  pointer-events: none;
+}
+.glass-toast {
+  padding: 0.85rem 1.25rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  backdrop-filter: blur(var(--blur-md)) saturate(200%);
+  -webkit-backdrop-filter: blur(var(--blur-md)) saturate(200%);
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.12),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+  transform: translateX(120%);
+  opacity: 0;
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+              opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+  overflow: hidden;
+  pointer-events: auto;
+}
+.glass-toast--visible {
+  transform: translateX(0);
+  opacity: 1;
+}
+.glass-toast--dismissing {
+  transform: translateX(120%);
+  opacity: 0;
+}
+.glass-toast__progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: currentColor;
+  opacity: 0.3;
+  animation: glass-toast-progress 4s linear forwards;
+}
+@keyframes glass-toast-progress {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+.glass-toast--success {
+  background: rgba(52,199,89,0.15);
+  color: #248a3d;
+  border: 1px solid rgba(52,199,89,0.25);
+}
+.glass-toast--error {
+  background: rgba(255,59,48,0.12);
+  color: #ff453a;
+  border: 1px solid rgba(255,59,48,0.22);
+}
+.glass-toast--info {
+  background: rgba(0,113,227,0.12);
+  color: #4da3ff;
+  border: 1px solid rgba(0,113,227,0.22);
+}
+.glass-toast--warning {
+  background: rgba(255,159,10,0.12);
+  color: #d97706;
+  border: 1px solid rgba(255,159,10,0.22);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Color Utility Classes — Replace inline color styles
+   ═══════════════════════════════════════════════════════════ */
+.glass-text-primary   { color: var(--text-primary); }
+.glass-text-secondary { color: var(--text-secondary); }
+.glass-text-tertiary  { color: var(--text-tertiary); }
+.glass-text-accent    { color: var(--accent); }
 
 /* Respect reduced-motion */
 @media (prefers-reduced-motion: reduce) {

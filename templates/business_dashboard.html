@@ -13,7 +13,7 @@
 
   <!-- ═══ AI Agent Widget ═══ -->
   <div class="flex justify-end glass-animate-in" style="animation-delay:.1s;margin-bottom:-1rem;">
-    <div class="glass-agent-bar flex items-center gap-3" style="padding:0.5rem 0.9rem 0.5rem 0.65rem;">
+    <div id="agentWidget" class="glass-agent-bar flex items-center gap-3" style="padding:0.5rem 0.9rem 0.5rem 0.65rem;">
       <div class="glass-icon-well glass-breathe" style="width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
         {{ icons.icon_agent(24, 'ag1') }}
       </div>
@@ -36,8 +36,9 @@
   </div>
 
   <!-- ═══ 4 Metric Cards ═══ -->
-  <div class="grid gap-5 grid-cols-2 lg:grid-cols-4 glass-stagger">
+  <div id="metricsRow" class="grid gap-5 grid-cols-2 lg:grid-cols-4 glass-stagger">
 
+    <div class="glass-bezel glass-bezel--sm">
     <div class="glass-metric glass-metric--blue glass-raised" style="transition:box-shadow 0.3s ease,transform 0.3s ease;">
       <div class="flex items-center gap-3 mb-2">
         <div class="glass-icon-well" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
@@ -47,7 +48,9 @@
       </div>
       <p class="glass-metric__value glass-text-emboss" data-count-target="{{ stats.total_clients }}">0</p>
     </div>
+    </div>
 
+    <div class="glass-bezel glass-bezel--sm">
     <div class="glass-metric glass-metric--purple glass-raised" style="transition:box-shadow 0.3s ease,transform 0.3s ease;">
       <div class="flex items-center gap-3 mb-2">
         <div class="glass-icon-well" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
@@ -57,7 +60,9 @@
       </div>
       <p class="glass-metric__value glass-text-emboss" data-count-target="{{ stats.active_pipelines }}">0</p>
     </div>
+    </div>
 
+    <div class="glass-bezel glass-bezel--sm">
     <div class="glass-metric glass-metric--green glass-raised" style="transition:box-shadow 0.3s ease,transform 0.3s ease;">
       <div class="flex items-center gap-3 mb-2">
         <div class="glass-icon-well" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
@@ -67,7 +72,9 @@
       </div>
       <p class="glass-metric__value glass-text-emboss" data-count-target="{{ stats.letters_sent }}">0</p>
     </div>
+    </div>
 
+    <div class="glass-bezel glass-bezel--sm">
     <div class="glass-metric glass-metric--yellow glass-raised" style="transition:box-shadow 0.3s ease,transform 0.3s ease;">
       <div class="flex items-center gap-3 mb-2">
         <div class="glass-icon-well" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
@@ -77,6 +84,7 @@
       </div>
       <p class="glass-metric__value glass-text-emboss" data-count-target="{{ stats.workflows_enabled }}">0</p>
     </div>
+    </div>
 
   </div>
 
@@ -84,7 +92,8 @@
   <div class="grid gap-6 grid-cols-1 lg:grid-cols-5">
 
     <!-- LEFT — Client List (3/5) -->
-    <div class="lg:col-span-3 glass-metric-panel glass-p space-y-4 glass-animate-in">
+    <div class="glass-bezel lg:col-span-3">
+    <div id="clientListPanel" class="glass-metric-panel glass-p space-y-4 glass-animate-in">
       <div class="flex items-center justify-between">
         <h2 class="text-xl font-bold glass-text-3d">Clients</h2>
         <button id="addClientBtn"
@@ -125,15 +134,19 @@
             </a>
           {% endfor %}
         {% else %}
-          <div class="py-8 text-center text-sm" style="color:var(--text-secondary);">
-            No clients yet. Click "+ Add Client" to get started.
+          <div class="glass-empty">
+            <div class="glass-empty__icon">👥</div>
+            <p class="glass-empty__title">No clients yet</p>
+            <p class="glass-empty__desc">Click "+ Add Client" to onboard your first client.</p>
           </div>
         {% endif %}
       </div>
     </div>
+    </div>
 
     <!-- RIGHT — Pipeline Activity (2/5) -->
-    <div class="lg:col-span-2 glass-metric-panel glass-p space-y-4 glass-animate-in" style="animation-delay:.15s">
+    <div class="glass-bezel lg:col-span-2">
+    <div id="pipelineActivityPanel" class="glass-metric-panel glass-p space-y-4 glass-animate-in" style="animation-delay:.15s">
       <h2 class="text-xl font-bold glass-text-3d">Pipeline Activity</h2>
 
       <div class="space-y-3 max-h-[480px] overflow-y-auto pr-1">
@@ -189,11 +202,14 @@
             </div>
           {% endfor %}
         {% else %}
-          <div class="py-8 text-center text-sm" style="color:var(--text-secondary);">
-            No pipelines yet. Start one from a client's page.
+          <div class="glass-empty">
+            <div class="glass-empty__icon">⚡</div>
+            <p class="glass-empty__title">No active pipelines</p>
+            <p class="glass-empty__desc">Launch an AI Agent from a client view to start a pipeline.</p>
           </div>
         {% endif %}
       </div>
+    </div>
     </div>
 
   </div>
@@ -356,7 +372,7 @@
   </div>
 
   <!-- ═══ Quick Links ═══ -->
-  <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 glass-stagger">
+  <div id="quickLinksRow" class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 glass-stagger">
     <a href="{{ url_for('business.list_custom_letters') }}"
        class="glass-card glass-card--light glass-p-sm flex items-center gap-4 transition-all duration-300 hover:scale-[1.02]"
        style="transition:box-shadow 0.3s ease,transform 0.3s ease;"
@@ -411,7 +427,7 @@
 
 <!-- ═══ Add Client Modal — Full CRM Intake ═══ -->
 <div id="addClientModal" class="hidden fixed inset-0 z-50 bg-black/30 backdrop-blur-sm">
-  <div class="absolute inset-0 overflow-y-auto flex items-start justify-center pt-6 pb-6">
+  <div class="absolute inset-0 overflow-y-auto flex items-center justify-center py-8">
     <div class="glass-card glass-card--heavy rounded-3xl w-full max-w-2xl mx-4 glass-animate-in" style="padding:1.25rem 1.5rem;">
 
       <!-- Header with close -->
@@ -501,6 +517,7 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script>
   // ── Client search filter ──
   const searchInput = document.getElementById('clientSearch');
@@ -796,5 +813,120 @@
       document.querySelectorAll('[data-count-target]').forEach(countUp);
     }
   })();
+
+  // ═══════════════════════════════════════════════════════════
+  //  Business Dashboard — Onboarding Tour
+  // ═══════════════════════════════════════════════════════════
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof GlassTour === 'undefined') return;
+
+    // ── All targets use element IDs — no hardcoded positions, auto-position handles it ──
+    var tourSteps = [
+      {
+        welcome: true,
+        title: 'Welcome to uDispute Business',
+        body: 'This is your <strong>command center</strong>. From here you manage every client, every dispute, and every pipeline — all in one place.'
+          + '<br><br>Let\u2019s walk through what\u2019s in front of you.'
+      },
+
+      // ── AI Agent Widget ──
+      {
+        target: '#agentWidget',
+        title: 'The AI Agent — Your Autopilot',
+        body: 'This is the crown jewel of the Business plan. The AI Agent runs <strong>autonomous dispute pipelines</strong> for your clients:'
+          + '<br><br>\u2022 Select a client from the dropdown'
+          + '<br>\u2022 Toggle the agent ON'
+          + '<br>\u2022 Configure mode (Supervised or Full Auto), letter source, and delivery options'
+          + '<br><br>In <strong>Full Auto</strong>, the agent analyzes the credit report, generates letters using your chosen prompt pack, merges supporting docs, mails everything via DocuPost, and escalates round by round — without you touching a thing.'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.85rem;font-weight:600;">Supervised mode pauses before delivery so you can review.</span>'
+      },
+
+      // ── Metrics ──
+      {
+        target: '#metricsRow',
+        title: 'Your Numbers at a Glance',
+        body: 'These four cards track the health of your operation in real-time:'
+          + '<br><br>\u2022 <strong>Total Clients</strong> — Everyone in your CRM.'
+          + '<br>\u2022 <strong>Active Pipelines</strong> — Autonomous dispute workflows currently running.'
+          + '<br>\u2022 <strong>Letters Sent</strong> — Total dispute packages mailed across all clients.'
+          + '<br>\u2022 <strong>Workflows On</strong> — Pipelines in an active processing state.'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.85rem;font-weight:600;">Numbers update live as pipelines progress.</span>'
+      },
+
+      // ── Client List ──
+      {
+        target: '#clientListPanel',
+        title: 'Your Client Roster',
+        body: 'Hit <strong>+ Add Client</strong> to onboard someone new. The intake form captures everything uDispute needs:'
+          + '<br><br>\u2022 Name, email, and mailing address'
+          + '<br>\u2022 Credit report PDF (the AI will parse it automatically)'
+          + '<br>\u2022 Supporting docs — government ID, SSN card, utility bill'
+          + '<br>\u2022 Notes for your own reference'
+          + '<br><br>Once a client is created, click their row to open their <strong>Client View</strong> — where the real work happens.'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.85rem;font-weight:600;">Use the search bar to find clients instantly.</span>'
+      },
+
+      // ── Pipeline Activity ──
+      {
+        target: '#pipelineActivityPanel',
+        title: 'Pipeline Activity Feed',
+        body: 'This panel shows every active and completed pipeline across all your clients:'
+          + '<br><br>\u2022 <span style="color:#34c759;">\u25CF</span> <strong>Green</strong> — Completed.'
+          + '<br>\u2022 <span style="color:#0077ed;">\u25CF</span> <strong>Blue pulse</strong> — Actively processing.'
+          + '<br>\u2022 <span style="color:#ff9f0a;">\u25CF</span> <strong>Yellow</strong> — Awaiting response.'
+          + '<br>\u2022 <span style="color:#ff453a;">\u25CF</span> <strong>Red</strong> — Failed or errored.'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.85rem;font-weight:600;">Each entry shows client, round, and start date.</span>'
+      },
+
+      // ── Quick Links ──
+      {
+        target: '#quickLinksRow',
+        title: 'Quick Links — Power Tools',
+        body: 'These four shortcuts give you fast access to advanced features:'
+          + '<br><br>\u2022 <strong>Custom Letters</strong> — Create and manage your own dispute letter templates. The AI Agent can use these instead of prompt packs.'
+          + '<br>\u2022 <strong>Prompt Packs</strong> — Pre-built legal strategy sets (Default, Consumer Law, ACDV, Arbitration).'
+          + '<br>\u2022 <strong>Funding Sequencer</strong> — Credit-building tools and tradeline recommendations.'
+          + '<br>\u2022 <strong>CFPB Search</strong> — Search the Consumer Financial Protection Bureau complaint database for leverage.'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.85rem;font-weight:600;">Custom Letters + AI Agent = fully personalized automation.</span>'
+      },
+
+      // ── Settings ──
+      {
+        target: 'a[href*="settings"]',
+        title: 'Settings & Preferences',
+        body: 'Manage your account, update your DocuPost API credentials for direct mailing, and configure default preferences.'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.85rem;font-weight:600;">Make sure your DocuPost key is set before running pipelines.</span>'
+      },
+
+      // ── Finale ──
+      {
+        welcome: true,
+        title: "u're ready to scale.",
+        body: 'That\u2019s your Business dashboard. Here\u2019s the workflow in a nutshell:'
+          + '<br><br><strong>1.</strong> Add a client and upload their credit report.'
+          + '<br><strong>2.</strong> Open their Client View and run the Analyzer.'
+          + '<br><strong>3.</strong> Launch the AI Agent — Supervised or Full Auto.'
+          + '<br><strong>4.</strong> The pipeline handles everything: analysis, generation, merging, mailing, tracking, and escalation.'
+          + '<br><br>When you open a client\u2019s page for the first time, we\u2019ll walk you through that too.'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.9rem;font-weight:700;">Let\u2019s build something.</span>'
+      }
+    ];
+
+    // Debug: log which targets the tour can find
+    console.log('[Biz Tour Debug] Steps:', tourSteps.length);
+    tourSteps.forEach(function (s, i) {
+      if (s.target) {
+        var found = document.querySelector(s.target);
+        console.log('[Biz Tour Debug] Step ' + i + ': "' + s.title + '" \u2192 target "' + s.target + '" \u2192 ' + (found ? 'FOUND' : 'NOT FOUND'));
+      } else {
+        console.log('[Biz Tour Debug] Step ' + i + ': "' + s.title + '" \u2192 welcome modal');
+      }
+    });
+
+    // Fire after page animations settle
+    setTimeout(function () {
+      GlassTour.start(tourSteps, { key: 'udispute_tour_biz_dashboard' });
+    }, 1200);
+  });
 </script>
 {% endblock %}

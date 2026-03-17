@@ -378,6 +378,30 @@ def mail_letter():
             from_zip=session.get('user_zip', '')
         )
 
+    # ── Resolve the PDF to send ──
+    # Priority: uploaded file > session URL from /convert-pdf
+    pdf_url = None
+    uploaded = request.files.get('pdf_file')
+    if uploaded and uploaded.filename:
+        # Save uploaded PDF and generate a serveable URL
+        upload_folder = current_app.config['UPLOAD_FOLDER']
+        user_folder = os.path.join(upload_folder, str(current_user.id))
+        os.makedirs(user_folder, exist_ok=True)
+
+        from datetime import datetime as dt
+        timestamp = dt.utcnow().strftime('%Y%m%d_%H%M%S')
+        safe_name = f'MailUpload_{timestamp}.pdf'
+        save_path = os.path.join(user_folder, safe_name)
+        uploaded.save(save_path)
+        pdf_url = url_for('disputes.serve_upload', filename=safe_name, _external=True)
+    else:
+        pdf_url = session.get('final_pdf_url')
+
+    if not pdf_url:
+        flash("No PDF found. Please upload a PDF or generate a Dispute Package first.", "error")
+        return redirect(url_for('disputes.mail_letter'))
+
+    # ── Collect addresses ──
     recipient = {
         'name': request.form.get('to_name', ''),
         'company': request.form.get('to_company', ''),
@@ -397,11 +421,21 @@ def mail_letter():
         'zip': request.form.get('from_zip', session.get('user_zip', '')),
     }
 
+    # ── Collect mail options ──
+    mail_options = {
+        'mail_class': request.form.get('class', 'usps_first_class'),
+        'servicelevel': request.form.get('servicelevel', ''),
+        'color': 'true' if request.form.get('color') else 'false',
+        'doublesided': 'true' if request.form.get('doublesided') else 'false',
+        'return_envelope': 'true' if request.form.get('return_envelope') else 'false',
+    }
+
     byok_token = get_docupost_token(current_user.id)
     result = mail_letter_via_docupost(
-        pdf_url=session.get('final_pdf_url'),
+        pdf_url=pdf_url,
         recipient=recipient,
         sender=sender,
+        mail_options=mail_options,
         api_token=byok_token,
     )
 
@@ -458,13 +492,29 @@ def convert_pdf():
         shutil.copy2(final_pdf, backup_path)
 
         pdf_serve_url = url_for('disputes.serve_upload', filename=backup_name)
+
+        # Extract bureau and round from form data or letter content
+        bureau = request.form.get('bureau', '').strip() or None
+        round_number = request.form.get('round_number', 1)
+        account_name = request.form.get('account_name', '').strip() or None
+        try:
+            round_number = int(round_number)
+        except (ValueError, TypeError):
+            round_number = 1
+
         mailed = MailedLetter(
             user_id=current_user.id,
             letter_text=letter_text,
-            pdf_url=pdf_serve_url
+            pdf_url=pdf_serve_url,
+            bureau=bureau,
+            round_number=round_number,
+            account_name=account_name
         )
         db.session.add(mailed)
         db.session.commit()
+
+        # Store the PDF URL in session so /mail-letter can use it
+        session['final_pdf_url'] = pdf_serve_url
 
     return send_file(
         final_pdf,
@@ -526,7 +576,21 @@ def add_letter():
             flash("Letter text is required.", "error")
             return redirect(url_for('disputes.add_letter'))
 
-        new = MailedLetter(user_id=current_user.id, letter_text=letter_text)
+        bureau = request.form.get('bureau', '').strip() or None
+        account_name = request.form.get('account_name', '').strip() or None
+        round_number = request.form.get('round_number', 1)
+        try:
+            round_number = int(round_number)
+        except (ValueError, TypeError):
+            round_number = 1
+
+        new = MailedLetter(
+            user_id=current_user.id,
+            letter_text=letter_text,
+            bureau=bureau,
+            round_number=round_number,
+            account_name=account_name
+        )
         db.session.add(new)
         db.session.commit()
         flash("Mailed letter recorded.", "success")

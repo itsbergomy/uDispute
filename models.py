@@ -63,7 +63,10 @@ class MailedLetter(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('Users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     letter_text = db.Column(db.Text, nullable=False)
-    pdf_url =db.Column(db.String, nullable=True)
+    pdf_url = db.Column(db.String, nullable=True)
+    bureau = db.Column(db.String(50), nullable=True)        # Equifax, TransUnion, Experian
+    round_number = db.Column(db.Integer, default=1)
+    account_name = db.Column(db.String(200), nullable=True)  # e.g. "Capital One #4821"
 
 class Correspondence(db.Model):
      id = db.Column(db.Integer, primary_key=True)

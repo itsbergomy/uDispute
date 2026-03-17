@@ -74,6 +74,7 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script src="https://js.stripe.com/v3/"></script>
 <script>
   console.log("Pro button:", document.getElementById("subscribePro"));

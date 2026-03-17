@@ -11,6 +11,7 @@
   </a>
 
   <!-- ═══════════════ CLIENT HEADER ═══════════════ -->
+  <div class="glass-bezel">
   <div class="glass-card glass-card--heavy rounded-3xl p-6 md:p-8 mb-8 glass-animate-in">
     <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
       <!-- Avatar + Info -->
@@ -46,7 +47,7 @@
         </form>
 
         <form method="POST" action="{{ url_for('business.extract_for_udispute', client_id=client.id) }}" style="display:inline;">
-          <button type="submit"
+          <button id="extractAccountsBtn" type="submit"
                   class="glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge px-4 py-1.5 text-xs font-semibold inline-flex items-center gap-1.5"
                   style="position:relative;overflow:hidden;">
             {{ icons.icon_document(14, 'ea1') }}
@@ -62,6 +63,7 @@
         </a>
       </div>
     </div>
+  </div>
   </div>
 
   <!-- ═══════════════ PIPELINE STATUS ═══════════════ -->
@@ -375,7 +377,7 @@
     <div class="lg:col-span-3 space-y-6 glass-animate-in" style="animation-delay:.15s">
 
       <!-- uDispute -->
-      <div class="glass-card glass-card--heavy rounded-3xl p-6">
+      <div id="uDisputeSection" class="glass-card glass-card--heavy rounded-3xl p-6">
         <h2 class="text-lg font-bold mb-4 glass-text-3d">uDispute&trade;</h2>
 
         <form method="POST" action="{{ url_for('business.run_udispute_flow', client_id=client.id) }}">
@@ -458,7 +460,7 @@
       </div>
 
       <!-- Client Documents -->
-      <div class="glass-card glass-card--heavy rounded-3xl p-6">
+      <div id="clientDocsSection" class="glass-card glass-card--heavy rounded-3xl p-6">
         <h2 class="text-lg font-bold mb-4 glass-text-3d">Documents</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {% if client.id_filename %}
@@ -547,8 +549,97 @@
         </div>
       </div>
 
+      <!-- Supporting Documents — Multi-upload -->
+      <div id="supportingDocsSection" class="glass-card glass-card--heavy rounded-3xl p-6">
+        <h2 class="text-lg font-bold mb-1 glass-text-3d">Supporting Documents</h2>
+        <p class="text-xs mb-4" style="color:var(--text-tertiary);">
+          Evidence, prior correspondence, identity docs — anything to include in dispute packages.
+        </p>
+
+        {% if supporting_docs %}
+        <div class="space-y-2 mb-4">
+          {% for doc in supporting_docs %}
+          <div class="glass-card glass-card--light rounded-xl p-3 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 flex-1 min-w-0">
+              <!-- Doc type badge -->
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+                    style="background:rgba(255,255,255,0.1);color:var(--text-secondary);text-transform:capitalize;">
+                {{ doc.doc_type | replace('_', ' ') }}
+              </span>
+              <div class="min-w-0">
+                <div class="text-sm font-medium truncate" style="color:var(--text-primary);">
+                  {{ doc.filename.split('_', 1)[-1] if '_' in doc.filename else doc.filename }}
+                </div>
+                <div class="text-xs" style="color:var(--text-tertiary);">
+                  {{ doc.uploaded_at.strftime('%b %d, %Y') if doc.uploaded_at else '' }}
+                  {% if doc.description %} · {{ doc.description }}{% endif %}
+                  {% if doc.include_in_package %}
+                    <span class="ml-1" style="color:var(--accent, #0077ed);">✓ In package</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <a href="{{ url_for('business.view_supporting_doc_file', client_id=client.id, filename=doc.filename) }}"
+                 target="_blank"
+                 class="glass-btn glass-btn--primary glass-btn--pill text-xs px-3 py-1">View</a>
+              <form method="POST"
+                    action="{{ url_for('business.delete_supporting_doc', client_id=client.id, doc_id=doc.id) }}"
+                    onsubmit="return confirm('Remove this document?');"
+                    style="margin:0;">
+                <button type="submit" class="glass-btn glass-btn--pill text-xs px-2 py-1"
+                        style="background:rgba(231,76,60,0.15);color:#e74c3c;">✕</button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="glass-empty">
+          <div class="glass-empty__icon">📎</div>
+          <p class="glass-empty__title">No supporting documents</p>
+          <p class="glass-empty__desc">Upload ID, proof of address, or other documents to include with disputes.</p>
+        </div>
+        {% endif %}
+
+        <!-- Multi-upload form -->
+        <form method="POST"
+              action="{{ url_for('business.upload_supporting_docs', client_id=client.id) }}"
+              enctype="multipart/form-data"
+              class="glass-inset rounded-xl p-4">
+          <div class="flex gap-3 mb-3">
+            <select name="doc_type" class="glass-input text-sm" style="flex:1;">
+              <option value="evidence">Evidence</option>
+              <option value="prior_response">Prior Bureau Response</option>
+              <option value="identity">Identity Document</option>
+              <option value="correspondence">Prior Correspondence</option>
+              <option value="bill">Bill / Statement</option>
+              <option value="other">Other</option>
+            </select>
+            <label class="flex items-center gap-1.5 text-xs cursor-pointer flex-shrink-0" style="color:var(--text-secondary);">
+              <input type="checkbox" name="include_in_package" checked
+                     style="accent-color:var(--accent, #0077ed);" />
+              Include in package
+            </label>
+          </div>
+          <input type="text" name="description" class="glass-input text-sm mb-3 w-full" placeholder="Description (optional)" />
+          <div class="flex gap-2 items-end">
+            <input type="file" name="supporting_files" multiple
+                   accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                   required class="glass-input flex-1 text-sm" />
+            <button type="submit" class="glass-btn glass-btn--primary glass-btn--pill text-xs px-4 py-2 flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+              </svg>
+              Upload
+            </button>
+          </div>
+          <p class="text-xs mt-2" style="color:var(--text-tertiary);">Select multiple files at once. PDF, PNG, JPG, DOC accepted.</p>
+        </form>
+      </div>
+
       <!-- Mailed Letters (Archive / Backup) -->
-      <div class="glass-card glass-card--heavy rounded-3xl p-6">
+      <div id="mailedLettersSection" class="glass-card glass-card--heavy rounded-3xl p-6">
         <h2 class="text-lg font-bold mb-4 glass-text-3d">Mailed Letters</h2>
         {% if letters %}
         <div class="space-y-2">
@@ -571,7 +662,11 @@
           {% endfor %}
         </div>
         {% else %}
-        <p class="text-sm" style="color:var(--text-tertiary);">No letters mailed yet.</p>
+        <div class="glass-empty">
+          <div class="glass-empty__icon">📬</div>
+          <p class="glass-empty__title">No letters mailed yet</p>
+          <p class="glass-empty__desc">Letters are archived here automatically after being sent through DocuPost.</p>
+        </div>
         {% endif %}
       </div>
 
@@ -649,14 +744,15 @@
           </div>
         {% endfor %}
       {% else %}
-        <div class="glass-card glass-card--light rounded-3xl p-6 text-center">
-          <div class="text-3xl mb-2">&#x1F4CA;</div>
-          <p class="text-sm" style="color:var(--text-tertiary);">No analyses yet. Click "Run Analyzer" above.</p>
+        <div class="glass-empty">
+          <div class="glass-empty__icon">📊</div>
+          <p class="glass-empty__title">No analyses yet</p>
+          <p class="glass-empty__desc">Click Run Analyzer above to assess this client's credit report.</p>
         </div>
       {% endif %}
 
       <!-- Client Portal Card -->
-      <div class="glass-card glass-card--heavy rounded-3xl p-5">
+      <div id="clientPortalCard" class="glass-card glass-card--heavy rounded-3xl p-5">
         <h3 class="text-sm font-bold mb-3 glass-text-3d">Client Portal</h3>
         <p class="text-xs mb-3" style="color:var(--text-tertiary);">Share a read-only status link with your client — no login required.</p>
 
@@ -1204,5 +1300,142 @@
     }, POLL_INTERVAL);
   })();
   {% endif %}
+
+  // ═══════════════════════════════════════════════════════════
+  //  Client View — Onboarding Tour
+  // ═══════════════════════════════════════════════════════════
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof GlassTour === 'undefined') return;
+
+    // ── All selectors use element IDs — no fragile CSS/URL matching ──
+    var tourSteps = [
+      {
+        welcome: true,
+        title: 'Client View',
+        body: 'This is <strong>{{ client.first_name }}\'s command center</strong>. Everything you need to manage their disputes — analysis, letter generation, document storage, mailing, and tracking — lives on this page.'
+          + '<br><br>Let\'s walk through each section.'
+      },
+
+      // ── Run Analyzer ──
+      {
+        target: '#runAnalyzerBtn',
+        title: 'Run Analyzer — AI Credit Assessment',
+        body: 'This is always your <strong>first step</strong> with a new client. The Analyzer reads their credit report PDF and generates a full breakdown:'
+          + '<br><br>• <strong>FICO Score</strong> & <strong>Utilization</strong>'
+          + '<br>• <strong>Collections</strong>, <strong>Negatives</strong>, & <strong>Total Debt</strong>'
+          + '<br>• <strong>Credit Age</strong> & actionable <strong>recommendations</strong>'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.85rem;font-weight:600;">Analysis results appear in the right column. Run it again any time to re-assess.</span>',
+      },
+
+      // ── Extract Accounts ──
+      {
+        target: '#extractAccountsBtn',
+        title: 'Extract Accounts',
+        body: 'After running the Analyzer, click this to <strong>pull every account</strong> from the credit report into the system.'
+          + '<br><br>Extracted accounts populate the <strong>Account</strong> dropdown in the uDispute™ form below — so you can target specific tradelines for disputes.'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.85rem;font-weight:600;">Run Analyzer first, then Extract — that\'s the intake flow.</span>'
+      },
+
+      // ── uDispute Form ──
+      {
+        target: '#uDisputeSection',
+        title: 'uDispute™ — Manual Dispute Generator',
+        body: 'When you want to generate a dispute letter manually (instead of using the AI Agent), this is where you do it:'
+          + '<br><br>• Select the <strong>Account</strong> and <strong>Bureau</strong>'
+          + '<br>• Choose an <strong>Action</strong> (Delete, Update, Validate, etc.)'
+          + '<br>• Select the <strong>Issue</strong> (Inaccurate, Not My Account, etc.)'
+          + '<br>• Pick a <strong>Prompt Pack</strong> or use a <strong>Custom Letter</strong> template'
+          + '<br><br>Hit Generate and the AI drafts a dispute letter you can review, edit, and send.'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.85rem;font-weight:600;">Great for one-off disputes or when you want full control.</span>'
+      },
+
+      // ── Documents ──
+      {
+        target: '#clientDocsSection',
+        title: 'Client Documents',
+        body: 'All the core identity documents your client uploaded during intake are here — <strong>Government ID</strong>, <strong>SSN Card</strong>, <strong>Credit Report</strong>, and a <strong>Utility Bill</strong>.'
+          + '<br><br>Click any card to view the document. These get merged into dispute packages automatically when you mail.'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.85rem;font-weight:600;">Use the Notes button to keep private records about this client.</span>'
+      },
+
+      // ── Supporting Documents ──
+      {
+        target: '#supportingDocsSection',
+        title: 'Supporting Documents — Your Evidence Vault',
+        body: 'This is where you upload <strong>evidence and prior correspondence</strong> to strengthen disputes:'
+          + '<br><br>• <strong>Evidence</strong> — Bank statements, payment receipts, screenshots'
+          + '<br>• <strong>Prior Bureau Responses</strong> — Letters you\'ve received back from bureaus'
+          + '<br>• <strong>Identity Documents</strong> — Extra identity verification'
+          + '<br>• <strong>Correspondence</strong> — Emails, certified mail receipts'
+          + '<br><br>Check <strong>"Include in package"</strong> and the document gets automatically merged into the next dispute package the AI Agent or uDispute generates.'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.85rem;font-weight:600;">Upload multiple files at once. PDF, PNG, JPG, DOC accepted.</span>'
+      },
+
+      // ── Mailed Letters ──
+      {
+        target: '#mailedLettersSection',
+        title: 'Mailed Letters — Sent Package Archive',
+        body: 'Every dispute package that gets mailed through DocuPost is archived here, organized by:'
+          + '<br><br>• <strong>Bureau</strong> — Equifax, TransUnion, or Experian'
+          + '<br>• <strong>Date Sent</strong> — When it was delivered to DocuPost'
+          + '<br>• <strong>Round Number</strong> — Which dispute round it belongs to'
+          + '<br><br>Click <strong>View PDF</strong> to see the full merged package exactly as it was sent.'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.85rem;font-weight:600;">This is your paper trail. Every letter, every round, all searchable.</span>'
+      }
+    ];
+
+    // Pipeline Card — only if a pipeline exists on this client
+    if (document.querySelector('#pipelineCard')) {
+      tourSteps.push({
+        target: '#pipelineCard',
+        title: 'Pipeline Tracker — Live Progress',
+        body: 'When the AI Agent is running, this card shows the <strong>real-time pipeline status</strong>:'
+          + '<br><br>• The <strong>state stepper</strong> tracks progress through: Intake \u2192 Strategy \u2192 Generation \u2192 Review \u2192 Delivery \u2192 Awaiting Response'
+          + '<br>• <strong>Round tabs</strong> let you filter accounts by dispute round'
+          + '<br>• Each account row shows the letter, delivery status, and outcome'
+          + '<br><br>In <strong>Supervised mode</strong>, you\'ll see an Approve button before letters get mailed.'
+          + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.85rem;font-weight:600;">The pipeline auto-escalates across rounds — checking outcomes and adjusting strategy.</span>'
+      });
+    }
+
+    // Client Portal
+    tourSteps.push({
+      target: '#clientPortalCard',
+      title: 'Client Portal',
+      body: 'Generate a <strong>read-only portal link</strong> to share with your client — no login required.'
+        + '<br><br>• Shows pipeline progress, delivery status, and outcomes'
+        + '<br>• Links auto-expire for security'
+        + '<br>• Revoke access anytime'
+        + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.85rem;font-weight:600;">Your clients always know where things stand.</span>'
+    });
+
+    // Finale
+    tourSteps.push({
+      welcome: true,
+      title: "u're in control.",
+      body: 'That\'s the Client View. The typical workflow:'
+        + '<br><br><strong>1.</strong> Run the <strong>Analyzer</strong> to assess the credit report.'
+        + '<br><strong>2.</strong> Upload any <strong>supporting documents</strong> as evidence.'
+        + '<br><strong>3.</strong> Generate disputes manually with <strong>uDispute\u2122</strong> — or launch the <strong>AI Agent</strong> from the dashboard.'
+        + '<br><strong>4.</strong> Track everything in <strong>Mailed Letters</strong> and share progress via the <strong>Client Portal</strong>.'
+        + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.9rem;font-weight:700;">Every tool. One page. Let\'s get to work.</span>'
+    });
+
+    // Debug
+    console.log('[Client Tour Debug] Steps:', tourSteps.length);
+    tourSteps.forEach(function (s, i) {
+      if (s.target) {
+        var found = document.querySelector(s.target);
+        console.log('[Client Tour Debug] Step ' + i + ': "' + s.title + '" → target "' + s.target + '" → ' + (found ? 'FOUND' : 'NOT FOUND'));
+      } else {
+        console.log('[Client Tour Debug] Step ' + i + ': "' + s.title + '" → welcome modal');
+      }
+    });
+
+    // Fire after page animations settle
+    setTimeout(function () {
+      GlassTour.start(tourSteps, { key: 'udispute_tour_client_view' });
+    }, 1200);
+  });
 </script>
 {% endblock %}

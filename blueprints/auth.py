@@ -18,6 +18,22 @@ STRIPE_TEST_PUBLISHABLE_KEY = os.getenv("STRIPE_TEST_PUBLISHABLE_KEY")
 
 auth_bp = Blueprint('auth', __name__)
 
+# ── Beta invite codes ────────────────────────────────────
+# Add codes here as plain uppercase strings. Users can type
+# them in any case — input is uppercased before comparison.
+BETA_CODES = {
+    'UDISPUTE2026',
+    'EARLYACCESS',
+    'GLASSGANG',
+    'LIQUIDGLASS',
+    'CREDITFIX',
+    'SKOOLBETA',
+    'FIRSTROUND',
+    'UPOWER',
+    'BETAWAVE',
+    'REPAIRMODE',
+}
+
 
 @auth_bp.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -27,6 +43,11 @@ def signup():
         un = request.form['username'].strip()
         em = request.form['email'].strip().lower()
         pw = request.form['password']
+        beta_code = request.form.get('beta_code', '').strip().upper()
+
+        if beta_code not in BETA_CODES:
+            flash('Invalid beta invite code.', 'error')
+            return redirect(url_for('auth.signup'))
 
         if User.get_by_username(un):
             flash('Username already taken', 'error')

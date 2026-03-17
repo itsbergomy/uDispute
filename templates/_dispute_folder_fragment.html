@@ -17,7 +17,11 @@
         <p class="mt-1 text-sm">{{ entry.description }}</p>
       </div>
     {% else %}
-      <p class="text-sm" style="color:var(--text-tertiary);">No log entries yet.</p>
+      <div class="glass-empty">
+        <div class="glass-empty__icon">📝</div>
+        <p class="glass-empty__title">No log entries yet</p>
+        <p class="glass-empty__desc">Use the form below to record your dispute activity.</p>
+      </div>
     {% endfor %}
     <form class="mt-4 drawer-form" data-url="{{ url_for('disputes.add_log') }}">
       <input name="title" required class="glass-input mb-2" placeholder="Title" />
@@ -32,8 +36,15 @@
       <div class="mb-3 glass-card glass-card--light rounded-xl p-3">
         <div class="flex items-center justify-between">
           <div class="min-w-0 flex-1">
-            <div class="text-xs" style="color:var(--text-tertiary);">{{ L.created_at }}</div>
-            <p class="mt-1 text-sm truncate">{{ L.letter_text[:80] }}{% if L.letter_text|length > 80 %}...{% endif %}</p>
+            {% if L.bureau %}
+              <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full mr-1"
+                    style="background:rgba(255,255,255,0.1);color:var(--text-secondary);">{{ L.bureau }}</span>
+            {% endif %}
+            {% if L.round_number %}
+              <span class="text-xs" style="color:var(--text-tertiary);">R{{ L.round_number }}</span>
+            {% endif %}
+            <span class="text-xs ml-1" style="color:var(--text-tertiary);">{{ L.created_at.strftime('%b %d, %Y') if L.created_at else '' }}</span>
+            <p class="mt-1 text-sm truncate" style="color:var(--text-secondary);">{{ L.letter_text[:80] }}{% if L.letter_text|length > 80 %}…{% endif %}</p>
           </div>
           {% if L.pdf_url %}
           <a href="{{ L.pdf_url }}" target="_blank" class="glass-btn glass-btn--primary glass-btn--pill text-xs px-3 py-1 ml-3 shrink-0">View PDF</a>
@@ -41,12 +52,12 @@
         </div>
       </div>
     {% else %}
-      <p class="text-sm" style="color:var(--text-tertiary);">No mailed letters recorded.</p>
+      <div class="glass-empty">
+        <div class="glass-empty__icon">📬</div>
+        <p class="glass-empty__title">No mailed letters yet</p>
+        <p class="glass-empty__desc">Letters are saved here automatically when you generate a Dispute Package.</p>
+      </div>
     {% endfor %}
-    <form class="mt-4 drawer-form" data-url="{{ url_for('disputes.add_letter') }}">
-      <textarea name="letter_text" required class="glass-input glass-textarea" placeholder="Paste letter text..."></textarea>
-      <button type="submit" class="mt-2 glass-btn glass-btn--primary w-full">Record Mailed Letter</button>
-    </form>
   </div>
 
   <!-- Correspondence / Uploads -->
@@ -67,7 +78,11 @@
         </div>
       </div>
     {% else %}
-      <p class="text-sm" style="color:var(--text-tertiary);">No documents uploaded.</p>
+      <div class="glass-empty">
+        <div class="glass-empty__icon">📄</div>
+        <p class="glass-empty__title">No documents uploaded</p>
+        <p class="glass-empty__desc">Upload correspondence or supporting files using the form below.</p>
+      </div>
     {% endfor %}
     <form class="mt-4 drawer-upload-form" data-url="{{ url_for('disputes.upload_doc') }}" enctype="multipart/form-data">
       <label class="glass-label mb-1 text-xs">Upload a document</label>

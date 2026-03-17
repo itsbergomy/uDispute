@@ -17,7 +17,7 @@ from werkzeug.utils import secure_filename
 from models import (
     db, Client, ClientReportAnalysis, ClientDisputeLetter,
     WorkflowSetting, CustomLetter, MessageThread, Message,
-    Correspondence, DisputePipeline, ClientPortalToken
+    Correspondence, DisputePipeline, ClientPortalToken, SupportingDoc
 )
 from services.pdf_parser import extract_negative_items_from_pdf
 from services.report_analyzer import run_report_analysis
@@ -174,13 +174,19 @@ def view_client(client_id):
         client_id=client.id, is_active=True
     ).first()
 
+    # Supporting documents for this client
+    supporting_docs = SupportingDoc.query.filter_by(
+        client_id=client.id
+    ).order_by(SupportingDoc.uploaded_at.desc()).all()
+
     return render_template("view_client.html",
                            client=client,
                            client_parsed_accounts=client_parsed_accounts,
                            workflow_settings=workflow_settings,
                            active_pipeline=active_pipeline,
                            pipeline_status=pipeline_status,
-                           portal_token=portal_token)
+                           portal_token=portal_token,
+                           supporting_docs=supporting_docs)
 
 
 @business_bp.route('/clients/<int:client_id>/notes', methods=['GET', 'POST'])
@@ -235,6 +241,89 @@ def view_correspondence_file(client_id, filename):
         abort(403)
     corr_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(client_id), 'correspondence')
     return send_from_directory(corr_dir, filename)
+
+
+# ── Supporting Documents — Multi-upload for Business Clients ──
+
+@business_bp.route('/clients/<int:client_id>/upload-documents', methods=['POST'])
+@login_required
+def upload_supporting_docs(client_id):
+    """Multi-file upload for supporting documents (evidence, prior correspondence, etc.)."""
+    client = Client.query.get_or_404(client_id)
+    if client.business_user_id != current_user.id:
+        abort(403)
+
+    files = request.files.getlist('supporting_files')
+    doc_type = request.form.get('doc_type', 'other').strip()
+    description = request.form.get('description', '').strip() or None
+    include_in_package = request.form.get('include_in_package') == 'on'
+
+    if not files or all(f.filename == '' for f in files):
+        flash("No files selected.", "error")
+        return redirect(url_for('business.view_client', client_id=client_id))
+
+    doc_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(client.id), 'supporting_docs')
+    os.makedirs(doc_dir, exist_ok=True)
+
+    count = 0
+    for file in files:
+        if not file or not file.filename:
+            continue
+        filename = secure_filename(file.filename)
+        # Prevent overwrites with timestamp prefix
+        ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+        unique_name = f"{ts}_{filename}"
+        filepath = os.path.join(doc_dir, unique_name)
+        file.save(filepath)
+
+        doc = SupportingDoc(
+            user_id=current_user.id,
+            client_id=client.id,
+            filename=unique_name,
+            file_url=filepath,
+            doc_type=doc_type,
+            description=description,
+            include_in_package=include_in_package
+        )
+        db.session.add(doc)
+        count += 1
+
+    db.session.commit()
+    flash(f"{count} document{'s' if count != 1 else ''} uploaded.", "success")
+    return redirect(url_for('business.view_client', client_id=client_id))
+
+
+@business_bp.route('/clients/<int:client_id>/documents/<int:doc_id>/delete', methods=['POST'])
+@login_required
+def delete_supporting_doc(client_id, doc_id):
+    """Delete a supporting document."""
+    client = Client.query.get_or_404(client_id)
+    if client.business_user_id != current_user.id:
+        abort(403)
+
+    doc = SupportingDoc.query.get_or_404(doc_id)
+    if doc.client_id != client.id:
+        abort(403)
+
+    # Remove file from disk
+    if doc.file_url and os.path.exists(doc.file_url):
+        os.remove(doc.file_url)
+
+    db.session.delete(doc)
+    db.session.commit()
+    flash("Document removed.", "success")
+    return redirect(url_for('business.view_client', client_id=client_id))
+
+
+@business_bp.route('/clients/<int:client_id>/documents/<filename>')
+@login_required
+def view_supporting_doc_file(client_id, filename):
+    """Serve a supporting document file."""
+    client = Client.query.get_or_404(client_id)
+    if client.business_user_id != current_user.id:
+        abort(403)
+    doc_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(client_id), 'supporting_docs')
+    return send_from_directory(doc_dir, filename)
 
 
 @business_bp.route('/clients/<int:client_id>/edit', methods=['GET', 'POST'])

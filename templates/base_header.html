@@ -9,6 +9,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/liquid-glass.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/glass-tour.css') }}">
+  <script src="{{ url_for('static', filename='js/glass-tour.js') }}" defer></script>
 </head>
 <body class="glass-body">
 
@@ -87,7 +89,9 @@
           {% endfor %}
         </div>
 
-        <a href="{{ url_for('disputes.settings_page') }}" class="text-base font-medium" style="color:var(--text-secondary);">Settings</a>
+        <a href="{{ url_for('disputes.settings_page') }}"
+           class="text-base font-medium glass-nav-link {% if request.endpoint == 'disputes.settings_page' %}glass-nav-link--active{% endif %}"
+           style="color:var(--text-secondary);">Settings</a>
         <a href="{{ url_for('logout') }}" class="text-base font-medium">Logout</a>
 
       {% else %}
@@ -183,7 +187,7 @@
       scrollbar-width: thin;
       scrollbar-color: rgba(255,255,255,0.15) transparent;
     ">
-      <p class="p-6 text-sm" style="color:var(--text-tertiary);">Loading...</p>
+      <div class="p-6 space-y-3"><div class="glass-skeleton glass-skeleton--line" style="width:55%;height:16px;"></div><div class="glass-skeleton glass-skeleton--line" style="width:100%;"></div><div class="glass-skeleton glass-skeleton--line" style="width:80%;"></div><div class="glass-skeleton glass-skeleton--line" style="width:40%;"></div></div>
     </div>
   </div>
 
@@ -248,16 +252,19 @@
   </style>
   {% endif %}
 
-  <!-- Flash messages -->
+  <!-- Toast Notification Container -->
+  <div class="glass-toast-container" id="toastContainer"></div>
+
+  <!-- Convert Flask flash messages to toasts -->
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-    <div class="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-md space-y-2 px-4">
-      {% for category, message in messages %}
-        <div class="glass-flash glass-flash--{{ 'error' if category == 'error' else ('success' if category == 'success' else 'info') }}">
-          {{ message }}
-        </div>
-      {% endfor %}
-    </div>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        {% for category, message in messages %}
+          showToast('{{ message|e }}', '{{ category }}');
+        {% endfor %}
+      });
+    </script>
     {% endif %}
   {% endwith %}
 
@@ -267,6 +274,43 @@
 
   {% block scripts %}
   <script>
+    // ─── Toast Notification System ───
+    function showToast(message, category) {
+      var container = document.getElementById('toastContainer');
+      if (!container) return;
+
+      var type = 'info';
+      if (category === 'error' || category === 'danger') type = 'error';
+      else if (category === 'success') type = 'success';
+      else if (category === 'warning') type = 'warning';
+
+      var toast = document.createElement('div');
+      toast.className = 'glass-toast glass-toast--' + type;
+      toast.innerHTML = message + '<div class="glass-toast__progress"></div>';
+      container.appendChild(toast);
+
+      // Slide in
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          toast.classList.add('glass-toast--visible');
+        });
+      });
+
+      // Auto-dismiss after 4s
+      setTimeout(function() {
+        toast.classList.remove('glass-toast--visible');
+        toast.classList.add('glass-toast--dismissing');
+        setTimeout(function() { toast.remove(); }, 500);
+      }, 4000);
+
+      // Click to dismiss early
+      toast.addEventListener('click', function() {
+        toast.classList.remove('glass-toast--visible');
+        toast.classList.add('glass-toast--dismissing');
+        setTimeout(function() { toast.remove(); }, 500);
+      });
+    }
+
     const folderWin = document.getElementById('disputeWindow');
     const drawerContent = document.getElementById('drawerContent');
     const openBtn = document.getElementById('openDisputeFolder');
@@ -276,7 +320,7 @@
     // ─── Load content via AJAX ───
     function loadDrawer() {
       if (!drawerContent) return;
-      drawerContent.innerHTML = '<p class="p-6 text-sm" style="color:var(--text-tertiary);">Loading...</p>';
+      drawerContent.innerHTML = '<div class="p-6 space-y-3"><div class="glass-skeleton glass-skeleton--line" style="width:55%;height:16px;"></div><div class="glass-skeleton glass-skeleton--line" style="width:100%;"></div><div class="glass-skeleton glass-skeleton--line" style="width:80%;"></div><div class="glass-skeleton glass-skeleton--line" style="width:40%;"></div></div>';
       fetch('/api/dispute-folder-data')
         .then(r => r.text())
         .then(html => {
@@ -341,24 +385,44 @@
     // ─── Open window ───
     if (openBtn && folderWin) {
       openBtn.addEventListener('click', () => {
-        // Reset to center on each open
-        folderWin.style.top = '50%';
-        folderWin.style.left = '50%';
-        folderWin.style.transform = 'translate(-50%, -50%) scale(0.85)';
+        // Show the window offscreen to measure it, then center with pixel coords
+        folderWin.style.display = 'flex';
+        folderWin.style.visibility = 'hidden';
+        folderWin.style.transform = 'none';
+        folderWin.style.top = '0';
+        folderWin.style.left = '0';
+
+        // Force layout so we can read dimensions
+        const winW = folderWin.offsetWidth;
+        const winH = folderWin.offsetHeight;
+        const vpW = window.innerWidth;
+        const vpH = window.innerHeight;
+
+        // Center using pixel values (never percentages — avoids drag jump)
+        const centerX = Math.max(16, (vpW - winW) / 2);
+        const centerY = Math.max(16, (vpH - winH) / 2);
+
+        folderWin.style.left = centerX + 'px';
+        folderWin.style.top = centerY + 'px';
+        folderWin.style.transform = 'scale(0.85)';
+        folderWin.style.opacity = '0';
+        folderWin.style.visibility = '';
+
         folderWin.classList.remove('is-closing');
         folderWin.classList.add('is-open');
         loadDrawer();
 
-        // After open animation finishes, resolve to pixel coords
-        // so drag never causes a coordinate-system jump
-        folderWin.addEventListener('animationend', function resolveCoords() {
-          const rect = folderWin.getBoundingClientRect();
-          folderWin.style.animation = 'none';
-          folderWin.style.transform = 'none';
-          folderWin.style.left = rect.left + 'px';
-          folderWin.style.top = rect.top + 'px';
+        // Animate in: scale up + fade in
+        requestAnimationFrame(() => {
+          folderWin.style.transition = 'opacity 0.25s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)';
+          folderWin.style.transform = 'scale(1)';
           folderWin.style.opacity = '1';
-          folderWin.removeEventListener('animationend', resolveCoords);
+
+          // Clean up transition after it finishes
+          setTimeout(() => {
+            folderWin.style.transition = '';
+            folderWin.style.transform = 'none';
+          }, 280);
         });
       });
     }
