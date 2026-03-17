@@ -58,6 +58,16 @@ window.GlassTour = (function () {
     return (rect.width < 200 || rect.height < 60) ? SPOTLIGHT_PAD : 0;
   }
 
+  // Kill all CSS transitions on an element so repositioning is instant
+  function freezeTransitions(el) {
+    el.style.transition = 'none';
+  }
+
+  // Re-enable transitions for smooth reveal
+  function unfreezeTransitions(el) {
+    el.style.transition = '';
+  }
+
   // ── Create DOM elements ──
   function createElements() {
     backdrop = document.createElement('div');
@@ -70,7 +80,8 @@ window.GlassTour = (function () {
     document.body.appendChild(spotlight);
 
     tooltip = document.createElement('div');
-    tooltip.className = 'glass-tour-tooltip glass-tour-tooltip--entering';
+    tooltip.className = 'glass-tour-tooltip';
+    tooltip.style.opacity = '0';
     document.body.appendChild(tooltip);
 
     backdrop.addEventListener('click', function (e) {
@@ -84,7 +95,7 @@ window.GlassTour = (function () {
     if (tooltip) { tooltip.remove(); tooltip = null; }
   }
 
-  // ── Position the spotlight around a target element ──
+  // ── Position the spotlight around a target element (instant, no animation) ──
   function positionSpotlight(el) {
     var rect = el.getBoundingClientRect();
     var pad = elPad(el);
@@ -94,60 +105,44 @@ window.GlassTour = (function () {
     spotlight.style.width = (rect.width + pad * 2) + 'px';
     spotlight.style.height = (rect.height + pad * 2) + 'px';
     spotlight.style.borderRadius = pad > 0 ? '16px' : (getComputedStyle(el).borderRadius || '24px');
-    spotlight.style.opacity = '1';
+    // NOTE: do NOT set opacity here — caller controls visibility
   }
 
-  // ── Position tooltip: CENTERED on page, in the opposite half from the element ──
-  function positionTooltip(el) {
+  // ── Calculate where tooltip should go ──
+  function calcTooltipPosition(el) {
     var rect = el.getBoundingClientRect();
     var pad = elPad(el);
     var vh = window.innerHeight;
     var vw = window.innerWidth;
 
-    // Center horizontally
     var left = (vw - TOOLTIP_W) / 2;
     left = Math.max(VIEWPORT_PAD, Math.min(left, vw - TOOLTIP_W - VIEWPORT_PAD));
 
-    // Determine which half the element center sits in
     var elCenterY = rect.top + rect.height / 2;
     var spotlightBottom = rect.bottom + pad;
     var spotlightTop = rect.top - pad;
 
-    tooltip.style.left = left + 'px';
-    tooltip.style.width = TOOLTIP_W + 'px';
+    return { left: left, elCenterY: elCenterY, spotlightBottom: spotlightBottom, spotlightTop: spotlightTop, vh: vh };
+  }
 
-    // Render offscreen first to measure height
-    tooltip.style.top = '-9999px';
-    tooltip.style.visibility = 'hidden';
-
-    requestAnimationFrame(function () {
-      var tooltipH = tooltip.offsetHeight;
-      var top;
-
-      if (elCenterY < vh / 2) {
-        // Element is in the top half → put tooltip in the bottom half
-        // Place tooltip so it doesn't overlap the spotlight
-        var minTop = spotlightBottom + 20;
-        // Center in the remaining bottom space
-        var bottomSpace = vh - minTop;
-        top = minTop + Math.max(0, (bottomSpace - tooltipH) / 2);
-        // But never go off the bottom
-        top = Math.min(top, vh - tooltipH - VIEWPORT_PAD);
-      } else {
-        // Element is in the bottom half → put tooltip in the top half
-        var maxBottom = spotlightTop - 20;
-        // Center in the remaining top space
-        top = Math.max(VIEWPORT_PAD, (maxBottom - tooltipH) / 2);
-        // But never overlap the spotlight
-        if (top + tooltipH > spotlightTop - 20) {
-          top = spotlightTop - 20 - tooltipH;
-        }
-        top = Math.max(VIEWPORT_PAD, top);
+  function calcTop(tooltipH, pos) {
+    var top;
+    if (pos.elCenterY < pos.vh / 2) {
+      // Element in top half → tooltip in bottom half
+      var minTop = pos.spotlightBottom + 20;
+      var bottomSpace = pos.vh - minTop;
+      top = minTop + Math.max(0, (bottomSpace - tooltipH) / 2);
+      top = Math.min(top, pos.vh - tooltipH - VIEWPORT_PAD);
+    } else {
+      // Element in bottom half → tooltip in top half
+      var maxBottom = pos.spotlightTop - 20;
+      top = Math.max(VIEWPORT_PAD, (maxBottom - tooltipH) / 2);
+      if (top + tooltipH > pos.spotlightTop - 20) {
+        top = pos.spotlightTop - 20 - tooltipH;
       }
-
-      tooltip.style.top = top + 'px';
-      tooltip.style.visibility = '';
-    });
+      top = Math.max(VIEWPORT_PAD, top);
+    }
+    return top;
   }
 
   // ── Scroll: put element in one half, leave other half for tooltip ──
@@ -158,12 +153,7 @@ window.GlassTour = (function () {
     var elAbsTop = window.scrollY + rect.top;
     var elH = rect.height + pad * 2;
 
-    // We want the element in the top ~45% of the viewport
-    // so the bottom ~55% is free for the instruction panel
-    // Target: element top at ~10% of viewport height
     var targetViewportTop = vh * 0.08;
-
-    // If element is taller than 40% of viewport, just put it at the top
     if (elH > vh * 0.4) {
       targetViewportTop = 20;
     }
@@ -190,7 +180,7 @@ window.GlassTour = (function () {
     }
   }
 
-  // ── Render step content ──
+  // ── Render step content HTML ──
   function renderStep(index) {
     var step = steps[index];
     var total = steps.length;
@@ -222,35 +212,58 @@ window.GlassTour = (function () {
       + '</div>';
   }
 
-  // ── Clear all inline styles from transitions ──
-  function resetTooltipStyles() {
-    tooltip.style.opacity = '';
-    tooltip.style.transform = '';
-    tooltip.style.transition = '';
-    tooltip.style.top = '';
-    tooltip.style.left = '';
-    tooltip.style.width = '';
-    tooltip.style.visibility = '';
-  }
-
-  // ── Render a targeted step (spotlight + tooltip) ──
+  // ── Render a targeted step ──
+  // Everything is positioned while invisible, then revealed in one frame
   function renderTargetedStep(index, target, step) {
-    tooltip.className = 'glass-tour-tooltip glass-tour-tooltip--entering';
-    resetTooltipStyles();
+    // 1. Freeze all transitions — no CSS animations during repositioning
+    freezeTransitions(spotlight);
+    freezeTransitions(tooltip);
+
+    // 2. Hide both completely
+    spotlight.style.opacity = '0';
+    tooltip.style.opacity = '0';
+    tooltip.style.transform = 'translateY(12px) scale(0.97)';
+
+    // 3. Set tooltip content and class
+    tooltip.className = 'glass-tour-tooltip';
     tooltip.innerHTML = renderStep(index);
 
+    // 4. Position spotlight at target (invisible)
     positionSpotlight(target);
-    positionTooltip(target);
 
+    // 5. Position tooltip — measure offscreen, then place
+    var pos = calcTooltipPosition(target);
+    tooltip.style.left = pos.left + 'px';
+    tooltip.style.width = TOOLTIP_W + 'px';
+
+    // Place offscreen to measure real height
+    tooltip.style.top = '-9999px';
+
+    // 6. Bind buttons now (content is in DOM)
     bindButtons();
 
-    // Animate in (after positionTooltip's RAF runs)
+    // 7. Wait one frame for layout, then position and reveal
     requestAnimationFrame(function () {
+      var tooltipH = tooltip.offsetHeight;
+      var top = calcTop(tooltipH, pos);
+
+      // Set final position (still invisible, transitions still frozen)
+      tooltip.style.top = top + 'px';
+
+      // 8. Wait another frame so the browser registers the position
+      //    THEN unfreeze transitions and reveal both together
       requestAnimationFrame(function () {
-        requestAnimationFrame(function () {
-          tooltip.classList.remove('glass-tour-tooltip--entering');
-          tooltip.classList.add('glass-tour-tooltip--visible');
-        });
+        // Unfreeze — CSS transitions now active for the opacity/transform reveal
+        unfreezeTransitions(spotlight);
+        unfreezeTransitions(tooltip);
+
+        // Force reflow so the browser sees the frozen state before animating
+        void spotlight.offsetHeight;
+
+        // Reveal both simultaneously
+        spotlight.style.opacity = '1';
+        tooltip.style.opacity = '1';
+        tooltip.style.transform = 'translateY(0) scale(1)';
       });
     });
   }
@@ -260,26 +273,36 @@ window.GlassTour = (function () {
     var step = steps[index];
     currentStep = index;
 
-    resetTooltipStyles();
-
     if (step.welcome) {
+      // ── Welcome modal — centered, no spotlight ──
+      freezeTransitions(spotlight);
       spotlight.style.opacity = '0';
 
-      tooltip.className = 'glass-tour-welcome glass-tour-welcome--entering';
+      tooltip.className = 'glass-tour-welcome';
+      tooltip.style.opacity = '0';
+      tooltip.style.transform = 'translate(-50%, -50%) scale(0.9)';
+      tooltip.style.transition = 'none';
+      tooltip.style.top = '';
+      tooltip.style.left = '';
+      tooltip.style.width = '';
+
       tooltip.innerHTML = ''
         + '<div class="glass-tour-welcome-icon">' + (index === 0 ? '&#x1F44B;' : '&#x1F680;') + '</div>'
         + renderStep(index);
 
       bindButtons();
 
+      // Wait a frame, then reveal with animation
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
-          tooltip.classList.remove('glass-tour-welcome--entering');
-          tooltip.classList.add('glass-tour-welcome--visible');
+          tooltip.style.transition = '';
+          tooltip.style.opacity = '1';
+          tooltip.style.transform = 'translate(-50%, -50%) scale(1)';
         });
       });
 
     } else {
+      // ── Targeted step ──
       var target = document.querySelector(step.target);
       if (!target) {
         console.log('[GlassTour] Target not found, skipping:', step.target);
@@ -291,18 +314,15 @@ window.GlassTour = (function () {
         return;
       }
 
-      // Fixed-position elements (like the Dispute Folder button) don't need scrolling
+      // Fixed-position elements don't need scrolling
       if (step.noScroll) {
-        requestAnimationFrame(function () {
-          renderTargetedStep(index, target, step);
-        });
+        renderTargetedStep(index, target, step);
         return;
       }
 
-      // Scroll element into position
+      // Scroll element into position, then render after scroll settles
       scrollForStep(target);
 
-      // Wait for scroll to settle, then render
       var scrollTimer;
       var renderDone = false;
 
@@ -319,7 +339,6 @@ window.GlassTour = (function () {
       }
 
       window.addEventListener('scroll', onScrollEnd);
-      // Safety timeout if no scroll happens
       scrollTimer = setTimeout(doRender, 500);
     }
   }
@@ -329,18 +348,23 @@ window.GlassTour = (function () {
     if (currentStep < steps.length - 1) {
       var nextIndex = currentStep + 1;
 
-      tooltip.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+      // Fade out current tooltip
+      unfreezeTransitions(tooltip);
       tooltip.style.opacity = '0';
 
-      if (tooltip.classList.contains('glass-tour-welcome') || tooltip.classList.contains('glass-tour-welcome--visible')) {
+      if (tooltip.classList.contains('glass-tour-welcome')) {
         tooltip.style.transform = 'translate(-50%, -50%) scale(0.95)';
       } else {
         tooltip.style.transform = 'scale(0.97)';
       }
 
+      // Also fade spotlight
+      unfreezeTransitions(spotlight);
+      spotlight.style.opacity = '0';
+
       setTimeout(function () {
         showStep(nextIndex);
-      }, 280);
+      }, 300);
     } else {
       end();
     }
@@ -352,15 +376,16 @@ window.GlassTour = (function () {
     markCompleted();
 
     if (backdrop) {
-      backdrop.style.opacity = '0';
       backdrop.style.transition = 'opacity 0.4s ease';
+      backdrop.style.opacity = '0';
     }
     if (spotlight) {
+      unfreezeTransitions(spotlight);
       spotlight.style.opacity = '0';
     }
     if (tooltip) {
+      unfreezeTransitions(tooltip);
       tooltip.style.opacity = '0';
-      tooltip.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
     }
 
     setTimeout(destroyElements, 500);
@@ -377,7 +402,12 @@ window.GlassTour = (function () {
       var el = document.querySelector(step.target);
       if (el) {
         positionSpotlight(el);
-        positionTooltip(el);
+        spotlight.style.opacity = '1';
+
+        var pos = calcTooltipPosition(el);
+        tooltip.style.left = pos.left + 'px';
+        var tooltipH = tooltip.offsetHeight;
+        tooltip.style.top = calcTop(tooltipH, pos) + 'px';
       }
     }
   }
