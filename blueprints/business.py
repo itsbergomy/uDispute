@@ -464,7 +464,16 @@ def run_analysis_for_client(client_id):
         flash("No credit report uploaded!", "error")
         return redirect(url_for('business.view_client', client_id=client.id))
 
-    pdf_path = os.path.join(current_app.config['UPLOAD_FOLDER'], client.pdf_filename)
+    if client.pdf_filename.startswith('http'):
+        pdf_path = download_to_temp(client.pdf_filename)
+        if not pdf_path:
+            flash("Failed to download PDF from cloud storage.", "error")
+            return redirect(url_for('business.view_client', client_id=client.id))
+    else:
+        pdf_path = os.path.join(current_app.config['UPLOAD_FOLDER'], str(client.id), client.pdf_filename)
+        if not os.path.exists(pdf_path):
+            pdf_path = os.path.join(current_app.config['UPLOAD_FOLDER'], client.pdf_filename)
+
     analysis_data = run_report_analysis(pdf_path)
 
     analysis = ClientReportAnalysis(
@@ -593,9 +602,18 @@ def run_udispute_flow(client_id):
     issue = request.form["issue"]
     prompt_pack = request.form.get("prompt_pack", "default")
 
-    parsed_accounts = extract_negative_items_from_pdf(
-        os.path.join(current_app.config["UPLOAD_FOLDER"], client.pdf_filename)
-    )
+    if client.pdf_filename and client.pdf_filename.startswith('http'):
+        _temp_pdf = download_to_temp(client.pdf_filename)
+        if not _temp_pdf:
+            flash("Failed to download PDF from cloud storage.", "error")
+            return redirect(url_for("business.view_client", client_id=client.id))
+        _pdf_for_parse = _temp_pdf
+    else:
+        _pdf_for_parse = os.path.join(current_app.config["UPLOAD_FOLDER"], str(client.id), client.pdf_filename)
+        if not os.path.exists(_pdf_for_parse):
+            _pdf_for_parse = os.path.join(current_app.config["UPLOAD_FOLDER"], client.pdf_filename)
+
+    parsed_accounts = extract_negative_items_from_pdf(_pdf_for_parse)
     selected = next((acc for acc in parsed_accounts if acc["account_number"] == account_number), None)
 
     if not selected:
@@ -678,7 +696,16 @@ def extract_for_udispute(client_id):
         flash("No PDF found for this client.", "error")
         return redirect(url_for("business.view_client", client_id=client.id))
 
-    pdf_path = os.path.join(current_app.config["UPLOAD_FOLDER"], client.pdf_filename)
+    if client.pdf_filename.startswith('http'):
+        pdf_path = download_to_temp(client.pdf_filename)
+        if not pdf_path:
+            flash("Failed to download PDF from cloud storage.", "error")
+            return redirect(url_for("business.view_client", client_id=client.id))
+    else:
+        pdf_path = os.path.join(current_app.config["UPLOAD_FOLDER"], str(client.id), client.pdf_filename)
+        if not os.path.exists(pdf_path):
+            pdf_path = os.path.join(current_app.config["UPLOAD_FOLDER"], client.pdf_filename)
+
     parsed_accounts = extract_negative_items_from_pdf(pdf_path)
     session["client_parsed_accounts"] = parsed_accounts
 
