@@ -18,6 +18,7 @@ from services.pipeline_engine import (
     create_pipeline, advance_pipeline, get_pipeline_status,
     approve_pipeline_letters, _get_agent_config
 )
+from services.cloud_storage import upload_file, delete_file, is_configured as cloud_configured
 
 pipeline_bp = Blueprint('pipeline', __name__)
 
@@ -255,9 +256,14 @@ def upload_response(pipeline_id):
     # Save the response file if provided
     filename = ''
     if file and file.filename:
-        upload_folder = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
         filename = secure_filename(f"response_{account_id}_{file.filename}")
-        file.save(os.path.join(upload_folder, filename))
+        if cloud_configured():
+            result = upload_file(file, folder=f"clients/{pipeline.client_id}/responses", resource_type="raw")
+            if result:
+                filename = result['secure_url']
+        else:
+            upload_folder = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
+            file.save(os.path.join(upload_folder, filename))
 
     # Create response record
     response = BureauResponse(
@@ -611,14 +617,19 @@ def upload_account_doc(pipeline_id, account_id):
     if not file or not file.filename:
         return jsonify({'error': 'No file provided'}), 400
 
-    upload_folder = os.path.join(
-        os.environ.get('UPLOAD_FOLDER', 'static/uploads'),
-        str(pipeline.client_id), 'supporting_docs'
-    )
-    os.makedirs(upload_folder, exist_ok=True)
     filename = secure_filename(f"{account_id}_{file.filename}")
-    filepath = os.path.join(upload_folder, filename)
-    file.save(filepath)
+
+    if cloud_configured():
+        result = upload_file(file, folder=f"clients/{pipeline.client_id}/supporting_docs", resource_type="raw")
+        filepath = result['secure_url'] if result else ''
+    else:
+        upload_folder = os.path.join(
+            os.environ.get('UPLOAD_FOLDER', 'static/uploads'),
+            str(pipeline.client_id), 'supporting_docs'
+        )
+        os.makedirs(upload_folder, exist_ok=True)
+        filepath = os.path.join(upload_folder, filename)
+        file.save(filepath)
 
     doc = SupportingDoc(
         user_id=current_user.id,
@@ -645,9 +656,12 @@ def delete_account_doc(doc_id):
     if not doc or doc.user_id != current_user.id:
         return jsonify({'error': 'Document not found'}), 404
 
-    # Remove file from disk
-    if doc.file_url and os.path.exists(doc.file_url):
-        os.remove(doc.file_url)
+    # Remove file — Cloudinary or local
+    if doc.file_url:
+        if doc.file_url.startswith('http'):
+            delete_file(doc.file_url)
+        elif os.path.exists(doc.file_url):
+            os.remove(doc.file_url)
 
     db.session.delete(doc)
     db.session.commit()

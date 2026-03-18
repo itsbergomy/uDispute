@@ -22,6 +22,7 @@ from models import (
 from services.pdf_parser import extract_negative_items_from_pdf
 from services.report_analyzer import run_report_analysis
 from services.letter_generator import PACKS, generate_letter, letter_to_pdf, image_to_pdf, merge_dispute_package
+from services.cloud_storage import upload_file, get_file_url, download_to_temp, delete_file, is_configured as cloud_configured
 from config import mail
 
 business_bp = Blueprint('business', __name__)
@@ -120,24 +121,31 @@ def create_client():
     db.session.add(client)
     db.session.commit()
 
-    # Save uploaded files
-    upload_dir = current_app.config['UPLOAD_FOLDER']
-    client_dir = os.path.join(upload_dir, str(client.id))
-    os.makedirs(client_dir, exist_ok=True)
-
+    # Save uploaded files — Cloudinary if configured, otherwise local
     file_fields = {
         'pdf_file': 'pdf_filename',
         'id_file': 'id_filename',
         'ssn_file': 'ssn_filename',
         'utility_file': 'utility_filename',
     }
-    for form_key, model_attr in file_fields.items():
-        f = request.files.get(form_key)
-        if f and f.filename:
-            safe_name = secure_filename(f.filename)
-            save_path = os.path.join(client_dir, safe_name)
-            f.save(save_path)
-            setattr(client, model_attr, safe_name)
+    if cloud_configured():
+        for form_key, model_attr in file_fields.items():
+            f = request.files.get(form_key)
+            if f and f.filename:
+                result = upload_file(f, folder=f"clients/{client.id}", resource_type="raw")
+                if result:
+                    setattr(client, model_attr, result['secure_url'])
+    else:
+        upload_dir = current_app.config['UPLOAD_FOLDER']
+        client_dir = os.path.join(upload_dir, str(client.id))
+        os.makedirs(client_dir, exist_ok=True)
+        for form_key, model_attr in file_fields.items():
+            f = request.files.get(form_key)
+            if f and f.filename:
+                safe_name = secure_filename(f.filename)
+                save_path = os.path.join(client_dir, safe_name)
+                f.save(save_path)
+                setattr(client, model_attr, safe_name)
 
     db.session.commit()
 
@@ -214,21 +222,34 @@ def upload_correspondence(client_id):
 
     if file:
         filename = secure_filename(file.filename)
-        # Save to client-specific correspondence folder
-        corr_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(client.id), 'correspondence')
-        os.makedirs(corr_dir, exist_ok=True)
-        filepath = os.path.join(corr_dir, filename)
-        file.save(filepath)
 
-        new_file = Correspondence(
-            client_id=client.id,
-            user_id=current_user.id,
-            filename=filename,
-            file_url=filepath,
-        )
-        db.session.add(new_file)
-        db.session.commit()
-        flash("Correspondence uploaded.", "success")
+        if cloud_configured():
+            result = upload_file(file, folder=f"clients/{client.id}/correspondence", resource_type="raw")
+            if result:
+                new_file = Correspondence(
+                    client_id=client.id,
+                    user_id=current_user.id,
+                    filename=filename,
+                    file_url=result['secure_url'],
+                )
+                db.session.add(new_file)
+                db.session.commit()
+                flash("Correspondence uploaded.", "success")
+        else:
+            corr_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(client.id), 'correspondence')
+            os.makedirs(corr_dir, exist_ok=True)
+            filepath = os.path.join(corr_dir, filename)
+            file.save(filepath)
+
+            new_file = Correspondence(
+                client_id=client.id,
+                user_id=current_user.id,
+                filename=filename,
+                file_url=filepath,
+            )
+            db.session.add(new_file)
+            db.session.commit()
+            flash("Correspondence uploaded.", "success")
 
     return redirect(url_for('business.view_client', client_id=client_id))
 
@@ -239,6 +260,12 @@ def view_correspondence_file(client_id, filename):
     client = Client.query.get_or_404(client_id)
     if client.business_user_id != current_user.id:
         abort(403)
+
+    # Check if this correspondence has a Cloudinary URL
+    corr = Correspondence.query.filter_by(client_id=client_id, filename=filename).first()
+    if corr and corr.file_url and corr.file_url.startswith('http'):
+        return redirect(corr.file_url)
+
     corr_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(client_id), 'correspondence')
     return send_from_directory(corr_dir, filename)
 
@@ -262,31 +289,45 @@ def upload_supporting_docs(client_id):
         flash("No files selected.", "error")
         return redirect(url_for('business.view_client', client_id=client_id))
 
-    doc_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(client.id), 'supporting_docs')
-    os.makedirs(doc_dir, exist_ok=True)
-
     count = 0
     for file in files:
         if not file or not file.filename:
             continue
         filename = secure_filename(file.filename)
-        # Prevent overwrites with timestamp prefix
         ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
         unique_name = f"{ts}_{filename}"
-        filepath = os.path.join(doc_dir, unique_name)
-        file.save(filepath)
 
-        doc = SupportingDoc(
-            user_id=current_user.id,
-            client_id=client.id,
-            filename=unique_name,
-            file_url=filepath,
-            doc_type=doc_type,
-            description=description,
-            include_in_package=include_in_package
-        )
-        db.session.add(doc)
-        count += 1
+        if cloud_configured():
+            result = upload_file(file, folder=f"clients/{client.id}/supporting_docs", resource_type="raw")
+            if result:
+                doc = SupportingDoc(
+                    user_id=current_user.id,
+                    client_id=client.id,
+                    filename=unique_name,
+                    file_url=result['secure_url'],
+                    doc_type=doc_type,
+                    description=description,
+                    include_in_package=include_in_package
+                )
+                db.session.add(doc)
+                count += 1
+        else:
+            doc_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(client.id), 'supporting_docs')
+            os.makedirs(doc_dir, exist_ok=True)
+            filepath = os.path.join(doc_dir, unique_name)
+            file.save(filepath)
+
+            doc = SupportingDoc(
+                user_id=current_user.id,
+                client_id=client.id,
+                filename=unique_name,
+                file_url=filepath,
+                doc_type=doc_type,
+                description=description,
+                include_in_package=include_in_package
+            )
+            db.session.add(doc)
+            count += 1
 
     db.session.commit()
     flash(f"{count} document{'s' if count != 1 else ''} uploaded.", "success")
@@ -305,9 +346,13 @@ def delete_supporting_doc(client_id, doc_id):
     if doc.client_id != client.id:
         abort(403)
 
-    # Remove file from disk
-    if doc.file_url and os.path.exists(doc.file_url):
-        os.remove(doc.file_url)
+    # Remove file — Cloudinary or local
+    if doc.file_url:
+        if doc.file_url.startswith('http'):
+            # Extract public_id from Cloudinary URL and delete
+            delete_file(doc.file_url)
+        elif os.path.exists(doc.file_url):
+            os.remove(doc.file_url)
 
     db.session.delete(doc)
     db.session.commit()
@@ -322,6 +367,12 @@ def view_supporting_doc_file(client_id, filename):
     client = Client.query.get_or_404(client_id)
     if client.business_user_id != current_user.id:
         abort(403)
+
+    # Check if this doc has a Cloudinary URL
+    doc = SupportingDoc.query.filter_by(client_id=client_id, filename=filename).first()
+    if doc and doc.file_url and doc.file_url.startswith('http'):
+        return redirect(doc.file_url)
+
     doc_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(client_id), 'supporting_docs')
     return send_from_directory(doc_dir, filename)
 
@@ -356,10 +407,15 @@ def edit_client(client_id):
         for field_name, model_attr in uploads:
             f = request.files.get(field_name)
             if f and f.filename:
-                filename = f"{client.id}_{field_name}_{secure_filename(f.filename)}"
-                full_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-                f.save(full_path)
-                setattr(client, model_attr, filename)
+                if cloud_configured():
+                    result = upload_file(f, folder=f"clients/{client.id}", resource_type="raw")
+                    if result:
+                        setattr(client, model_attr, result['secure_url'])
+                else:
+                    filename = f"{client.id}_{field_name}_{secure_filename(f.filename)}"
+                    full_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+                    f.save(full_path)
+                    setattr(client, model_attr, filename)
 
         db.session.commit()
         flash("Client updated", "success")
@@ -384,6 +440,10 @@ def client_file(client_id, filetype):
     fn = mapping.get(filetype)
     if not fn:
         abort(404)
+
+    # If it's a Cloudinary URL, redirect
+    if fn.startswith('http'):
+        return redirect(fn)
 
     # Files are saved in client-specific subdirectories; fall back to root for legacy files
     upload_dir = current_app.config['UPLOAD_FOLDER']

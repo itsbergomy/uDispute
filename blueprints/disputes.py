@@ -24,6 +24,7 @@ from services.letter_generator import (
 )
 from services.delivery import mail_letter_via_docupost, get_docupost_token
 from services.report_analyzer import run_report_analysis
+from services.cloud_storage import upload_file, upload_from_path, get_file_url, download_to_temp, delete_file, is_configured as cloud_configured
 
 disputes_bp = Blueprint('disputes', __name__)
 
@@ -118,8 +119,21 @@ def upload_pdf():
 
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
-            filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
+
+            if cloud_configured():
+                # Upload to Cloudinary, download temp copy for parsing
+                result = upload_file(file, folder=f"users/{current_user.id}/reports", resource_type="raw")
+                if not result:
+                    flash("File upload failed. Please try again.", "error")
+                    return redirect(url_for('disputes.upload_pdf'))
+                session['cloud_pdf_url'] = result['secure_url']
+                filepath = download_to_temp(result['secure_url'], suffix='.pdf')
+                if not filepath:
+                    flash("Could not process uploaded file.", "error")
+                    return redirect(url_for('disputes.upload_pdf'))
+            else:
+                filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
 
             pdf_hash = compute_pdf_hash(filepath)
             session['pdf_hash'] = pdf_hash
@@ -425,24 +439,31 @@ def mail_letter():
     pdf_url = None
     uploaded = request.files.get('pdf_file')
     if uploaded and uploaded.filename:
-        # Save uploaded PDF and generate a serveable URL
-        upload_folder = current_app.config['UPLOAD_FOLDER']
-        user_folder = os.path.join(upload_folder, str(current_user.id))
-        os.makedirs(user_folder, exist_ok=True)
-
-        from datetime import datetime as dt
-        timestamp = dt.utcnow().strftime('%Y%m%d_%H%M%S')
-        safe_name = f'MailUpload_{timestamp}.pdf'
-        save_path = os.path.join(user_folder, safe_name)
-        uploaded.save(save_path)
-        pdf_url = generate_public_pdf_url(safe_name)
+        if cloud_configured():
+            from datetime import datetime as dt
+            timestamp = dt.utcnow().strftime('%Y%m%d_%H%M%S')
+            result = upload_file(uploaded, folder=f"users/{current_user.id}/mail", resource_type="raw")
+            if result:
+                pdf_url = result['secure_url']
+        else:
+            upload_folder = current_app.config['UPLOAD_FOLDER']
+            user_folder = os.path.join(upload_folder, str(current_user.id))
+            os.makedirs(user_folder, exist_ok=True)
+            from datetime import datetime as dt
+            timestamp = dt.utcnow().strftime('%Y%m%d_%H%M%S')
+            safe_name = f'MailUpload_{timestamp}.pdf'
+            save_path = os.path.join(user_folder, safe_name)
+            uploaded.save(save_path)
+            pdf_url = generate_public_pdf_url(safe_name)
     else:
-        # Session has the local filename — generate a public URL from it
         session_pdf = session.get('final_pdf_url', '')
         if session_pdf:
-            # Extract just the filename from the session URL path
-            pdf_filename = session_pdf.rsplit('/', 1)[-1] if '/' in session_pdf else session_pdf
-            pdf_url = generate_public_pdf_url(pdf_filename)
+            if session_pdf.startswith('http'):
+                # Already a full URL (Cloudinary or external)
+                pdf_url = session_pdf
+            else:
+                pdf_filename = session_pdf.rsplit('/', 1)[-1] if '/' in session_pdf else session_pdf
+                pdf_url = generate_public_pdf_url(pdf_filename)
         else:
             pdf_url = None
 
@@ -535,12 +556,17 @@ def convert_pdf():
         from datetime import datetime as dt
         timestamp = dt.utcnow().strftime('%Y%m%d_%H%M%S')
         backup_name = f'DisputePackage_{timestamp}.pdf'
-        user_folder = os.path.join(upload_folder, str(current_user.id))
-        os.makedirs(user_folder, exist_ok=True)
-        backup_path = os.path.join(user_folder, backup_name)
-        shutil.copy2(final_pdf, backup_path)
 
-        pdf_serve_url = url_for('disputes.serve_upload', filename=backup_name, _external=True)
+        if cloud_configured():
+            # Upload to Cloudinary — the URL is publicly accessible
+            cloud_result = upload_from_path(final_pdf, folder=f"users/{current_user.id}/packages", filename=backup_name.rsplit('.', 1)[0])
+            pdf_serve_url = cloud_result['secure_url'] if cloud_result else None
+        else:
+            user_folder = os.path.join(upload_folder, str(current_user.id))
+            os.makedirs(user_folder, exist_ok=True)
+            backup_path = os.path.join(user_folder, backup_name)
+            shutil.copy2(final_pdf, backup_path)
+            pdf_serve_url = url_for('disputes.serve_upload', filename=backup_name, _external=True)
 
         # Extract bureau and round from form data or letter content
         bureau = request.form.get('bureau', '').strip() or None
@@ -659,15 +685,23 @@ def upload_doc():
             return redirect(url_for('disputes.upload_doc'))
 
         filename = secure_filename(file.filename)
-        user_folder = os.path.join(
-            current_app.config.get('UPLOAD_FOLDER', 'uploads'),
-            str(current_user.id)
-        )
-        os.makedirs(user_folder, exist_ok=True)
-        filepath = os.path.join(user_folder, filename)
-        file.save(filepath)
 
-        serve_url = url_for('disputes.serve_upload', filename=filename)
+        if cloud_configured():
+            result = upload_file(file, folder=f"users/{current_user.id}/docs", resource_type="raw")
+            if result:
+                serve_url = result['secure_url']
+            else:
+                flash("Upload failed.", "error")
+                return redirect(url_for('disputes.upload_doc'))
+        else:
+            user_folder = os.path.join(
+                current_app.config.get('UPLOAD_FOLDER', 'uploads'),
+                str(current_user.id)
+            )
+            os.makedirs(user_folder, exist_ok=True)
+            filepath = os.path.join(user_folder, filename)
+            file.save(filepath)
+            serve_url = url_for('disputes.serve_upload', filename=filename)
 
         doc = Correspondence(
             user_id=current_user.id,
@@ -689,7 +723,12 @@ def upload_doc():
 @disputes_bp.route('/uploads/<filename>')
 @login_required
 def serve_upload(filename):
-    """Serve uploaded documents — checks per-user folder first, then root uploads."""
+    """Serve uploaded documents — checks Cloudinary first, then local filesystem."""
+    # Check if the filename is actually a Cloudinary URL stored in a Correspondence record
+    doc = Correspondence.query.filter_by(user_id=current_user.id, filename=filename).first()
+    if doc and doc.file_url and doc.file_url.startswith('http'):
+        return redirect(doc.file_url)
+
     upload_base = current_app.config.get('UPLOAD_FOLDER', 'uploads')
     user_folder = os.path.join(upload_base, str(current_user.id))
 
@@ -743,14 +782,17 @@ def delete_doc(doc_id):
     if doc.user_id != current_user.id:
         return jsonify({"error": "Unauthorized"}), 403
 
-    # Delete file from disk
-    user_folder = os.path.join(
-        current_app.config.get('UPLOAD_FOLDER', 'uploads'),
-        str(current_user.id)
-    )
-    filepath = os.path.join(user_folder, doc.filename)
-    if os.path.exists(filepath):
-        os.remove(filepath)
+    # Delete file — Cloudinary or local
+    if doc.file_url and doc.file_url.startswith('http'):
+        delete_file(doc.file_url)
+    else:
+        user_folder = os.path.join(
+            current_app.config.get('UPLOAD_FOLDER', 'uploads'),
+            str(current_user.id)
+        )
+        filepath = os.path.join(user_folder, doc.filename)
+        if os.path.exists(filepath):
+            os.remove(filepath)
 
     db.session.delete(doc)
     db.session.commit()
@@ -774,10 +816,14 @@ def report_analyzer():
             return render_template('upload_pdf_analyzer.html', **session['intake'])
 
         filename = secure_filename(upload.filename)
-        path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
 
+        # Save temporarily for analysis (Cloudinary or local)
+        import tempfile
         try:
-            upload.save(path)
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+            upload.save(tmp.name)
+            tmp.close()
+            path = tmp.name
             if os.path.getsize(path) == 0:
                 raise ValueError("Uploaded file is empty.")
         except Exception as e:

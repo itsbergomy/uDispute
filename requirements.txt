@@ -19,3 +19,4 @@ huey
 python-docx
 cryptography
 gunicorn
+cloudinary

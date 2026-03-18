@@ -16,6 +16,7 @@ from models import (
 )
 from services.pdf_parser import extract_negative_items_from_pdf, compute_pdf_hash
 from services.report_analyzer import run_report_analysis
+from services.cloud_storage import download_to_temp, upload_from_path, is_configured as cloud_configured
 from services.strategy import (
     select_accounts_for_dispute, get_escalation_config, build_dispute_reason
 )
@@ -324,14 +325,18 @@ def handle_intake(pipeline):
     if not client.pdf_filename:
         raise ValueError("No credit report PDF uploaded for this client")
 
-    upload_folder = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
-
-    # Check client-specific folder first, then root uploads
-    pdf_path = os.path.join(upload_folder, str(client.id), client.pdf_filename)
-    if not os.path.exists(pdf_path):
-        pdf_path = os.path.join(upload_folder, client.pdf_filename)
-    if not os.path.exists(pdf_path):
-        raise ValueError(f"PDF file not found: {client.pdf_filename}")
+    # Resolve PDF path — Cloudinary URL or local file
+    if client.pdf_filename.startswith('http'):
+        pdf_path = download_to_temp(client.pdf_filename, suffix='.pdf')
+        if not pdf_path:
+            raise ValueError(f"Could not download PDF from cloud: {client.pdf_filename}")
+    else:
+        upload_folder = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
+        pdf_path = os.path.join(upload_folder, str(client.id), client.pdf_filename)
+        if not os.path.exists(pdf_path):
+            pdf_path = os.path.join(upload_folder, client.pdf_filename)
+        if not os.path.exists(pdf_path):
+            raise ValueError(f"PDF file not found: {client.pdf_filename}")
 
     # Compute and store PDF hash
     pipeline.pdf_hash = compute_pdf_hash(pdf_path)
@@ -365,11 +370,14 @@ def handle_intake(pipeline):
 def handle_analysis(pipeline):
     """Extract negative items and run vision-based report analysis."""
     client = Client.query.get(pipeline.client_id)
-    upload_folder = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
 
-    pdf_path = os.path.join(upload_folder, str(client.id), client.pdf_filename)
-    if not os.path.exists(pdf_path):
-        pdf_path = os.path.join(upload_folder, client.pdf_filename)
+    if client.pdf_filename and client.pdf_filename.startswith('http'):
+        pdf_path = download_to_temp(client.pdf_filename, suffix='.pdf')
+    else:
+        upload_folder = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
+        pdf_path = os.path.join(upload_folder, str(client.id), client.pdf_filename)
+        if not os.path.exists(pdf_path):
+            pdf_path = os.path.join(upload_folder, client.pdf_filename)
 
     # Extract negative items
     negative_items = extract_negative_items_from_pdf(pdf_path)
@@ -654,18 +662,27 @@ def handle_delivery(pipeline):
         letter_pdf = letter_to_pdf(account.letter.letter_text)
         pdf_paths.append(letter_pdf)
 
-        # 2. Supporting documents (ID, SSN) — check client subfolder first
-        client_dir = os.path.join(upload_folder, str(client.id))
+        # 2. Supporting documents (ID, SSN) — cloud or local
         for attr, field_type in [('id_filename', 'id_file'), ('ssn_filename', 'ssn_file')]:
             filename = getattr(client, attr)
             if not filename:
                 continue
-            doc_path = os.path.join(client_dir, filename)
-            if not os.path.exists(doc_path):
-                doc_path = os.path.join(upload_folder, filename)
-            if not os.path.exists(doc_path):
-                continue
-            ext = filename.rsplit('.', 1)[-1].lower()
+
+            if filename.startswith('http'):
+                # Download from Cloudinary to temp file
+                ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'pdf'
+                doc_path = download_to_temp(filename, suffix=f'.{ext}')
+                if not doc_path:
+                    continue
+            else:
+                client_dir = os.path.join(upload_folder, str(client.id))
+                doc_path = os.path.join(client_dir, filename)
+                if not os.path.exists(doc_path):
+                    doc_path = os.path.join(upload_folder, filename)
+                if not os.path.exists(doc_path):
+                    continue
+                ext = filename.rsplit('.', 1)[-1].lower()
+
             if ext in ('png', 'jpg', 'jpeg'):
                 img_pdf = image_to_pdf(doc_path, field_type=field_type)
                 pdf_paths.append(img_pdf)
@@ -678,24 +695,41 @@ def handle_delivery(pipeline):
             dispute_account_id=account.id, include_in_package=True
         ).all()
         for sd in sup_docs:
-            if sd.file_url and os.path.exists(sd.file_url):
-                ext = sd.filename.rsplit('.', 1)[-1].lower() if '.' in sd.filename else ''
-                if ext in ('png', 'jpg', 'jpeg'):
-                    pdf_paths.append(image_to_pdf(sd.file_url, field_type='supporting'))
-                elif ext == 'pdf':
-                    pdf_paths.append(sd.file_url)
+            if sd.file_url:
+                if sd.file_url.startswith('http'):
+                    sd_ext = sd.filename.rsplit('.', 1)[-1].lower() if '.' in sd.filename else 'pdf'
+                    sd_path = download_to_temp(sd.file_url, suffix=f'.{sd_ext}')
+                    if not sd_path:
+                        continue
+                else:
+                    sd_path = sd.file_url
+                    if not os.path.exists(sd_path):
+                        continue
+                    sd_ext = sd.filename.rsplit('.', 1)[-1].lower() if '.' in sd.filename else ''
 
-        # 4. Merge into temp file, then move to public uploads dir
+                if sd_ext in ('png', 'jpg', 'jpeg'):
+                    pdf_paths.append(image_to_pdf(sd_path, field_type='supporting'))
+                elif sd_ext == 'pdf':
+                    pdf_paths.append(sd_path)
+
+        # 4. Merge into package
         tmp_package = merge_dispute_package(pdf_paths)
 
         package_filename = f"package_{client.id}_{account.id}_{_uuid.uuid4().hex[:8]}.pdf"
-        package_dir = os.path.join(upload_folder, str(client.id), 'packages')
-        os.makedirs(package_dir, exist_ok=True)
-        public_path = os.path.join(package_dir, package_filename)
-        shutil.move(tmp_package, public_path)
 
-        # Build the publicly accessible URL for DocuPost
-        pdf_url = f"{base_url}/static/uploads/{client.id}/packages/{package_filename}"
+        if cloud_configured():
+            # Upload to Cloudinary — URL is already public
+            cloud_result = upload_from_path(tmp_package, folder=f"clients/{client.id}/packages", filename=package_filename.rsplit('.', 1)[0])
+            pdf_url = cloud_result['secure_url'] if cloud_result else None
+            if not pdf_url:
+                logger.error(f"Failed to upload package to cloud for account {account.id}")
+                continue
+        else:
+            package_dir = os.path.join(upload_folder, str(client.id), 'packages')
+            os.makedirs(package_dir, exist_ok=True)
+            public_path = os.path.join(package_dir, package_filename)
+            shutil.move(tmp_package, public_path)
+            pdf_url = f"{base_url}/static/uploads/{client.id}/packages/{package_filename}"
 
         # 4. Final placeholder safety check
         try:
