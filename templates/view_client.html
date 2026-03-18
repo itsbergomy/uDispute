@@ -434,7 +434,7 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
             <div>
-              <label class="glass-label text-xs mb-1">Prompt Pack</label>
+              <label class="glass-label text-xs mb-1">Prompt Pack <span class="glass-help-tip" data-term="prompt-pack">?</span></label>
               <select name="prompt_pack" class="glass-select w-full text-sm">
                 <option value="default">Default</option>
                 <option value="arbitration">Arbitration</option>
@@ -551,7 +551,7 @@
 
       <!-- Supporting Documents — Multi-upload -->
       <div id="supportingDocsSection" class="glass-card glass-card--heavy rounded-3xl p-6">
-        <h2 class="text-lg font-bold mb-1 glass-text-3d">Supporting Documents</h2>
+        <h2 class="text-lg font-bold mb-1 glass-text-3d">Supporting Documents <span class="glass-help-tip" data-term="supporting-docs">?</span></h2>
         <p class="text-xs mb-4" style="color:var(--text-tertiary);">
           Evidence, prior correspondence, identity docs — anything to include in dispute packages.
         </p>
@@ -1319,6 +1319,7 @@
       // ── Run Analyzer ──
       {
         target: '#runAnalyzerBtn',
+        interactive: true,
         title: 'Run Analyzer — AI Credit Assessment',
         body: 'This is always your <strong>first step</strong> with a new client. The Analyzer reads their credit report PDF and generates a full breakdown:'
           + '<br><br>• <strong>FICO Score</strong> & <strong>Utilization</strong>'

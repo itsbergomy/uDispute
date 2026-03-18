@@ -197,14 +197,18 @@ window.GlassTour = (function () {
     dotsHtml += '</div>';
 
     var skipLabel = step.welcome ? 'Skip Tour' : 'Skip';
-    var nextLabel = isLast ? 'Got It!' : (isFirst && step.welcome) ? "Let's Go" : 'Next';
+    var nextLabel = isLast ? 'Got It!' : (isFirst && step.welcome) ? "Let's Go" : step.interactive ? 'Try it \u2192' : 'Next';
 
     var skipBtn = '<button class="glass-tour-btn glass-tour-btn--skip" data-tour-action="skip">' + skipLabel + '</button>';
     var nextBtn = '<button class="glass-tour-btn glass-tour-btn--next" data-tour-action="next">' + nextLabel + '</button>';
 
+    var interactiveBadge = step.interactive
+      ? '<span class="glass-tour-interactive-badge">Click to try</span>'
+      : '';
+
     return ''
       + '<div class="glass-tour-step-badge">Step ' + (index + 1) + ' of ' + total + '</div>'
-      + '<div class="glass-tour-title">' + step.title + '</div>'
+      + '<div class="glass-tour-title">' + step.title + interactiveBadge + '</div>'
       + '<div class="glass-tour-body">' + step.body + '</div>'
       + '<div class="glass-tour-nav">'
       +   dotsHtml
@@ -264,6 +268,32 @@ window.GlassTour = (function () {
         spotlight.style.opacity = '1';
         tooltip.style.opacity = '1';
         tooltip.style.transform = 'translateY(0) scale(1)';
+
+        // ── Interactive step: make spotlight clickable ──
+        if (step.interactive) {
+          spotlight.classList.add('glass-tour-spotlight--interactive');
+          spotlight.onclick = function (e) {
+            e.stopPropagation();
+            var href = target.getAttribute('href');
+            if (href && href !== '#') {
+              // Save resume state for cross-page navigation
+              try {
+                sessionStorage.setItem('glass_tour_resume', JSON.stringify({
+                  key: storageKey,
+                  step: index + 1
+                }));
+              } catch (ex) { /* silent */ }
+              window.location.href = href;
+            } else {
+              // In-page action (button click, toggle, etc.)
+              target.click();
+              setTimeout(next, 600);
+            }
+          };
+        } else {
+          spotlight.classList.remove('glass-tour-spotlight--interactive');
+          spotlight.onclick = null;
+        }
       });
     });
   }
@@ -441,8 +471,21 @@ window.GlassTour = (function () {
       });
     });
 
+    // Check for cross-page resume from interactive step
+    var resumeStep = 0;
+    try {
+      var resumeData = sessionStorage.getItem('glass_tour_resume');
+      if (resumeData) {
+        var parsed = JSON.parse(resumeData);
+        if (parsed.key === storageKey && parsed.step < steps.length) {
+          resumeStep = parsed.step;
+        }
+        sessionStorage.removeItem('glass_tour_resume');
+      }
+    } catch (ex) { /* silent */ }
+
     setTimeout(function () {
-      showStep(0);
+      showStep(resumeStep);
     }, 350);
 
     window.addEventListener('resize', onResize);

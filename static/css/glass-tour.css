@@ -52,6 +52,35 @@
   50%      { opacity: 1;   transform: scale(1.01); }
 }
 
+/* ── Interactive spotlight — green pulse, clickable ── */
+.glass-tour-spotlight--interactive {
+  cursor: pointer;
+  pointer-events: auto;
+  border-color: rgba(52, 199, 89, 0.5);
+  animation: tour-spotlight-pulse-interactive 1.5s ease-in-out infinite;
+}
+
+@keyframes tour-spotlight-pulse-interactive {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.02); }
+}
+
+/* ── Interactive badge ── */
+.glass-tour-interactive-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border-radius: 100px;
+  background: linear-gradient(135deg, #34c759, #30d158);
+  color: #fff;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+  box-shadow: 0 2px 8px rgba(52, 199, 89, 0.3);
+}
+
 /* ── Tooltip — glass card with arrow ── */
 .glass-tour-tooltip {
   position: fixed;

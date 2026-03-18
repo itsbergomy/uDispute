@@ -1614,6 +1614,67 @@ body.glass-body p { color: var(--text-secondary); line-height: 1.7; }
 }
 
 /* ═══════════════════════════════════════════════════════════
+   Help Tips — Contextual jargon tooltips
+   ═══════════════════════════════════════════════════════════ */
+.glass-help-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: var(--accent, #0077ed);
+  background: rgba(0, 113, 227, 0.08);
+  border: 1px solid rgba(0, 113, 227, 0.2);
+  cursor: help;
+  vertical-align: middle;
+  margin-left: 4px;
+  transition: all 0.2s ease;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.glass-help-tip:hover {
+  background: rgba(0, 113, 227, 0.15);
+  box-shadow: 0 0 8px rgba(0, 113, 227, 0.15);
+  transform: scale(1.1);
+}
+
+.glass-help-popup {
+  position: fixed;
+  z-index: 9500;
+  max-width: 280px;
+  padding: 0.75rem 1rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--text-primary, #1d1d1f);
+  background: linear-gradient(135deg, rgba(255,255,255,0.65), rgba(255,255,255,0.4));
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.45);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.6);
+  pointer-events: auto;
+  animation: glass-help-enter 0.2s ease;
+}
+
+.glass-help-popup-term {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent, #0077ed);
+  margin-bottom: 0.35rem;
+}
+
+@keyframes glass-help-enter {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ═══════════════════════════════════════════════════════════
    Color Utility Classes — Replace inline color styles
    ═══════════════════════════════════════════════════════════ */
 .glass-text-primary   { color: var(--text-primary); }

@@ -27,6 +27,37 @@ from services.report_analyzer import run_report_analysis
 
 disputes_bp = Blueprint('disputes', __name__)
 
+# ── Bureau dispute mailing addresses (verified March 2026) ──
+BUREAU_ADDRESSES = {
+    'Equifax': {
+        'name': 'Equifax Information Services LLC',
+        'company': 'Equifax',
+        'address1': 'P.O. Box 740256',
+        'address2': '',
+        'city': 'Atlanta',
+        'state': 'GA',
+        'zip': '30374',
+    },
+    'TransUnion': {
+        'name': 'TransUnion LLC',
+        'company': 'TransUnion Consumer Solutions',
+        'address1': 'P.O. Box 2000',
+        'address2': '',
+        'city': 'Chester',
+        'state': 'PA',
+        'zip': '19016',
+    },
+    'Experian': {
+        'name': 'Experian',
+        'company': 'Experian Disputes',
+        'address1': 'P.O. Box 4500',
+        'address2': '',
+        'city': 'Allen',
+        'state': 'TX',
+        'zip': '75013',
+    },
+}
+
 
 def free_user_limit_for_dispute(user):
     if user.plan != 'free':
@@ -115,7 +146,7 @@ def upload_pdf():
                 db.session.commit()
                 session['current_round'] = 1
                 session['disputed_accounts'] = []
-                flash("New PDF detected. Starting Round 1.", "success")
+                flash("New PDF detected — Starting Round 1. Next: Select the accounts you want to dispute and choose your strategy.", "success")
                 return redirect('/select-account')
             else:
                 session['current_round'] = existing_round.round_number
@@ -195,7 +226,7 @@ def save_confirmed_account():
         round_record.set_disputed_accounts(disputed_accounts)
         db.session.commit()
 
-    flash("Account confirmed for dispute.", "success")
+    flash("Account confirmed! Next: Choose a prompt pack and hit Generate to create your dispute letter.", "success")
     return redirect(url_for('disputes.select_entity'))
 
 
@@ -291,7 +322,7 @@ def set_prompt_pack(pack):
     valid = {'default', 'arbitration', 'consumer_law', 'ACDV_response'}
     if pack in valid:
         session['prompt_pack'] = pack
-        flash(f'Switched to {pack.replace("_"," ")} pack.', 'success')
+        flash(f'Switched to {pack.replace("_"," ")} pack. Your next dispute letter will use this strategy.', 'success')
     return redirect(request.referrer or url_for('disputes.index'))
 
 
@@ -370,12 +401,23 @@ def manual_mode():
 @require_pro_or_business
 def mail_letter():
     if request.method == 'GET':
+        entity = session.get('selected_entity', '')
+        bureau = BUREAU_ADDRESSES.get(entity, {})
         return render_template('mail_letter.html',
             from_name=session.get('user_name', ''),
             from_address1=session.get('user_address_line1', ''),
             from_city=session.get('user_city', ''),
             from_state=session.get('user_state', ''),
-            from_zip=session.get('user_zip', '')
+            from_zip=session.get('user_zip', ''),
+            selected_entity=entity,
+            bureau_addresses=BUREAU_ADDRESSES,
+            to_name=bureau.get('name', ''),
+            to_company=bureau.get('company', ''),
+            to_address1=bureau.get('address1', ''),
+            to_address2=bureau.get('address2', ''),
+            to_city=bureau.get('city', ''),
+            to_state=bureau.get('state', ''),
+            to_zip=bureau.get('zip', ''),
         )
 
     # ── Resolve the PDF to send ──
@@ -447,7 +489,7 @@ def mail_letter():
     )
 
     if result.get('success'):
-        flash("Your letter has been sent!", "success")
+        flash("Your letter has been sent! It will arrive in 3–10 business days. Track it in your Dispute Folder.", "success")
         return redirect(url_for('disputes.final_review'))
     else:
         flash(f"DocuPost error: {result.get('error')}", "error")
@@ -523,6 +565,7 @@ def convert_pdf():
         # Store the PDF URL in session so /mail-letter can use it
         session['final_pdf_url'] = pdf_serve_url
 
+    flash("Dispute Package ready! Head to Mail to send it to the bureau.", "success")
     return send_file(
         final_pdf,
         as_attachment=True,

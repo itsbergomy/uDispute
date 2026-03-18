@@ -18,13 +18,13 @@
          class="flex-1 glass-btn glass-btn--primary glass-btn--lg flex items-center justify-center text-lg glass-shimmer-edge"
          style="position:relative;overflow:hidden;">
         <div class="mr-2">{{ icons.icon_file(size=20, uid='idx2') }}</div>
-        Dispute Mode (Upload PDF)
+        Dispute Mode (Upload PDF) <span class="glass-help-tip" data-term="dispute-mode">?</span>
       </a>
       <a href="{{ url_for('manual_mode') }}"
          class="flex-1 glass-btn glass-btn--primary glass-btn--lg flex items-center justify-center text-lg glass-shimmer-edge"
          style="position:relative;overflow:hidden;">
         <div class="mr-2">{{ icons.icon_document(size=20, uid='idx3') }}</div>
-        Manual Mode (Enter Details)
+        Manual Mode (Enter Details) <span class="glass-help-tip" data-term="manual-mode">?</span>
       </a>
     </div>
   </div>
@@ -48,6 +48,7 @@
       {
         target: 'a[href*="upload_pdf"], a[href*="upload-pdf"]',
         title: 'Dispute Mode \u2014 Upload a Credit Report',
+        interactive: true,
         body: '<strong>This is the main way to use uDispute.</strong> Upload your credit report as a PDF and our Vision AI reads the entire document \u2014 extracting every negative account (late payments, collections, charge-offs).'
           + '<br><br>From there, you\u2019ll select which accounts to dispute, pick a legal strategy, and uDispute generates a fully personalized dispute letter backed by federal consumer protection law.'
           + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.82rem;font-weight:600;opacity:0.85;">Tip: You can pull a free report from annualcreditreport.com</span>'
@@ -90,6 +91,7 @@
     // Settings — always present
     tourSteps.push({
       target: 'a[href*="settings"]',
+      interactive: true,
       title: 'Settings \u2014 API Keys & Mailing',
       body: 'This is where you configure automated mailing. uDispute uses <strong>DocuPost</strong> to send your dispute letters directly to credit bureaus via certified USPS mail.'
         + '<br><br>Bring your own API key (BYOK) \u2014 paste it in Settings and your letters can be mailed with one click. Your key is encrypted and stored securely.'

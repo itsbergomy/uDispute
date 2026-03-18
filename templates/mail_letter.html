@@ -45,7 +45,7 @@
               </select>
             </div>
             <div>
-              <label for="servicelevel" class="glass-label block">Certified Options</label>
+              <label for="servicelevel" class="glass-label block">Certified Options <span class="glass-help-tip" data-term="certified-mail">?</span></label>
               <select name="servicelevel" id="servicelevel" class="glass-input glass-select w-full">
                 <option value="">None</option>
                 <option value="certified">Certified</option>
@@ -81,6 +81,19 @@
         </div>
 
         <div class="glass-inset rounded-xl p-5 space-y-5">
+
+          <!-- Bureau quick-fill -->
+          <div>
+            <label class="glass-label block">Send to Bureau <span class="glass-help-tip" data-term="bureau">?</span></label>
+            <select id="bureauSelect" class="glass-input glass-select w-full">
+              <option value="">— Custom Recipient —</option>
+              <option value="Equifax" {% if selected_entity == 'Equifax' %}selected{% endif %}>Equifax</option>
+              <option value="TransUnion" {% if selected_entity == 'TransUnion' %}selected{% endif %}>TransUnion</option>
+              <option value="Experian" {% if selected_entity == 'Experian' %}selected{% endif %}>Experian</option>
+            </select>
+            <p class="text-xs mt-1" style="color:var(--text-tertiary);">Select a bureau to auto-fill their dispute mailing address, or choose Custom to enter your own.</p>
+          </div>
+
           <div class="flex gap-6">
             <label class="flex items-center gap-2" style="color:var(--text-primary);">
               <input type="radio" name="recipient_type" value="single" checked style="accent-color:var(--accent);"/>
@@ -92,48 +105,41 @@
             </label>
           </div>
 
-          <div>
-            <label class="glass-label block">Choose from address book</label>
-            <select name="to_address_book" class="glass-input glass-select w-full">
-              <option value="">&mdash; none &mdash;</option>
-            </select>
-          </div>
-
           <div class="grid md:grid-cols-2 gap-6">
             <div>
               <label class="glass-label block">Recipient Name</label>
-              <input name="to_name" required class="glass-input w-full"/>
+              <input name="to_name" id="toName" required class="glass-input w-full" value="{{ to_name or '' }}"/>
             </div>
             <div>
               <label class="glass-label block">Company / Attention</label>
-              <input name="to_company" class="glass-input w-full"/>
+              <input name="to_company" id="toCompany" class="glass-input w-full" value="{{ to_company or '' }}"/>
             </div>
           </div>
 
           <div>
             <label class="glass-label block">Address Line 1</label>
-            <input name="to_address1" required class="glass-input w-full"/>
+            <input name="to_address1" id="toAddress1" required class="glass-input w-full" value="{{ to_address1 or '' }}"/>
           </div>
 
           <div>
             <label class="glass-label block">Address Line 2</label>
-            <input name="to_address2" class="glass-input w-full"/>
+            <input name="to_address2" id="toAddress2" class="glass-input w-full" value="{{ to_address2 or '' }}"/>
           </div>
 
           <div class="grid md:grid-cols-3 gap-6">
             <div>
               <label class="glass-label block">City</label>
-              <input name="to_city" required class="glass-input w-full"/>
+              <input name="to_city" id="toCity" required class="glass-input w-full" value="{{ to_city or '' }}"/>
             </div>
             <div>
               <label class="glass-label block">State</label>
-              <select name="to_state" required class="glass-input glass-select w-full">
+              <select name="to_state" id="toState" required class="glass-input glass-select w-full">
                 <option value="">Select</option>
               </select>
             </div>
             <div>
               <label class="glass-label block">Zip Code</label>
-              <input name="to_zip" required class="glass-input w-full"/>
+              <input name="to_zip" id="toZip" required class="glass-input w-full" value="{{ to_zip or '' }}"/>
             </div>
           </div>
 
@@ -277,6 +283,65 @@
     obj.innerHTML = '<p style="padding:1.5rem;color:var(--text-tertiary);">PDF preview not supported in this browser. <a href="' + url + '" target="_blank" style="color:var(--accent);">Open in new tab</a></p>';
     preview.appendChild(obj);
   });
+})();
+
+// ─── Bureau address auto-fill ───
+(function(){
+  var bureauAddresses = {{ bureau_addresses | tojson }};
+  var bureauSelect = document.getElementById('bureauSelect');
+  if (!bureauSelect) return;
+
+  var fields = {
+    name:     document.getElementById('toName'),
+    company:  document.getElementById('toCompany'),
+    address1: document.getElementById('toAddress1'),
+    address2: document.getElementById('toAddress2'),
+    city:     document.getElementById('toCity'),
+    state:    document.getElementById('toState'),
+    zip:      document.getElementById('toZip'),
+  };
+
+  function fillBureau(bureau) {
+    var addr = bureauAddresses[bureau];
+    if (!addr) return;
+    fields.name.value     = addr.name || '';
+    fields.company.value  = addr.company || '';
+    fields.address1.value = addr.address1 || '';
+    fields.address2.value = addr.address2 || '';
+    fields.city.value     = addr.city || '';
+    fields.zip.value      = addr.zip || '';
+    // Set state dropdown
+    if (addr.state && fields.state) {
+      for (var i = 0; i < fields.state.options.length; i++) {
+        if (fields.state.options[i].value === addr.state) {
+          fields.state.selectedIndex = i;
+          break;
+        }
+      }
+    }
+  }
+
+  function clearFields() {
+    Object.values(fields).forEach(function(f) {
+      if (f && f.tagName === 'SELECT') f.selectedIndex = 0;
+      else if (f) f.value = '';
+    });
+  }
+
+  bureauSelect.addEventListener('change', function() {
+    var val = this.value;
+    if (val && bureauAddresses[val]) {
+      fillBureau(val);
+    } else {
+      clearFields();
+    }
+  });
+
+  // Pre-fill on page load if bureau is pre-selected
+  if (bureauSelect.value && bureauAddresses[bureauSelect.value]) {
+    // State dropdown needs a moment to populate
+    setTimeout(function() { fillBureau(bureauSelect.value); }, 50);
+  }
 })();
 </script>
 {% endblock %}

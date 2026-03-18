@@ -13,7 +13,7 @@
       {{ icons.icon_file(size=28, uid='up1') }}
     </div>
 
-    <h2 class="text-2xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">Upload Credit Report PDF</h2>
+    <h2 class="text-2xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">Upload Credit Report PDF <span class="glass-help-tip" data-term="dispute-mode">?</span></h2>
     <p class="mb-8" style="color:var(--text-secondary);">Please upload your credit report to begin parsing for negative accounts.</p>
 
     <form method="POST" action="{{ url_for('upload_pdf') }}" enctype="multipart/form-data" id="uploadForm">
