@@ -20,3 +20,4 @@ python-docx
 cryptography
 gunicorn
 cloudinary
+psycopg2-binary

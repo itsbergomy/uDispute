@@ -17,13 +17,25 @@ load_dotenv()
 class Config:
     UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
     ALLOWED_EXTENSIONS = {'pdf'}
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///dispute.db'
+    # Use PostgreSQL on Render (DATABASE_URL), SQLite locally
+    _db_url = os.environ.get('DATABASE_URL', '')
+    # Render gives postgres:// but SQLAlchemy needs postgresql://
+    if _db_url.startswith('postgres://'):
+        _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
+
+    SQLALCHEMY_DATABASE_URI = _db_url or 'sqlite:///dispute.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    # Allow background threads to share the SQLite connection
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        'connect_args': {'check_same_thread': False},
-        'pool_pre_ping': True,
-    }
+
+    # SQLite needs special options; PostgreSQL doesn't
+    if not _db_url:
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            'connect_args': {'check_same_thread': False},
+            'pool_pre_ping': True,
+        }
+    else:
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            'pool_pre_ping': True,
+        }
     SECRET_KEY = os.getenv('SECRET_KEY', 'smartflow')
 
     # Mail
@@ -54,11 +66,12 @@ def create_app():
     # Enable WAL mode for SQLite so background threads can read/write concurrently
     from sqlalchemy import event
     with app.app_context():
-        @event.listens_for(db.engine, 'connect')
-        def _set_sqlite_pragma(dbapi_conn, connection_record):
-            cursor = dbapi_conn.cursor()
-            cursor.execute('PRAGMA journal_mode=WAL')
-            cursor.close()
+        if 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']:
+            @event.listens_for(db.engine, 'connect')
+            def _set_sqlite_pragma(dbapi_conn, connection_record):
+                cursor = dbapi_conn.cursor()
+                cursor.execute('PRAGMA journal_mode=WAL')
+                cursor.close()
 
         # Auto-add new columns to existing SQLite tables (lightweight migration)
         db.create_all()
