@@ -670,7 +670,11 @@ def handle_delivery(pipeline):
 
             if filename.startswith('http'):
                 # Download from Cloudinary to temp file
-                ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'pdf'
+                # Cloudinary URLs may not have extensions — default to pdf
+                from urllib.parse import urlparse
+                _path = urlparse(filename).path
+                _ext_part = _path.rsplit('.', 1)[-1].lower() if '.' in _path.split('/')[-1] else 'pdf'
+                ext = _ext_part if len(_ext_part) <= 5 else 'pdf'
                 doc_path = download_to_temp(filename, suffix=f'.{ext}')
                 if not doc_path:
                     continue

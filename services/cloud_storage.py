@@ -131,6 +131,13 @@ def download_to_temp(public_id_or_url, suffix=".pdf"):
     if not url:
         return None
 
+    # Sanitize suffix — must be a short extension like .pdf, .png, .jpg
+    # Callers sometimes pass mangled Cloudinary URL fragments as suffix
+    if suffix and (len(suffix) > 10 or '/' in suffix):
+        suffix = '.pdf'
+    if suffix and not suffix.startswith('.'):
+        suffix = '.' + suffix
+
     try:
         resp = http_requests.get(url, timeout=30)
         resp.raise_for_status()
