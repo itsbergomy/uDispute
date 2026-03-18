@@ -27,12 +27,16 @@ def get_docupost_token(user_id=None):
     return DOCUPOST_API_TOKEN
 
 
-def mail_letter_via_docupost(pdf_url, recipient, sender, mail_options=None, api_token=None):
+def mail_letter_via_docupost(pdf_url=None, html_content=None, recipient=None, sender=None, mail_options=None, api_token=None):
     """
     Send a letter via DocuPost USPS mailing service.
 
+    Accepts EITHER a public pdf_url OR html_content (raw HTML sent in the body).
+    DocuPost requires the PDF to be publicly accessible — local/auth-gated URLs won't work.
+
     Args:
-        pdf_url: URL to the publicly hosted merged PDF.
+        pdf_url: URL to a publicly hosted PDF (no auth required).
+        html_content: Raw HTML string (up to 9000 chars). Used if pdf_url is None.
         recipient: Dict with keys: name, company, address1, address2, city, state, zip.
         sender: Dict with keys: name, company, address1, address2, city, state, zip.
         mail_options: Optional dict with keys: mail_class, servicelevel, color,
@@ -46,11 +50,15 @@ def mail_letter_via_docupost(pdf_url, recipient, sender, mail_options=None, api_
     if not token:
         return {'success': False, 'error': 'DocuPost API token not configured'}
 
+    if not pdf_url and not html_content:
+        return {'success': False, 'error': 'No PDF URL or HTML content provided'}
+
+    recipient = recipient or {}
+    sender = sender or {}
     options = mail_options or {}
 
     params = {
         'api_token': token,
-        'pdf': pdf_url,
         # Recipient
         'to_name': recipient.get('name', ''),
         'to_company': recipient.get('company', ''),
@@ -76,8 +84,19 @@ def mail_letter_via_docupost(pdf_url, recipient, sender, mail_options=None, api_
         'description': options.get('description', ''),
     }
 
+    # DocuPost accepts either a PDF URL (query param) or HTML (request body)
+    if pdf_url:
+        params['pdf'] = pdf_url
+        body = None
+    else:
+        body = html_content
+
     try:
-        resp = requests.post(DOCUPOST_SENDLETTER_URL, params=params)
+        if body:
+            resp = requests.post(DOCUPOST_SENDLETTER_URL, params=params, data=body,
+                                 headers={'Content-Type': 'text/html'})
+        else:
+            resp = requests.post(DOCUPOST_SENDLETTER_URL, params=params)
         print(f"[DocuPost] status={resp.status_code} body={resp.text[:500]}")
 
         # Try to parse JSON first — DocuPost returns 200 even on errors

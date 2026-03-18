@@ -393,9 +393,16 @@ def mail_letter():
         safe_name = f'MailUpload_{timestamp}.pdf'
         save_path = os.path.join(user_folder, safe_name)
         uploaded.save(save_path)
-        pdf_url = url_for('disputes.serve_upload', filename=safe_name, _external=True)
+        pdf_url = generate_public_pdf_url(safe_name)
     else:
-        pdf_url = session.get('final_pdf_url')
+        # Session has the local filename — generate a public URL from it
+        session_pdf = session.get('final_pdf_url', '')
+        if session_pdf:
+            # Extract just the filename from the session URL path
+            pdf_filename = session_pdf.rsplit('/', 1)[-1] if '/' in session_pdf else session_pdf
+            pdf_url = generate_public_pdf_url(pdf_filename)
+        else:
+            pdf_url = None
 
     if not pdf_url:
         flash("No PDF found. Please upload a PDF or generate a Dispute Package first.", "error")
@@ -491,7 +498,7 @@ def convert_pdf():
         backup_path = os.path.join(user_folder, backup_name)
         shutil.copy2(final_pdf, backup_path)
 
-        pdf_serve_url = url_for('disputes.serve_upload', filename=backup_name)
+        pdf_serve_url = url_for('disputes.serve_upload', filename=backup_name, _external=True)
 
         # Extract bureau and round from form data or letter content
         bureau = request.form.get('bureau', '').strip() or None
@@ -652,6 +659,37 @@ def serve_upload(filename):
         return send_from_directory(os.path.abspath(upload_base), filename)
 
     abort(404)
+
+
+@disputes_bp.route('/public-pdf/<token>/<filename>')
+def serve_public_pdf(token, filename):
+    """Serve a PDF publicly using a short-lived token — used by DocuPost to fetch PDFs."""
+    import hmac, hashlib
+    secret = current_app.config.get('SECRET_KEY', '')
+    expected = hmac.new(secret.encode(), filename.encode(), hashlib.sha256).hexdigest()[:32]
+    if not hmac.compare_digest(token, expected):
+        abort(403)
+
+    upload_base = current_app.config.get('UPLOAD_FOLDER', 'uploads')
+    # Search all user folders for the file
+    for entry in os.listdir(upload_base):
+        full = os.path.join(upload_base, entry)
+        if os.path.isdir(full) and os.path.exists(os.path.join(full, filename)):
+            return send_from_directory(os.path.abspath(full), filename)
+
+    if os.path.exists(os.path.join(upload_base, filename)):
+        return send_from_directory(os.path.abspath(upload_base), filename)
+
+    abort(404)
+
+
+def generate_public_pdf_url(filename):
+    """Generate a public URL with HMAC token for DocuPost to fetch a PDF."""
+    import hmac, hashlib
+    from flask import current_app, url_for
+    secret = current_app.config.get('SECRET_KEY', '')
+    token = hmac.new(secret.encode(), filename.encode(), hashlib.sha256).hexdigest()[:32]
+    return url_for('disputes.serve_public_pdf', token=token, filename=filename, _external=True)
 
 
 @disputes_bp.route('/delete-doc/<int:doc_id>', methods=['POST'])
