@@ -328,6 +328,7 @@
           drawerContent.innerHTML = html;
           initDrawerTabs();
           initDrawerForms();
+          initDrawerBureauFilters();
         })
         .catch(() => {
           drawerContent.innerHTML = '<p class="p-6 text-sm text-red-400">Failed to load folder.</p>';
@@ -379,6 +380,26 @@
           if (!confirm('Delete this document?')) return;
           fetch(btn.dataset.url, { method: 'POST' })
             .then(() => loadDrawer());
+        });
+      });
+    }
+
+    // ─── Bureau filter pills (drawer) ───
+    function initDrawerBureauFilters() {
+      drawerContent.querySelectorAll('.drawer-bureau-filter').forEach(btn => {
+        btn.addEventListener('click', () => {
+          drawerContent.querySelectorAll('.drawer-bureau-filter').forEach(b => {
+            b.classList.remove('active');
+            b.style.background = 'rgba(255,255,255,0.08)';
+          });
+          btn.classList.add('active');
+          btn.style.background = 'rgba(255,255,255,0.15)';
+          var bureau = btn.getAttribute('data-bureau');
+          drawerContent.querySelectorAll('.drawer-bureau-group').forEach(g => {
+            if (bureau === 'all') { g.style.display = ''; }
+            else if (bureau === 'untagged') { g.style.display = g.getAttribute('data-bureau-group') === 'untagged' ? '' : 'none'; }
+            else { g.style.display = g.getAttribute('data-bureau-group') === bureau ? '' : 'none'; }
+          });
         });
       });
     }

@@ -30,63 +30,108 @@
     </form>
   </div>
 
-  <!-- Mailed Letters -->
+  <!-- Mailed Letters — matches dispute_folder.html layout -->
   <div id="dp-letters" class="drawer-panel hidden">
-    {% for L in letters %}
-      <div class="mb-3 glass-card glass-card--light rounded-xl p-3">
-        <div class="flex items-center justify-between">
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-1.5 flex-wrap">
-              {% if L.bureau %}
-                <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full"
-                      style="background:rgba(255,255,255,0.1);color:var(--text-secondary);">{{ L.bureau }}</span>
-              {% endif %}
-              {% if L.round_number %}
-                <span class="text-xs" style="color:var(--text-tertiary);">R{{ L.round_number }}</span>
-              {% endif %}
-              <!-- Outcome Badge -->
-              {% if L.outcome == 'removed' %}
-                <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full" style="background:rgba(16,185,129,0.15);color:rgba(16,185,129,0.9);">Removed</span>
-              {% elif L.outcome == 'updated' %}
-                <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full" style="background:rgba(59,130,246,0.15);color:rgba(59,130,246,0.9);">Updated</span>
-              {% elif L.outcome == 'verified' %}
-                <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full" style="background:rgba(239,68,68,0.15);color:rgba(239,68,68,0.9);">Verified</span>
-              {% elif L.outcome == 'stall' %}
-                <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full" style="background:rgba(245,158,11,0.15);color:rgba(245,158,11,0.9);">Stall</span>
-              {% elif L.outcome == 'no_response' %}
-                <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full" style="background:rgba(245,158,11,0.15);color:rgba(245,158,11,0.9);">No Response</span>
-              {% endif %}
-              <span class="text-xs" style="color:var(--text-tertiary);">{{ L.created_at.strftime('%b %d, %Y') if L.created_at else '' }}</span>
+    {% set bureaus = ['Equifax', 'TransUnion', 'Experian'] %}
+    {% set has_letters = letters | length > 0 %}
+
+    {% if has_letters %}
+      <!-- Win/Status Summary -->
+      {% set removed_count = letters | selectattr('outcome', 'defined') | selectattr('outcome', 'equalto', 'removed') | list | length %}
+      {% set updated_count = letters | selectattr('outcome', 'defined') | selectattr('outcome', 'equalto', 'updated') | list | length %}
+      {% set verified_count = letters | selectattr('outcome', 'defined') | selectattr('outcome', 'equalto', 'verified') | list | length %}
+      {% set pending_count = (letters | length) - removed_count - updated_count - verified_count %}
+      {% if removed_count > 0 or updated_count > 0 or verified_count > 0 %}
+        <div class="glass-card rounded-xl p-3 mb-4 flex items-center gap-4" style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.12);">
+          {% if removed_count > 0 %}
+            <div class="text-center">
+              <div class="text-lg font-bold" style="color:rgba(16,185,129,0.9);">{{ removed_count }}</div>
+              <div class="text-xs" style="color:var(--text-tertiary);">Removed</div>
             </div>
-            <p class="mt-1 text-sm truncate" style="color:var(--text-secondary);">{{ L.letter_text[:80] }}{% if L.letter_text|length > 80 %}…{% endif %}</p>
-          </div>
-          <div class="flex flex-col gap-1.5 ml-3 shrink-0">
-            {% if L.pdf_url %}
-              <a href="{{ L.pdf_url }}" target="_blank" class="glass-btn glass-btn--primary glass-btn--pill text-xs px-3 py-1">PDF</a>
-            {% endif %}
-            {% if not L.outcome or L.outcome == 'pending' %}
-              <a href="{{ url_for('disputes.log_response', letter_id=L.id) }}"
-                 class="glass-btn glass-btn--pill text-xs px-3 py-1"
-                 style="background:rgba(245,158,11,0.12);color:rgba(245,158,11,0.9);border:1px solid rgba(245,158,11,0.2);">
-                Response?
-              </a>
-            {% elif L.outcome in ('verified', 'stall', 'no_response') %}
-              <a href="{{ url_for('disputes.research_results', letter_id=L.id) }}"
-                 class="glass-btn glass-btn--pill text-xs px-3 py-1"
-                 style="background:rgba(239,68,68,0.12);color:rgba(239,68,68,0.9);border:1px solid rgba(239,68,68,0.2);">
-                Escalate
-              </a>
-            {% endif %}
+          {% endif %}
+          {% if updated_count > 0 %}
+            <div class="text-center">
+              <div class="text-lg font-bold" style="color:rgba(59,130,246,0.9);">{{ updated_count }}</div>
+              <div class="text-xs" style="color:var(--text-tertiary);">Updated</div>
+            </div>
+          {% endif %}
+          {% if verified_count > 0 %}
+            <div class="text-center">
+              <div class="text-lg font-bold" style="color:rgba(239,68,68,0.9);">{{ verified_count }}</div>
+              <div class="text-xs" style="color:var(--text-tertiary);">Needs Escalation</div>
+            </div>
+          {% endif %}
+          <div class="text-center">
+            <div class="text-lg font-bold" style="color:var(--text-secondary);">{{ pending_count }}</div>
+            <div class="text-xs" style="color:var(--text-tertiary);">Awaiting</div>
           </div>
         </div>
+      {% endif %}
+
+      <!-- Bureau filter pills -->
+      <div class="flex flex-wrap gap-2 mb-4">
+        <button class="glass-btn glass-btn--pill px-3 py-1 text-xs font-semibold drawer-bureau-filter active"
+                data-bureau="all"
+                style="background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);">
+          All Bureaus
+        </button>
+        {% for b in bureaus %}
+          {% set bureau_count = letters | selectattr('bureau', 'equalto', b) | list | length %}
+          {% if bureau_count > 0 %}
+            <button class="glass-btn glass-btn--pill px-3 py-1 text-xs font-semibold drawer-bureau-filter"
+                    data-bureau="{{ b }}"
+                    style="background:rgba(255,255,255,0.08);backdrop-filter:blur(8px);">
+              {{ b }} <span style="opacity:0.6;margin-left:4px;">({{ bureau_count }})</span>
+            </button>
+          {% endif %}
+        {% endfor %}
+        {% set untagged = letters | rejectattr('bureau') | list | length %}
+        {% if untagged > 0 %}
+          <button class="glass-btn glass-btn--pill px-3 py-1 text-xs font-semibold drawer-bureau-filter"
+                  data-bureau="untagged"
+                  style="background:rgba(255,255,255,0.08);backdrop-filter:blur(8px);">
+            Untagged <span style="opacity:0.6;margin-left:4px;">({{ untagged }})</span>
+          </button>
+        {% endif %}
       </div>
+
+      <!-- Letter entries grouped by bureau -->
+      {% for b in bureaus %}
+        {% set bureau_letters = letters | selectattr('bureau', 'equalto', b) | list %}
+        {% if bureau_letters | length > 0 %}
+          <div class="drawer-bureau-group mb-5" data-bureau-group="{{ b }}">
+            <div class="flex items-center gap-2 mb-3">
+              <div style="width:10px;height:10px;border-radius:50%;background:{% if b == 'Equifax' %}#e74c3c{% elif b == 'TransUnion' %}#3498db{% else %}#9b59b6{% endif %};"></div>
+              <h3 class="text-sm font-bold" style="color:var(--text-primary);letter-spacing:0.04em;">{{ b }}</h3>
+            </div>
+            {% for L in bureau_letters | sort(attribute='created_at', reverse=true) %}
+              {% include '_letter_card.html' %}
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endfor %}
+
+      <!-- Untagged letters -->
+      {% set untagged_letters = letters | rejectattr('bureau') | list %}
+      {% if untagged_letters | length > 0 %}
+        <div class="drawer-bureau-group mb-5" data-bureau-group="untagged">
+          <div class="flex items-center gap-2 mb-3">
+            <div style="width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,0.3);"></div>
+            <h3 class="text-sm font-bold" style="color:var(--text-primary);letter-spacing:0.04em;">Untagged</h3>
+          </div>
+          {% for L in untagged_letters | sort(attribute='created_at', reverse=true) %}
+            {% include '_letter_card.html' %}
+          {% endfor %}
+        </div>
+      {% endif %}
+
     {% else %}
       <div class="glass-empty">
         <div class="glass-empty__icon">📬</div>
         <p class="glass-empty__title">No mailed letters yet</p>
         <p class="glass-empty__desc">Letters are saved here automatically when you generate a Dispute Package.</p>
       </div>
-    {% endfor %}
+    {% endif %}
   </div>
 
   <!-- Correspondence / Uploads -->
