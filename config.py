@@ -113,6 +113,8 @@ def create_app():
                 for col_name, col_type in new_cols.items():
                     if col_name not in existing:
                         conn.execute(text(f'ALTER TABLE mailed_letter ADD COLUMN {col_name} {col_type}'))
+                # Backfill NULL outcomes to 'pending'
+                conn.execute(text("UPDATE mailed_letter SET outcome = 'pending' WHERE outcome IS NULL"))
                 conn.commit()
 
             # ── correspondence ──

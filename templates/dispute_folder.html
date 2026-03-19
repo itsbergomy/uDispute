@@ -227,7 +227,7 @@
                             PDF
                           </a>
                         {% endif %}
-                        {% if L.outcome == 'pending' or not L.outcome %}
+                        {% if not L.outcome or L.outcome == 'pending' %}
                           <a href="{{ url_for('disputes.log_response', letter_id=L.id) }}"
                              class="glass-btn glass-btn--pill text-xs px-3 py-1.5 flex items-center gap-1"
                              style="background:rgba(245,158,11,0.12);color:rgba(245,158,11,0.9);white-space:nowrap;border:1px solid rgba(245,158,11,0.2);">
@@ -305,7 +305,7 @@
                           PDF
                         </a>
                       {% endif %}
-                      {% if L.outcome == 'pending' or not L.outcome %}
+                      {% if not L.outcome or L.outcome == 'pending' %}
                         <a href="{{ url_for('disputes.log_response', letter_id=L.id) }}"
                            class="glass-btn glass-btn--pill text-xs px-3 py-1.5 flex items-center gap-1"
                            style="background:rgba(245,158,11,0.12);color:rgba(245,158,11,0.9);white-space:nowrap;border:1px solid rgba(245,158,11,0.2);">
