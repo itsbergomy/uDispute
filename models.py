@@ -67,6 +67,18 @@ class MailedLetter(db.Model):
     bureau = db.Column(db.String(50), nullable=True)        # Equifax, TransUnion, Experian
     round_number = db.Column(db.Integer, default=1)
     account_name = db.Column(db.String(200), nullable=True)  # e.g. "Capital One #4821"
+    account_number = db.Column(db.String(100), nullable=True)
+
+    # Response tracking
+    outcome = db.Column(db.String(20), default='pending')    # pending, removed, updated, verified, stall, no_response
+    response_file_url = db.Column(db.String, nullable=True)  # uploaded correspondence PDF/image
+    response_text = db.Column(db.Text, nullable=True)        # extracted or pasted response text
+    response_received_at = db.Column(db.DateTime, nullable=True)
+    legal_research_json = db.Column(db.Text, nullable=True)  # cached CFPB + case law results
+
+    # Round chaining
+    previous_letter_id = db.Column(db.Integer, db.ForeignKey('mailed_letter.id'), nullable=True)
+    previous_letter = db.relationship('MailedLetter', remote_side=[id], backref='next_letters')
 
 class Correspondence(db.Model):
      id = db.Column(db.Integer, primary_key=True)

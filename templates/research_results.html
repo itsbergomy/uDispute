@@ -1,0 +1,206 @@
+{% extends "base_header.html" %}
+{% block title %}Legal Research — {{ letter.account_name or 'Dispute' }}{% endblock %}
+
+{% block content %}
+<main class="min-h-screen" style="padding:0;">
+
+  <div style="
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(0.85);
+    width: 620px;
+    max-width: 94vw;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    background: rgba(255,255,255,0.13);
+    backdrop-filter: blur(32px) saturate(190%) brightness(1.06);
+    -webkit-backdrop-filter: blur(32px) saturate(190%) brightness(1.06);
+    border: 1px solid rgba(255,255,255,0.30);
+    border-radius: 16px;
+    box-shadow:
+      0 24px 80px rgba(0,0,0,0.18),
+      0 8px 28px rgba(0,0,0,0.10),
+      0 2px 8px rgba(0,0,0,0.06),
+      inset 0 1px 0 rgba(255,255,255,0.50),
+      inset 0 -1px 0 rgba(255,255,255,0.06);
+    opacity: 0;
+    z-index: 100;
+    animation: folder-open 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s forwards;
+    overflow: hidden;
+  ">
+
+    <!-- Title Bar -->
+    <div style="
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0.6rem 1rem 0.55rem 0.85rem;
+      background: rgba(255,255,255,0.08);
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+      flex-shrink: 0;
+    ">
+      <a href="{{ url_for('disputes.dispute_folder') }}"
+         style="
+           width: 14px; height: 14px; border-radius: 50%;
+           background: linear-gradient(135deg, #ff6058, #e0443e);
+           border: 1px solid rgba(0,0,0,0.12);
+           display: flex; align-items: center; justify-content: center;
+           flex-shrink: 0;
+         " title="Back to Dispute Folder"></a>
+
+      <div style="display:flex;align-items:center;gap:8px;flex:1;justify-content:center;margin-right:14px;">
+        <span class="glass-text-emboss" style="font-size:0.8rem;font-weight:600;color:var(--text-primary);letter-spacing:0.01em;">
+          Legal Research Findings
+        </span>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div style="flex:1;overflow-y:auto;padding:1.25rem 1.5rem 1.5rem;">
+
+      <!-- Context Banner -->
+      <div class="glass-card rounded-xl p-4 mb-4" style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);">
+        <p class="text-sm font-semibold" style="color:var(--text-primary);">
+          Escalating {{ letter.account_name or 'dispute' }} to Round {{ next_round }}
+        </p>
+        <p class="text-xs mt-1" style="color:var(--text-tertiary);">
+          {% if letter.outcome == 'verified' %}
+            The bureau verified this account as accurate. We researched their response to build a stronger case.
+          {% elif letter.outcome == 'stall' %}
+            The bureau sent a form letter without addressing your dispute. That may violate FCRA reinvestigation requirements.
+          {% elif letter.outcome == 'no_response' %}
+            No response in 30+ days. Under FCRA 15 U.S.C. 1681i(a), the bureau must complete reinvestigation within 30 days.
+          {% endif %}
+        </p>
+      </div>
+
+      <!-- FCRA Citation -->
+      {% if package.fcra_citation %}
+        <div class="glass-card glass-card--light rounded-xl p-4 mb-3">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:rgba(139,92,246,0.15);color:rgba(139,92,246,0.9);">FCRA</span>
+            <span class="text-xs font-semibold" style="color:var(--text-primary);">{{ package.fcra_citation.section }}</span>
+          </div>
+          <p class="text-xs font-semibold" style="color:var(--text-secondary);">{{ package.fcra_citation.title }}</p>
+          <p class="text-xs mt-1" style="color:var(--text-tertiary);font-style:italic;line-height:1.5;">
+            "{{ package.fcra_citation.text }}"
+          </p>
+        </div>
+      {% endif %}
+
+      <!-- CFPB Complaint Data -->
+      {% if package.cfpb_summary and package.cfpb_summary.total > 0 %}
+        <div class="glass-card glass-card--light rounded-xl p-4 mb-3">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:rgba(16,185,129,0.15);color:rgba(16,185,129,0.9);">CFPB</span>
+            <span class="text-xs font-semibold" style="color:var(--text-primary);">Consumer Complaint Database</span>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3 mb-3">
+            <div class="text-center">
+              <div class="text-lg font-bold" style="color:var(--text-primary);">{{ '{:,}'.format(package.cfpb_summary.total) }}</div>
+              <div class="text-xs" style="color:var(--text-tertiary);">Total Complaints</div>
+            </div>
+            {% if package.cfpb_summary.matching_issue_count %}
+              <div class="text-center">
+                <div class="text-lg font-bold" style="color:rgba(239,68,68,0.9);">{{ package.cfpb_summary.matching_issue_count }}</div>
+                <div class="text-xs" style="color:var(--text-tertiary);">Same Issue</div>
+              </div>
+            {% endif %}
+            <div class="text-center">
+              <div class="text-lg font-bold" style="color:rgba(16,185,129,0.9);">{{ package.cfpb_summary.win_rate }}%</div>
+              <div class="text-xs" style="color:var(--text-tertiary);">Consumer Win Rate</div>
+            </div>
+          </div>
+
+          {% if package.cfpb_summary.top_issues %}
+            <p class="text-xs mb-1" style="color:var(--text-secondary);font-weight:600;">Top complaint types:</p>
+            {% for issue, count in package.cfpb_summary.top_issues[:3] %}
+              <div class="flex items-center justify-between text-xs mb-0.5" style="color:var(--text-tertiary);">
+                <span>{{ issue }}</span>
+                <span class="font-semibold">{{ count }}</span>
+              </div>
+            {% endfor %}
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <!-- Case Law -->
+      {% if package.case_law %}
+        <div class="glass-card glass-card--light rounded-xl p-4 mb-4">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:rgba(245,158,11,0.15);color:rgba(245,158,11,0.9);">CASE LAW</span>
+            <span class="text-xs font-semibold" style="color:var(--text-primary);">Relevant Court Opinions</span>
+          </div>
+
+          {% for case in package.case_law.landmark_cases[:2] %}
+            <div class="mb-2 p-2 rounded-lg" style="background:rgba(255,255,255,0.05);">
+              <p class="text-xs font-semibold" style="color:var(--text-primary);">
+                <em>{{ case.case_name }}</em>
+              </p>
+              <p class="text-xs" style="color:var(--text-tertiary);">{{ case.citation }}</p>
+              <p class="text-xs mt-1" style="color:var(--text-secondary);line-height:1.4;">
+                {{ case.holding }}
+              </p>
+            </div>
+          {% endfor %}
+
+          {% for case in package.case_law.search_cases[:3] %}
+            <div class="mb-2 p-2 rounded-lg" style="background:rgba(255,255,255,0.05);">
+              <p class="text-xs font-semibold" style="color:var(--text-primary);">
+                <em>{{ case.case_name_short or case.case_name }}</em>
+              </p>
+              <p class="text-xs" style="color:var(--text-tertiary);">{{ case.citation }} ({{ case.date_filed[:4] if case.date_filed else '' }})</p>
+              {% if case.snippet %}
+                <p class="text-xs mt-1" style="color:var(--text-secondary);line-height:1.4;">
+                  {{ case.snippet | striptags | truncate(200) }}
+                </p>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <!-- Bureau Response Quote -->
+      {% if letter.response_text %}
+        <div class="glass-card glass-card--light rounded-xl p-4 mb-4" style="border-left:3px solid rgba(239,68,68,0.4);">
+          <p class="text-xs font-semibold mb-1" style="color:var(--text-secondary);">Their Response (Round {{ letter.round_number or 1 }}):</p>
+          <p class="text-xs" style="color:var(--text-tertiary);line-height:1.5;font-style:italic;">
+            "{{ letter.response_text[:400] }}{% if letter.response_text|length > 400 %}..."{% endif %}
+          </p>
+        </div>
+      {% endif %}
+
+      <!-- Escalation Action -->
+      <form action="{{ url_for('disputes.escalate_dispute', letter_id=letter.id) }}" method="POST">
+        <label class="glass-label mb-2" style="font-size:0.75rem;color:var(--text-secondary);">Choose your strategy for Round {{ next_round }}:</label>
+        <select name="prompt_pack" class="glass-input mb-4 text-sm">
+          <option value="consumer_law" selected>Consumer Law Pack — Full statutory firepower</option>
+          <option value="ACDV_response">ACDV Enforcement — Demand method of verification</option>
+          <option value="arbitration">Arbitration Pack — For when they won't budge</option>
+          <option value="default">Default Pack — Standard dispute</option>
+        </select>
+
+        <button type="submit" class="w-full glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge py-2.5 text-sm font-semibold">
+          Generate Round {{ next_round }} Letter
+        </button>
+
+        <p class="text-xs text-center mt-2" style="color:var(--text-tertiary);">
+          All CFPB data and case law will be woven into your letter automatically.
+        </p>
+      </form>
+
+    </div>
+  </div>
+
+</main>
+
+<style>
+  @keyframes folder-open {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+    60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.02); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+</style>
+{% endblock %}

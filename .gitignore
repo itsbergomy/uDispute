@@ -13,6 +13,11 @@ __pycache__/
 static/uploads/
 uploads/
 
+# Node modules
+node_modules/
+package.json
+package-lock.json
+
 # IDE / dev tooling
 .claude/
 .vscode/

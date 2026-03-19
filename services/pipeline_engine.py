@@ -12,7 +12,7 @@ from datetime import datetime
 from models import (
     db, DisputePipeline, PipelineTask, DisputeAccount,
     Client, ClientReportAnalysis, ClientDisputeLetter, WorkflowSetting,
-    CustomLetter
+    CustomLetter, BureauResponse
 )
 from services.pdf_parser import extract_negative_items_from_pdf, compute_pdf_hash
 from services.report_analyzer import run_report_analysis
@@ -528,6 +528,27 @@ def handle_generation(pipeline):
         # Build full context with client + account + recipient details
         context = _get_client_context(client, account, recipient)
 
+        # For Round 2+, run Legal Research Agent to strengthen the letter
+        legal_context = None
+        if pipeline.round_number > 1:
+            try:
+                from services.legal_research import research_for_prompt
+                # Get the bureau response from the previous round's BureauResponse
+                bureau_response_text = None
+                prev_response = BureauResponse.query.filter_by(
+                    dispute_account_id=account.id
+                ).order_by(BureauResponse.uploaded_at.desc()).first()
+                if prev_response and prev_response.analysis_json:
+                    bureau_response_text = prev_response.analysis_json
+
+                legal_context = research_for_prompt(
+                    account_name=account.account_name,
+                    bureau_response=bureau_response_text,
+                    round_number=pipeline.round_number,
+                )
+            except Exception as e:
+                logger.warning(f"Legal research failed for {account.account_name}: {e}")
+
         # Build the letter — custom letter = pure template fill (no GPT), prompt packs = GPT
         custom_letter_id = agent_config.get('custom_letter_id')
         if custom_letter_id:
@@ -536,11 +557,11 @@ def handle_generation(pipeline):
                 # Pure template passthrough — inject bureau/account/client data, skip GPT
                 letter_text = _sanitize_letter(custom.body, context)
             else:
-                prompt, has_inaccuracies = build_prompt(account.template_pack, 0, context)
-                letter_text = _sanitize_letter(generate_letter(prompt, has_inaccuracies=has_inaccuracies), context)
+                prompt, has_inaccuracies, has_legal = build_prompt(account.template_pack, 0, context, legal_research_context=legal_context)
+                letter_text = _sanitize_letter(generate_letter(prompt, has_inaccuracies=has_inaccuracies, has_legal_research=has_legal), context)
         else:
-            prompt, has_inaccuracies = build_prompt(account.template_pack, 0, context)
-            letter_text = _sanitize_letter(generate_letter(prompt, has_inaccuracies=has_inaccuracies), context)
+            prompt, has_inaccuracies, has_legal = build_prompt(account.template_pack, 0, context, legal_research_context=legal_context)
+            letter_text = _sanitize_letter(generate_letter(prompt, has_inaccuracies=has_inaccuracies, has_legal_research=has_legal), context)
 
         # Save to database (stamp round_number for round-scoped tracking)
         letter_record = ClientDisputeLetter(

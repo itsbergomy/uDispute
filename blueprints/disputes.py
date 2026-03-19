@@ -373,8 +373,8 @@ def generate_process():
     if relevant_accounts:
         # Use build_prompt to inject inaccuracy details with FCRA citations
         pack_key = session.get('prompt_pack', 'default')
-        prompt, has_inaccuracies = build_prompt(pack_key, 0, data, parsed_accounts=relevant_accounts)
-        letter_text = generate_letter(prompt, has_inaccuracies=has_inaccuracies)
+        prompt, has_inaccuracies, has_legal = build_prompt(pack_key, 0, data, parsed_accounts=relevant_accounts)
+        letter_text = generate_letter(prompt, has_inaccuracies=has_inaccuracies, has_legal_research=has_legal)
     else:
         # No inaccuracies found — use the template as-is
         prompt = template.format(**data)
@@ -761,6 +761,181 @@ def serve_upload(filename):
         return send_from_directory(os.path.abspath(upload_base), filename)
 
     abort(404)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# RESPONSE MODE — Log bureau/creditor responses and escalate disputes
+# ═══════════════════════════════════════════════════════════════════
+
+@disputes_bp.route('/dispute/<int:letter_id>/log-response', methods=['GET', 'POST'])
+@login_required
+def log_response(letter_id):
+    """Log the bureau/creditor response for a mailed letter."""
+    letter = MailedLetter.query.get_or_404(letter_id)
+    if letter.user_id != current_user.id:
+        abort(403)
+
+    if request.method == 'POST':
+        outcome = request.form.get('outcome', '').strip()
+        response_text = request.form.get('response_text', '').strip()
+
+        if outcome not in ('removed', 'updated', 'verified', 'stall', 'no_response'):
+            flash("Please select a valid outcome.", "error")
+            return redirect(url_for('disputes.log_response', letter_id=letter_id))
+
+        letter.outcome = outcome
+        letter.response_received_at = datetime.utcnow()
+
+        if response_text:
+            letter.response_text = response_text
+
+        # Handle file upload (response letter PDF/image)
+        file = request.files.get('response_file')
+        if file and file.filename:
+            filename = secure_filename(file.filename)
+            if cloud_configured():
+                result = upload_file(file, folder=f"users/{current_user.id}/responses", resource_type="auto")
+                if result:
+                    letter.response_file_url = result['secure_url']
+            else:
+                user_folder = os.path.join(
+                    current_app.config.get('UPLOAD_FOLDER', 'uploads'),
+                    str(current_user.id), 'responses'
+                )
+                os.makedirs(user_folder, exist_ok=True)
+                filepath = os.path.join(user_folder, filename)
+                file.save(filepath)
+                letter.response_file_url = f"responses/{filename}"
+
+        db.session.commit()
+
+        # Route based on outcome
+        if outcome in ('removed', 'updated'):
+            flash(f"Account marked as {outcome}. Great progress!", "success")
+            return redirect(url_for('disputes.dispute_folder'))
+        else:
+            # Escalation triggers — run Legal Research Agent
+            return redirect(url_for('disputes.research_results', letter_id=letter_id))
+
+    return render_template('log_response.html', letter=letter)
+
+
+@disputes_bp.route('/dispute/<int:letter_id>/research-results')
+@login_required
+def research_results(letter_id):
+    """Show Legal Research Agent findings before generating escalation letter."""
+    letter = MailedLetter.query.get_or_404(letter_id)
+    if letter.user_id != current_user.id:
+        abort(403)
+
+    # Run the Legal Research Agent
+    from services.legal_research import research_dispute
+    import json as json_mod
+
+    inaccuracy_detail = None
+
+    # Check if we have parsed account data in session
+    parsed_accounts = session.get('negative_items', [])
+    target_name = (letter.account_name or '').split('#')[0].strip().upper()
+
+    for acct in parsed_accounts:
+        acct_name = (acct.get('account_name') or '').upper()
+        if target_name and (target_name in acct_name or acct_name in target_name):
+            if acct.get('inaccuracies'):
+                inaccuracy_detail = acct['inaccuracies'][0] if isinstance(acct['inaccuracies'][0], str) else acct['inaccuracies'][0].get('description', '')
+                break
+
+    package = research_dispute(
+        company_name=target_name or letter.account_name or '',
+        inaccuracy_detail=inaccuracy_detail,
+        bureau_response=letter.response_text,
+        round_number=(letter.round_number or 1) + 1,
+    )
+
+    # Cache results on the letter
+    letter.legal_research_json = json_mod.dumps({
+        'cfpb_summary': package.get('cfpb_summary'),
+        'case_law': package.get('case_law'),
+        'fcra_citation': package.get('fcra_citation'),
+    }, default=str)
+    db.session.commit()
+
+    return render_template('research_results.html',
+                           letter=letter,
+                           package=package,
+                           next_round=(letter.round_number or 1) + 1)
+
+
+@disputes_bp.route('/dispute/<int:letter_id>/escalate', methods=['POST'])
+@login_required
+def escalate_dispute(letter_id):
+    """Generate an escalated Round 2+ letter using Legal Research Agent findings."""
+    letter = MailedLetter.query.get_or_404(letter_id)
+    if letter.user_id != current_user.id:
+        abort(403)
+
+    from services.legal_research import research_for_prompt
+
+    next_round = (letter.round_number or 1) + 1
+    pack_key = request.form.get('prompt_pack', 'consumer_law')
+    target_name = (letter.account_name or '').split('#')[0].strip()
+
+    # Try to get inaccuracies from session
+    inaccuracies = None
+    parsed_accounts = session.get('negative_items', [])
+    for acct in parsed_accounts:
+        acct_name = (acct.get('account_name') or '').upper()
+        if target_name.upper() in acct_name or acct_name in target_name.upper():
+            if acct.get('inaccuracies'):
+                inaccuracies = acct['inaccuracies']
+                break
+
+    legal_context = research_for_prompt(
+        account_name=target_name,
+        inaccuracies=inaccuracies,
+        bureau_response=letter.response_text,
+        round_number=next_round,
+    )
+
+    ctx = {
+        'entity': letter.bureau or 'Bureau',
+        'account_name': letter.account_name or '',
+        'account_number': letter.account_number or '',
+        'marks': '',
+        'action': 'Remove this inaccurate account from my credit report',
+        'issue': f'Previously disputed (Round {letter.round_number}) — response inadequate',
+    }
+
+    ctx['client_full_name'] = current_user.username
+    ctx['today_date'] = datetime.now().strftime('%B %d, %Y')
+
+    prompt, has_inaccuracies, has_legal = build_prompt(
+        pack_key, 0, ctx,
+        parsed_accounts=[acct for acct in parsed_accounts if inaccuracies] if inaccuracies else None,
+        legal_research_context=legal_context,
+    )
+
+    letter_text = generate_letter(prompt, has_inaccuracies=has_inaccuracies, has_legal_research=has_legal)
+
+    new_letter = MailedLetter(
+        user_id=current_user.id,
+        letter_text=letter_text,
+        bureau=letter.bureau,
+        round_number=next_round,
+        account_name=letter.account_name,
+        account_number=letter.account_number,
+        previous_letter_id=letter.id,
+    )
+    db.session.add(new_letter)
+    db.session.commit()
+
+    session['generated_letter'] = letter_text
+    session['escalation_letter_id'] = new_letter.id
+
+    return render_template('escalation_review.html',
+                           letter=new_letter,
+                           previous=letter,
+                           round_number=next_round)
 
 
 @disputes_bp.route('/public-pdf/<token>/<filename>')

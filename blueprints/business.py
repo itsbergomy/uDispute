@@ -642,8 +642,8 @@ def run_udispute_flow(client_id):
     else:
         # Use build_prompt to inject parser-detected inaccuracies with FCRA citations
         relevant_accounts = [selected] if selected.get('inaccuracies') else []
-        prompt, has_inaccuracies = build_prompt(prompt_pack, 0, ctx, parsed_accounts=relevant_accounts)
-        letter = generate_letter(prompt, has_inaccuracies=has_inaccuracies)
+        prompt, has_inaccuracies, has_legal = build_prompt(prompt_pack, 0, ctx, parsed_accounts=relevant_accounts)
+        letter = generate_letter(prompt, has_inaccuracies=has_inaccuracies, has_legal_research=has_legal)
 
     flash("Letter generated!", "success")
     return render_template("udispute_result.html",

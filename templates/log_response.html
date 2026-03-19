@@ -1,0 +1,172 @@
+{% extends "base_header.html" %}
+{% block title %}Log Response — {{ letter.account_name or 'Dispute' }}{% endblock %}
+
+{% block content %}
+<main class="min-h-screen" style="padding:0;">
+
+  <div style="
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(0.85);
+    width: 560px;
+    max-width: 94vw;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    background: rgba(255,255,255,0.13);
+    backdrop-filter: blur(32px) saturate(190%) brightness(1.06);
+    -webkit-backdrop-filter: blur(32px) saturate(190%) brightness(1.06);
+    border: 1px solid rgba(255,255,255,0.30);
+    border-radius: 16px;
+    box-shadow:
+      0 24px 80px rgba(0,0,0,0.18),
+      0 8px 28px rgba(0,0,0,0.10),
+      0 2px 8px rgba(0,0,0,0.06),
+      inset 0 1px 0 rgba(255,255,255,0.50),
+      inset 0 -1px 0 rgba(255,255,255,0.06);
+    opacity: 0;
+    z-index: 100;
+    animation: folder-open 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s forwards;
+    overflow: hidden;
+  ">
+
+    <!-- Title Bar -->
+    <div style="
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0.6rem 1rem 0.55rem 0.85rem;
+      background: rgba(255,255,255,0.08);
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+      flex-shrink: 0;
+    ">
+      <a href="{{ url_for('disputes.dispute_folder') }}"
+         style="
+           width: 14px; height: 14px; border-radius: 50%;
+           background: linear-gradient(135deg, #ff6058, #e0443e);
+           border: 1px solid rgba(0,0,0,0.12);
+           display: flex; align-items: center; justify-content: center;
+           flex-shrink: 0;
+         " title="Back to Dispute Folder"></a>
+
+      <div style="display:flex;align-items:center;gap:8px;flex:1;justify-content:center;margin-right:14px;">
+        <span class="glass-text-emboss" style="font-size:0.8rem;font-weight:600;color:var(--text-primary);letter-spacing:0.01em;">
+          Log Response
+        </span>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div style="flex:1;overflow-y:auto;padding:1.25rem 1.5rem 1.5rem;">
+
+      <!-- Dispute Context -->
+      <div class="glass-card glass-card--light rounded-xl p-4 mb-4">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                style="background:rgba(255,255,255,0.1);color:var(--text-secondary);">
+            Round {{ letter.round_number or 1 }}
+          </span>
+          {% if letter.bureau %}
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                  style="background:{% if letter.bureau == 'Equifax' %}rgba(231,76,60,0.2){% elif letter.bureau == 'TransUnion' %}rgba(52,152,219,0.2){% else %}rgba(155,89,182,0.2){% endif %};color:var(--text-secondary);">
+              {{ letter.bureau }}
+            </span>
+          {% endif %}
+        </div>
+        {% if letter.account_name %}
+          <p class="text-sm font-semibold" style="color:var(--text-primary);">{{ letter.account_name }}</p>
+        {% endif %}
+        <p class="text-xs mt-1" style="color:var(--text-tertiary);">
+          Mailed {{ letter.created_at.strftime('%B %d, %Y') if letter.created_at else 'N/A' }}
+        </p>
+      </div>
+
+      <!-- Response Form -->
+      <form action="{{ url_for('disputes.log_response', letter_id=letter.id) }}" method="POST" enctype="multipart/form-data">
+
+        <!-- Outcome Selection -->
+        <label class="glass-label mb-2" style="font-size:0.75rem;color:var(--text-secondary);">What was the outcome?</label>
+        <div class="grid grid-cols-1 gap-2 mb-4">
+
+          <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer flex items-center gap-3 hover:border-green-400 transition-all"
+                 style="border:2px solid transparent;">
+            <input type="radio" name="outcome" value="removed" required class="accent-green-500">
+            <div>
+              <span class="text-sm font-semibold" style="color:var(--text-primary);">Removed</span>
+              <p class="text-xs" style="color:var(--text-tertiary);">Account deleted from credit report</p>
+            </div>
+          </label>
+
+          <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer flex items-center gap-3"
+                 style="border:2px solid transparent;">
+            <input type="radio" name="outcome" value="updated" class="accent-blue-500">
+            <div>
+              <span class="text-sm font-semibold" style="color:var(--text-primary);">Updated</span>
+              <p class="text-xs" style="color:var(--text-tertiary);">Creditor corrected the information</p>
+            </div>
+          </label>
+
+          <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer flex items-center gap-3"
+                 style="border:2px solid transparent;">
+            <input type="radio" name="outcome" value="verified" class="accent-red-500">
+            <div>
+              <span class="text-sm font-semibold" style="color:var(--text-primary);">Verified as Accurate</span>
+              <p class="text-xs" style="color:var(--text-tertiary);">Bureau says they investigated and verified — triggers escalation</p>
+            </div>
+          </label>
+
+          <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer flex items-center gap-3"
+                 style="border:2px solid transparent;">
+            <input type="radio" name="outcome" value="stall" class="accent-yellow-500">
+            <div>
+              <span class="text-sm font-semibold" style="color:var(--text-primary);">Stall Letter</span>
+              <p class="text-xs" style="color:var(--text-tertiary);">Form letter that doesn't address your dispute</p>
+            </div>
+          </label>
+
+          <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer flex items-center gap-3"
+                 style="border:2px solid transparent;">
+            <input type="radio" name="outcome" value="no_response" class="accent-gray-500">
+            <div>
+              <span class="text-sm font-semibold" style="color:var(--text-primary);">No Response</span>
+              <p class="text-xs" style="color:var(--text-tertiary);">30+ days with no reply — FCRA violation</p>
+            </div>
+          </label>
+
+        </div>
+
+        <!-- Upload Response Letter -->
+        <label class="glass-label mb-2" style="font-size:0.75rem;color:var(--text-secondary);">Upload their response (optional but recommended)</label>
+        <input type="file" name="response_file" accept=".pdf,.png,.jpg,.jpeg"
+               class="glass-input mb-3 text-sm" style="padding:0.5rem;" />
+
+        <!-- Response Text -->
+        <label class="glass-label mb-2" style="font-size:0.75rem;color:var(--text-secondary);">What did they say? (paste key text)</label>
+        <textarea name="response_text" class="glass-input glass-textarea mb-4" rows="4"
+                  placeholder="Paste the key parts of their response here..."></textarea>
+
+        <button type="submit" class="w-full glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge py-2.5 text-sm font-semibold">
+          Log Response
+        </button>
+      </form>
+
+    </div>
+  </div>
+
+</main>
+
+<style>
+  @keyframes folder-open {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+    60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.02); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+
+  /* Highlight selected outcome */
+  input[type="radio"]:checked + div span:first-child { color: var(--text-primary) !important; }
+  label:has(input[type="radio"]:checked) {
+    border-color: rgba(255,255,255,0.3) !important;
+    background: rgba(255,255,255,0.08) !important;
+  }
+</style>
+{% endblock %}

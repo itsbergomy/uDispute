@@ -268,8 +268,32 @@ SYSTEM_PROMPT_WITH_INACCURACIES = (
     "the credit reporting system."
 )
 
+SYSTEM_PROMPT_WITH_LEGAL_RESEARCH = (
+    "You are uDispute, a bot that creates credit dispute letters backed by real "
+    "legal research. Use your knowledge of UCC, CFPB regulations, and USC to write "
+    "compelling letters that address inaccuracies and potential infringements by creditors.\n\n"
+    "IMPORTANT: The consumer's credit report has been automatically analyzed and "
+    "specific reporting inaccuracies have been identified. Additionally, CFPB complaint "
+    "data and relevant federal case law have been researched for this specific creditor "
+    "and violation type. You MUST incorporate ALL of this into the letter:\n"
+    "1. Cite the exact inaccuracies found in the report\n"
+    "2. Reference the specific FCRA sections violated\n"
+    "3. Cite the CFPB complaint data showing a PATTERN of similar complaints against "
+    "this creditor (this demonstrates the issue is systemic, not an isolated error)\n"
+    "4. Cite relevant court cases where consumers prevailed on similar claims\n"
+    "5. Demand investigation/correction with a clear deadline\n\n"
+    "The CFPB data and case law citations are provided in the prompt — use them "
+    "naturally within the letter. Do NOT fabricate case names or statistics. Only cite "
+    "what is provided.\n\n"
+    "EDUCATIONAL NOTE: Write the letter in a way that helps the consumer understand "
+    "WHY each inaccuracy is a violation, WHAT their rights are, and HOW other consumers "
+    "have successfully challenged similar issues. This is not just a legal document — "
+    "it's a learning tool that empowers the consumer."
+)
 
-def generate_letter(prompt, model="gpt-4o", has_inaccuracies=False):
+
+def generate_letter(prompt, model="gpt-4o", has_inaccuracies=False,
+                    has_legal_research=False):
     """
     Generate a dispute letter using GPT.
 
@@ -278,11 +302,18 @@ def generate_letter(prompt, model="gpt-4o", has_inaccuracies=False):
         model: OpenAI model to use.
         has_inaccuracies: If True, uses enhanced system prompt that instructs
                           GPT to incorporate parsed inaccuracy findings.
+        has_legal_research: If True, uses the full legal research system prompt
+                            (includes CFPB data + case law citation instructions).
 
     Returns:
         The generated letter text.
     """
-    system_prompt = SYSTEM_PROMPT_WITH_INACCURACIES if has_inaccuracies else SYSTEM_PROMPT_BASE
+    if has_legal_research:
+        system_prompt = SYSTEM_PROMPT_WITH_LEGAL_RESEARCH
+    elif has_inaccuracies:
+        system_prompt = SYSTEM_PROMPT_WITH_INACCURACIES
+    else:
+        system_prompt = SYSTEM_PROMPT_BASE
 
     response = openai_client.chat.completions.create(
         model=model,
@@ -294,13 +325,17 @@ def generate_letter(prompt, model="gpt-4o", has_inaccuracies=False):
     return response.choices[0].message.content
 
 
-def build_prompt(template_pack, template_index, context, parsed_accounts=None):
+def build_prompt(template_pack, template_index, context, parsed_accounts=None,
+                 legal_research_context=None):
     """
     Build a filled prompt from a template pack, prepended with client context.
 
     If parsed_accounts are provided (from the credit report parser), their
     inaccuracies are automatically mapped to FCRA violations and injected
     into the prompt so GPT generates a case-specific dispute letter.
+
+    If legal_research_context is provided (from the Legal Research Agent),
+    CFPB complaint data and case law citations are appended to the prompt.
 
     Args:
         template_pack: Key from PACKS dict (e.g., 'default', 'arbitration').
@@ -310,9 +345,11 @@ def build_prompt(template_pack, template_index, context, parsed_accounts=None):
                  today_date, dispute_date, days, etc.
         parsed_accounts: Optional list of account dicts from the credit report parser.
                          If provided, inaccuracies are extracted and injected into the prompt.
+        legal_research_context: Optional string from legal_research.research_for_prompt().
+                                If provided, CFPB data and case law are injected into the prompt.
 
     Returns:
-        Tuple of (filled_prompt_string, has_inaccuracies_bool).
+        Tuple of (filled_prompt_string, has_inaccuracies_bool, has_legal_research_bool).
     """
     templates = PACKS.get(template_pack, PACKS['default'])
     idx = min(template_index, len(templates) - 1)
@@ -374,7 +411,14 @@ def build_prompt(template_pack, template_index, context, parsed_accounts=None):
             inaccuracy_section = "\n\n" + build_inaccuracy_context_multi(relevant_accounts)
             has_inaccuracies = True
 
-    return preamble + body + inaccuracy_section, has_inaccuracies
+    # Append legal research context if provided
+    has_legal_research = False
+    legal_section = ""
+    if legal_research_context and legal_research_context.strip():
+        legal_section = "\n\n--- LEGAL RESEARCH FINDINGS ---\n\n" + legal_research_context
+        has_legal_research = True
+
+    return preamble + body + inaccuracy_section + legal_section, has_inaccuracies, has_legal_research
 
 
 def letter_to_pdf(letter_text, output_path=None):
