@@ -98,6 +98,23 @@ def create_app():
                         conn.execute(text(f'ALTER TABLE client_dispute_letters ADD COLUMN {col_name} {col_type}'))
                 conn.commit()
 
+            # ── mailed_letter ──
+            if 'mailed_letter' in inspector.get_table_names():
+                existing = [c['name'] for c in inspector.get_columns('mailed_letter')]
+                new_cols = {
+                    'account_number': 'VARCHAR(100)',
+                    'outcome': "VARCHAR(20) DEFAULT 'pending'",
+                    'response_file_url': 'VARCHAR(500)',
+                    'response_text': 'TEXT',
+                    'response_received_at': 'TIMESTAMP',
+                    'legal_research_json': 'TEXT',
+                    'previous_letter_id': 'INTEGER REFERENCES mailed_letter(id)',
+                }
+                for col_name, col_type in new_cols.items():
+                    if col_name not in existing:
+                        conn.execute(text(f'ALTER TABLE mailed_letter ADD COLUMN {col_name} {col_type}'))
+                conn.commit()
+
             # ── correspondence ──
             if 'correspondence' in inspector.get_table_names():
                 existing = [c['name'] for c in inspector.get_columns('correspondence')]

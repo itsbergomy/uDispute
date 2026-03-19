@@ -116,10 +116,10 @@
 
         {% if has_letters %}
           <!-- Win/Status Summary -->
-          {% set removed_count = letters | selectattr('outcome', 'equalto', 'removed') | list | length %}
-          {% set updated_count = letters | selectattr('outcome', 'equalto', 'updated') | list | length %}
-          {% set verified_count = letters | selectattr('outcome', 'equalto', 'verified') | list | length %}
-          {% set pending_count = letters | rejectattr('outcome', 'equalto', 'removed') | rejectattr('outcome', 'equalto', 'updated') | rejectattr('outcome', 'equalto', 'verified') | rejectattr('outcome', 'equalto', 'stall') | rejectattr('outcome', 'equalto', 'no_response') | list | length %}
+          {% set removed_count = letters | selectattr('outcome', 'defined') | selectattr('outcome', 'equalto', 'removed') | list | length %}
+          {% set updated_count = letters | selectattr('outcome', 'defined') | selectattr('outcome', 'equalto', 'updated') | list | length %}
+          {% set verified_count = letters | selectattr('outcome', 'defined') | selectattr('outcome', 'equalto', 'verified') | list | length %}
+          {% set pending_count = (letters | length) - removed_count - updated_count - verified_count %}
           {% if removed_count > 0 or updated_count > 0 or verified_count > 0 %}
             <div class="glass-card rounded-xl p-3 mb-4 flex items-center gap-4" style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.12);">
               {% if removed_count > 0 %}
