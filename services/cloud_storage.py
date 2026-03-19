@@ -100,7 +100,8 @@ def get_file_url(public_id_or_url, resource_type="raw"):
     Get the public URL for a stored file.
 
     If it's already a full URL (starts with http), return as-is.
-    Otherwise, build a Cloudinary URL from the public_id.
+    Otherwise, build a signed Cloudinary URL from the public_id.
+    Signed URLs bypass the "restrict unsigned raw access" security setting.
     """
     if not public_id_or_url:
         return None
@@ -112,7 +113,8 @@ def get_file_url(public_id_or_url, resource_type="raw"):
         url = cloudinary.utils.cloudinary_url(
             public_id_or_url,
             resource_type=resource_type,
-            secure=True
+            secure=True,
+            sign_url=True
         )
         return url[0] if isinstance(url, tuple) else url
     except Exception as e:
