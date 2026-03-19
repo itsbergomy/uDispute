@@ -20,6 +20,187 @@ load_dotenv()
 
 openai_client = OpenAI()
 
+# ─── FCRA Inaccuracy Mapping ───
+
+FCRA_INACCURACY_MAP = {
+    "status_contradicts_history": {
+        "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+        "title": "Duty of Furnishers — Accuracy",
+        "explanation": (
+            "Under {section}, furnishers of information are prohibited from reporting "
+            "information to consumer reporting agencies if they know or have reasonable cause "
+            "to believe the information is inaccurate. The account status reported to the bureau "
+            "directly contradicts the payment history data on the same report."
+        ),
+    },
+    "account_type_mismatch": {
+        "section": "15 U.S.C. § 1681e(b)",
+        "title": "CRA Accuracy Procedures",
+        "explanation": (
+            "Under {section}, consumer reporting agencies must follow reasonable procedures "
+            "to assure maximum possible accuracy of consumer information. This account is "
+            "classified with an incorrect account type that misrepresents the nature of the debt."
+        ),
+    },
+    "original_creditor_not_reflected": {
+        "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+        "title": "Duty of Furnishers — Accuracy",
+        "explanation": (
+            "Under {section}, the presence of an original creditor indicates this debt was "
+            "sold or transferred to a collection entity, yet the account type does not reflect "
+            "this — constituting inaccurate reporting of the account's nature."
+        ),
+    },
+    "closed_account_with_balance": {
+        "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+        "title": "Duty of Furnishers — Accuracy",
+        "explanation": (
+            "Under {section}, a closed account that has been paid should report a $0 balance. "
+            "Reporting a balance on a closed/paid account is inaccurate and misleading to "
+            "potential creditors reviewing this consumer's file."
+        ),
+    },
+    "chargeoff_not_in_status": {
+        "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+        "title": "Duty of Furnishers — Accuracy",
+        "explanation": (
+            "Under {section}, the payment history grid shows charge-off entries but the "
+            "account status text does not reflect this adverse information. This internal "
+            "inconsistency within the same report constitutes inaccurate reporting."
+        ),
+    },
+    "balance_exceeds_limit": {
+        "section": "15 U.S.C. § 1681s-2(a)(1)(B)",
+        "title": "Duty of Furnishers — Incomplete Reporting",
+        "explanation": (
+            "Under {section}, furnishers must not report information they know to be "
+            "incomplete. The reported balance exceeds the original credit limit, suggesting "
+            "unauthorized fees or interest were added after the account became delinquent "
+            "without proper disclosure."
+        ),
+    },
+    "double_reporting": {
+        "section": "15 U.S.C. § 1681s-2(a)(1)(B)",
+        "title": "Duty of Furnishers — Incomplete/Duplicative Reporting",
+        "explanation": (
+            "Under {section}, the same debt appears to be reported by both the original "
+            "creditor and a collection agency. This duplicative reporting inflates the "
+            "consumer's apparent delinquent debt and is both inaccurate and misleading."
+        ),
+    },
+}
+
+
+def classify_inaccuracy(inaccuracy_text):
+    """Classify an inaccuracy string into an FCRA category."""
+    text = inaccuracy_text.lower()
+    if 'status' in text and ('contradict' in text or 'paying as agreed' in text or 'current' in text):
+        return "status_contradicts_history"
+    if 'account type' in text and ('mismatch' in text or 'open account' in text or 'collection' in text):
+        return "account_type_mismatch"
+    if 'original creditor' in text:
+        return "original_creditor_not_reflected"
+    if 'closed' in text and 'balance' in text:
+        return "closed_account_with_balance"
+    if 'charge-off' in text and 'status' in text and ('not reflect' in text or 'inconsistent' in text):
+        return "chargeoff_not_in_status"
+    if 'exceeds' in text and ('limit' in text or 'credit limit' in text):
+        return "balance_exceeds_limit"
+    if 'double' in text or 'duplicat' in text:
+        return "double_reporting"
+    return None
+
+
+def build_inaccuracy_context(account):
+    """
+    Build structured dispute context from a parsed account's inaccuracies.
+
+    Takes an account dict (from the parser, with 'inaccuracies' list) and returns
+    a formatted string with FCRA citations and specific dispute language that can
+    be injected into prompt templates.
+
+    Args:
+        account: Dict with keys: account_name, account_number, status, issue,
+                 inaccuracies (list of strings), balance, account_type, etc.
+
+    Returns:
+        A formatted string ready for injection into dispute letter prompts.
+        Returns empty string if no inaccuracies found.
+    """
+    inaccuracies = account.get('inaccuracies', [])
+    if not inaccuracies:
+        return ""
+
+    acct_name = account.get('account_name', 'Unknown')
+    acct_number = account.get('account_number', 'Unknown')
+
+    sections = []
+    sections.append(
+        f"PARSER-DETECTED REPORTING INACCURACIES FOR {acct_name} (#{acct_number}):\n"
+        f"The following specific inaccuracies were identified by automated analysis "
+        f"of the credit report data. Each represents a potential FCRA violation that "
+        f"must be investigated and corrected.\n"
+    )
+
+    for i, inac_text in enumerate(inaccuracies, 1):
+        category = classify_inaccuracy(inac_text)
+        fcra = FCRA_INACCURACY_MAP.get(category)
+
+        if fcra:
+            section_ref = fcra['section']
+            explanation = fcra['explanation'].format(section=section_ref)
+            sections.append(
+                f"INACCURACY #{i}: {inac_text}\n"
+                f"FCRA VIOLATION: {fcra['title']} — {section_ref}\n"
+                f"LEGAL BASIS: {explanation}\n"
+            )
+        else:
+            sections.append(
+                f"INACCURACY #{i}: {inac_text}\n"
+                f"FCRA VIOLATION: 15 U.S.C. § 1681s-2(a)(1)(A) — Duty to Report Accurate Information\n"
+                f"LEGAL BASIS: Under 15 U.S.C. § 1681s-2(a)(1)(A), furnishers are prohibited from "
+                f"reporting information they know or have reasonable cause to believe is inaccurate.\n"
+            )
+
+    sections.append(
+        f"REQUESTED ACTION: Pursuant to 15 U.S.C. § 1681i, I demand that you conduct "
+        f"a reasonable investigation of each inaccuracy identified above within 30 days. "
+        f"If you cannot verify the accuracy of this information, it must be deleted from "
+        f"my credit file per 15 U.S.C. § 1681i(a)(5)(A)."
+    )
+
+    return "\n".join(sections)
+
+
+def build_inaccuracy_context_multi(accounts):
+    """
+    Build dispute context for multiple accounts at once.
+
+    Args:
+        accounts: List of account dicts from the parser.
+
+    Returns:
+        Formatted string covering all accounts with inaccuracies.
+    """
+    parts = []
+    for account in accounts:
+        ctx = build_inaccuracy_context(account)
+        if ctx:
+            parts.append(ctx)
+
+    if not parts:
+        return ""
+
+    header = (
+        "═══ AUTOMATED CREDIT REPORT ANALYSIS ═══\n"
+        "The following inaccuracies were detected through automated parsing of the "
+        "consumer's credit report. Each inaccuracy is mapped to the specific FCRA "
+        "provision it violates. These findings should be cited in the dispute letter.\n\n"
+    )
+
+    return header + "\n---\n\n".join(parts)
+
+
 # ─── Prompt Packs ───
 
 PACKS = {
@@ -65,33 +246,61 @@ PACK_INFO = [
 ]
 
 
-def generate_letter(prompt, model="gpt-4o"):
+SYSTEM_PROMPT_BASE = (
+    "You are uDispute, a bot that creates credit dispute letters. "
+    "Use your knowledge of UCC, CFPB regulations, and USC to write compelling "
+    "letters that address inaccuracies and potential infringements by creditors."
+)
+
+SYSTEM_PROMPT_WITH_INACCURACIES = (
+    "You are uDispute, a bot that creates credit dispute letters. "
+    "Use your knowledge of UCC, CFPB regulations, and USC to write compelling "
+    "letters that address inaccuracies and potential infringements by creditors.\n\n"
+    "IMPORTANT: The consumer's credit report has been automatically analyzed and "
+    "specific reporting inaccuracies have been identified with their corresponding "
+    "FCRA violations. You MUST incorporate these specific findings into the letter — "
+    "cite the exact inaccuracies, the specific FCRA sections violated, and demand "
+    "investigation/correction of each one. This is what makes each letter unique "
+    "to the consumer's situation.\n\n"
+    "EDUCATIONAL NOTE: Write the letter in a way that helps the consumer understand "
+    "WHY each inaccuracy is a violation and WHAT their rights are. This is not just "
+    "a legal document — it's a learning tool that empowers the consumer to understand "
+    "the credit reporting system."
+)
+
+
+def generate_letter(prompt, model="gpt-4o", has_inaccuracies=False):
     """
     Generate a dispute letter using GPT.
 
     Args:
         prompt: The filled-in prompt template.
         model: OpenAI model to use.
+        has_inaccuracies: If True, uses enhanced system prompt that instructs
+                          GPT to incorporate parsed inaccuracy findings.
 
     Returns:
         The generated letter text.
     """
+    system_prompt = SYSTEM_PROMPT_WITH_INACCURACIES if has_inaccuracies else SYSTEM_PROMPT_BASE
+
     response = openai_client.chat.completions.create(
         model=model,
         messages=[
-            {
-                "role": "system",
-                "content": "You are uDispute, a bot that creates credit dispute letters. Use your knowledge of UCC, CFPB regulations, and USC to write compelling letters that address inaccuracies and potential infringements by creditors."
-            },
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
         ]
     )
     return response.choices[0].message.content
 
 
-def build_prompt(template_pack, template_index, context):
+def build_prompt(template_pack, template_index, context, parsed_accounts=None):
     """
     Build a filled prompt from a template pack, prepended with client context.
+
+    If parsed_accounts are provided (from the credit report parser), their
+    inaccuracies are automatically mapped to FCRA violations and injected
+    into the prompt so GPT generates a case-specific dispute letter.
 
     Args:
         template_pack: Key from PACKS dict (e.g., 'default', 'arbitration').
@@ -99,9 +308,11 @@ def build_prompt(template_pack, template_index, context):
         context: Dict with keys: entity, account_name, account_number, marks, action, issue,
                  and optionally client_full_name, client_address, client_city_state_zip,
                  today_date, dispute_date, days, etc.
+        parsed_accounts: Optional list of account dicts from the credit report parser.
+                         If provided, inaccuracies are extracted and injected into the prompt.
 
     Returns:
-        Filled prompt string with client preamble.
+        Tuple of (filled_prompt_string, has_inaccuracies_bool).
     """
     templates = PACKS.get(template_pack, PACKS['default'])
     idx = min(template_index, len(templates) - 1)
@@ -142,7 +353,28 @@ def build_prompt(template_pack, template_index, context):
     preamble = CLIENT_CONTEXT_PREAMBLE.format(**ctx)
     body = templates[idx].format(**ctx)
 
-    return preamble + body
+    # Build inaccuracy details from parsed accounts if available
+    has_inaccuracies = False
+    inaccuracy_section = ""
+    if parsed_accounts:
+        # If context specifies a specific account, filter to that one
+        target_name = ctx.get('account_name', '').upper()
+        target_number = ctx.get('account_number', '').upper()
+
+        relevant_accounts = []
+        for acct in parsed_accounts:
+            acct_name = (acct.get('account_name') or '').upper()
+            acct_num = (acct.get('account_number') or '').upper()
+            # Match if the context account matches, or include all if no specific target
+            if not target_name or target_name in acct_name or acct_name in target_name:
+                if acct.get('inaccuracies'):
+                    relevant_accounts.append(acct)
+
+        if relevant_accounts:
+            inaccuracy_section = "\n\n" + build_inaccuracy_context_multi(relevant_accounts)
+            has_inaccuracies = True
+
+    return preamble + body + inaccuracy_section, has_inaccuracies
 
 
 def letter_to_pdf(letter_text, output_path=None):

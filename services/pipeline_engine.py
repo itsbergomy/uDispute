@@ -536,11 +536,11 @@ def handle_generation(pipeline):
                 # Pure template passthrough — inject bureau/account/client data, skip GPT
                 letter_text = _sanitize_letter(custom.body, context)
             else:
-                prompt = build_prompt(account.template_pack, 0, context)
-                letter_text = _sanitize_letter(generate_letter(prompt), context)
+                prompt, has_inaccuracies = build_prompt(account.template_pack, 0, context)
+                letter_text = _sanitize_letter(generate_letter(prompt, has_inaccuracies=has_inaccuracies), context)
         else:
-            prompt = build_prompt(account.template_pack, 0, context)
-            letter_text = _sanitize_letter(generate_letter(prompt), context)
+            prompt, has_inaccuracies = build_prompt(account.template_pack, 0, context)
+            letter_text = _sanitize_letter(generate_letter(prompt, has_inaccuracies=has_inaccuracies), context)
 
         # Save to database (stamp round_number for round-scoped tracking)
         letter_record = ClientDisputeLetter(
