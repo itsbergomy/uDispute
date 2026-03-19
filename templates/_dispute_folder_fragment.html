@@ -36,19 +36,48 @@
       <div class="mb-3 glass-card glass-card--light rounded-xl p-3">
         <div class="flex items-center justify-between">
           <div class="min-w-0 flex-1">
-            {% if L.bureau %}
-              <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full mr-1"
-                    style="background:rgba(255,255,255,0.1);color:var(--text-secondary);">{{ L.bureau }}</span>
-            {% endif %}
-            {% if L.round_number %}
-              <span class="text-xs" style="color:var(--text-tertiary);">R{{ L.round_number }}</span>
-            {% endif %}
-            <span class="text-xs ml-1" style="color:var(--text-tertiary);">{{ L.created_at.strftime('%b %d, %Y') if L.created_at else '' }}</span>
+            <div class="flex items-center gap-1.5 flex-wrap">
+              {% if L.bureau %}
+                <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full"
+                      style="background:rgba(255,255,255,0.1);color:var(--text-secondary);">{{ L.bureau }}</span>
+              {% endif %}
+              {% if L.round_number %}
+                <span class="text-xs" style="color:var(--text-tertiary);">R{{ L.round_number }}</span>
+              {% endif %}
+              <!-- Outcome Badge -->
+              {% if L.outcome == 'removed' %}
+                <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full" style="background:rgba(16,185,129,0.15);color:rgba(16,185,129,0.9);">Removed</span>
+              {% elif L.outcome == 'updated' %}
+                <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full" style="background:rgba(59,130,246,0.15);color:rgba(59,130,246,0.9);">Updated</span>
+              {% elif L.outcome == 'verified' %}
+                <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full" style="background:rgba(239,68,68,0.15);color:rgba(239,68,68,0.9);">Verified</span>
+              {% elif L.outcome == 'stall' %}
+                <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full" style="background:rgba(245,158,11,0.15);color:rgba(245,158,11,0.9);">Stall</span>
+              {% elif L.outcome == 'no_response' %}
+                <span class="text-xs font-semibold px-1.5 py-0.5 rounded-full" style="background:rgba(245,158,11,0.15);color:rgba(245,158,11,0.9);">No Response</span>
+              {% endif %}
+              <span class="text-xs" style="color:var(--text-tertiary);">{{ L.created_at.strftime('%b %d, %Y') if L.created_at else '' }}</span>
+            </div>
             <p class="mt-1 text-sm truncate" style="color:var(--text-secondary);">{{ L.letter_text[:80] }}{% if L.letter_text|length > 80 %}…{% endif %}</p>
           </div>
-          {% if L.pdf_url %}
-          <a href="{{ L.pdf_url }}" target="_blank" class="glass-btn glass-btn--primary glass-btn--pill text-xs px-3 py-1 ml-3 shrink-0">View PDF</a>
-          {% endif %}
+          <div class="flex flex-col gap-1.5 ml-3 shrink-0">
+            {% if L.pdf_url %}
+              <a href="{{ L.pdf_url }}" target="_blank" class="glass-btn glass-btn--primary glass-btn--pill text-xs px-3 py-1">PDF</a>
+            {% endif %}
+            {% if not L.outcome or L.outcome == 'pending' %}
+              <a href="{{ url_for('disputes.log_response', letter_id=L.id) }}"
+                 class="glass-btn glass-btn--pill text-xs px-3 py-1"
+                 style="background:rgba(245,158,11,0.12);color:rgba(245,158,11,0.9);border:1px solid rgba(245,158,11,0.2);">
+                Response?
+              </a>
+            {% elif L.outcome in ('verified', 'stall', 'no_response') %}
+              <a href="{{ url_for('disputes.research_results', letter_id=L.id) }}"
+                 class="glass-btn glass-btn--pill text-xs px-3 py-1"
+                 style="background:rgba(239,68,68,0.12);color:rgba(239,68,68,0.9);border:1px solid rgba(239,68,68,0.2);">
+                Escalate
+              </a>
+            {% endif %}
+          </div>
         </div>
       </div>
     {% else %}
