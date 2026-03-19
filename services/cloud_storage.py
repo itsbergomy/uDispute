@@ -95,13 +95,16 @@ def upload_from_path(file_path, folder="", filename=None):
     return upload_file(file_path, folder=folder, filename=filename, resource_type="raw")
 
 
-def get_file_url(public_id_or_url, resource_type="raw"):
+def get_file_url(public_id_or_url, resource_type="raw", inline=False):
     """
     Get the public URL for a stored file.
 
     If it's already a full URL (starts with http), return as-is.
     Otherwise, build a signed Cloudinary URL from the public_id.
     Signed URLs bypass the "restrict unsigned raw access" security setting.
+
+    Args:
+        inline: If True, adds fl_attachment:false so browsers display inline (for PDFs in new tabs)
     """
     if not public_id_or_url:
         return None
@@ -110,12 +113,15 @@ def get_file_url(public_id_or_url, resource_type="raw"):
         return public_id_or_url
 
     try:
-        url = cloudinary.utils.cloudinary_url(
-            public_id_or_url,
-            resource_type=resource_type,
-            secure=True,
-            sign_url=True
-        )
+        opts = {
+            "resource_type": resource_type,
+            "secure": True,
+            "sign_url": True,
+        }
+        if inline:
+            opts["flags"] = "attachment:false"
+
+        url = cloudinary.utils.cloudinary_url(public_id_or_url, **opts)
         return url[0] if isinstance(url, tuple) else url
     except Exception as e:
         print(f"[CloudStorage] URL generation error: {e}")

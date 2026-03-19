@@ -8,7 +8,7 @@ import json
 from datetime import datetime, timedelta
 from flask import (
     Blueprint, request, jsonify, render_template, flash,
-    abort, redirect, url_for, session, send_file, send_from_directory, current_app
+    abort, redirect, url_for, session, send_file, send_from_directory, current_app, make_response
 )
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
@@ -747,7 +747,17 @@ def serve_upload(filename):
     # Check if the filename is actually a Cloudinary URL stored in a Correspondence record
     doc = Correspondence.query.filter_by(user_id=current_user.id, filename=filename).first()
     if doc and doc.file_url and doc.file_url.startswith('http'):
-        return redirect(doc.file_url)
+        import requests as http_req
+        try:
+            resp = http_req.get(doc.file_url, timeout=15)
+            response = make_response(resp.content)
+            ext = doc.file_url.rsplit('.', 1)[-1].lower().split('?')[0] if '.' in doc.file_url.split('?')[0] else 'pdf'
+            content_types = {'pdf': 'application/pdf', 'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg'}
+            response.headers['Content-Type'] = content_types.get(ext, 'application/pdf')
+            response.headers['Content-Disposition'] = 'inline'
+            return response
+        except Exception:
+            return redirect(doc.file_url)
 
     upload_base = current_app.config.get('UPLOAD_FOLDER', 'uploads')
     user_folder = os.path.join(upload_base, str(current_user.id))

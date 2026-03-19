@@ -8,7 +8,7 @@ import json
 from datetime import datetime
 from flask import (
     Blueprint, request, render_template, flash, redirect,
-    url_for, session, send_from_directory, abort, current_app, jsonify
+    url_for, session, send_from_directory, abort, current_app, jsonify, make_response
 )
 from flask_login import login_required, current_user
 from flask_mail import Message as MailMessage
@@ -441,9 +441,20 @@ def client_file(client_id, filetype):
     if not fn:
         abort(404)
 
-    # If it's a Cloudinary URL, redirect
+    # If it's a Cloudinary URL, proxy the file with correct Content-Type
+    # so the browser displays PDFs inline instead of downloading
     if fn.startswith('http'):
-        return redirect(fn)
+        import requests as http_req
+        try:
+            resp = http_req.get(fn, timeout=15)
+            response = make_response(resp.content)
+            ext = fn.rsplit('.', 1)[-1].lower().split('?')[0] if '.' in fn.split('?')[0] else 'pdf'
+            content_types = {'pdf': 'application/pdf', 'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg'}
+            response.headers['Content-Type'] = content_types.get(ext, 'application/pdf')
+            response.headers['Content-Disposition'] = 'inline'
+            return response
+        except Exception:
+            return redirect(fn)
 
     # Files are saved in client-specific subdirectories; fall back to root for legacy files
     upload_dir = current_app.config['UPLOAD_FOLDER']
