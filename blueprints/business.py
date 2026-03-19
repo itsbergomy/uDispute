@@ -21,7 +21,7 @@ from models import (
 )
 from services.pdf_parser import extract_negative_items_from_pdf
 from services.report_analyzer import run_report_analysis
-from services.letter_generator import PACKS, generate_letter, letter_to_pdf, image_to_pdf, merge_dispute_package
+from services.letter_generator import PACKS, generate_letter, build_prompt, letter_to_pdf, image_to_pdf, merge_dispute_package
 from services.cloud_storage import upload_file, get_file_url, download_to_temp, delete_file, is_configured as cloud_configured
 from config import mail
 
@@ -638,10 +638,12 @@ def run_udispute_flow(client_id):
             flash("Invalid custom template.", "error")
             return redirect(url_for("business.view_client", client_id=client.id))
         prompt = tpl.body
+        letter = generate_letter(prompt)
     else:
-        prompt = PACKS.get(prompt_pack, PACKS["default"])[0].format(**ctx)
-
-    letter = generate_letter(prompt)
+        # Use build_prompt to inject parser-detected inaccuracies with FCRA citations
+        relevant_accounts = [selected] if selected.get('inaccuracies') else []
+        prompt, has_inaccuracies = build_prompt(prompt_pack, 0, ctx, parsed_accounts=relevant_accounts)
+        letter = generate_letter(prompt, has_inaccuracies=has_inaccuracies)
 
     flash("Letter generated!", "success")
     return render_template("udispute_result.html",

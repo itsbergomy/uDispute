@@ -19,7 +19,7 @@ from services.pdf_parser import (
     extract_pdf_metrics, pdf_to_base64_images
 )
 from services.letter_generator import (
-    PACKS, PACK_INFO, generate_letter, letter_to_pdf,
+    PACKS, PACK_INFO, generate_letter, build_prompt, letter_to_pdf,
     image_to_pdf, merge_dispute_package
 )
 from services.delivery import mail_letter_via_docupost, get_docupost_token
@@ -358,8 +358,28 @@ def generate_process():
         "account_number": session.get('account_number', ''),
         "marks": session.get('status', '')
     }
-    prompt = template.format(**data)
-    letter_text = generate_letter(prompt)
+
+    # Pull parser results from session to get inaccuracy details
+    parsed_accounts = session.get('negative_items', [])
+    target_number = session.get('account_number', '')
+
+    # Filter to the account being disputed
+    relevant_accounts = [
+        acct for acct in parsed_accounts
+        if acct.get('account_number') == target_number
+        and acct.get('inaccuracies')
+    ]
+
+    if relevant_accounts:
+        # Use build_prompt to inject inaccuracy details with FCRA citations
+        pack_key = session.get('prompt_pack', 'default')
+        prompt, has_inaccuracies = build_prompt(pack_key, 0, data, parsed_accounts=relevant_accounts)
+        letter_text = generate_letter(prompt, has_inaccuracies=has_inaccuracies)
+    else:
+        # No inaccuracies found — use the template as-is
+        prompt = template.format(**data)
+        letter_text = generate_letter(prompt)
+
     session['generated_letter'] = letter_text
     return redirect(url_for('disputes.final_review'))
 
