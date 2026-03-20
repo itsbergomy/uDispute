@@ -108,6 +108,49 @@ FCRA_INACCURACY_MAP = {
             "assessment. This omission renders the reporting incomplete and potentially misleading."
         ),
     },
+    "unverified_late_payments": {
+        "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+        "title": "Duty of Furnishers — Accuracy of Late Payment Reporting",
+        "explanation": (
+            "Under {section}, furnishers must not report information they know or have "
+            "reasonable cause to believe is inaccurate. Each late payment entry must be "
+            "independently verifiable by the original creditor — including the exact date "
+            "the payment was due, the date it was received, and the specific delinquency "
+            "bucket (30/60/90/120 days). The furnisher must produce documentation proving "
+            "each reported delinquency. A blanket e-OSCAR Response Code 01 ('verified') "
+            "without field-level verification does not constitute a reasonable investigation "
+            "per CFPB Circular 2022-07."
+        ),
+    },
+    "unvalidated_collection": {
+        "section": "15 U.S.C. § 1692g",
+        "title": "Debt Validation — Fair Debt Collection Practices Act",
+        "explanation": (
+            "Under {section} (FDCPA) and 15 U.S.C. § 1681s-2(b) (FCRA), a collection "
+            "account requires debt validation. The collector must produce: (1) the amount "
+            "of the debt and how it was calculated, (2) the name of the original creditor, "
+            "(3) the date of first delinquency, (4) the signed credit application or "
+            "agreement, and (5) a complete payment ledger. If the collector cannot produce "
+            "this documentation within 30 days, the account must be deleted per "
+            "15 U.S.C. § 1681i(a)(5)(A). Collection accounts are particularly vulnerable "
+            "to DNR (Did Not Respond) deletions in the e-OSCAR system because collectors "
+            "frequently lack original documentation from the creditor."
+        ),
+    },
+    "unverified_chargeoff": {
+        "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+        "title": "Duty of Furnishers — Charge-Off Verification",
+        "explanation": (
+            "Under {section}, a charged-off account requires verification of: (1) the "
+            "exact charge-off date, (2) the charge-off balance vs. the original debt amount, "
+            "(3) whether post-charge-off interest or fees were added (which may violate state "
+            "usury laws), and (4) the date of first delinquency (which determines the 7-year "
+            "reporting window). Under the 2026 FCRA updates, furnishers are prohibited from "
+            "resetting the date of first delinquency after a dispute. If the reported charge-off "
+            "data cannot be independently verified with original creditor records, the account "
+            "must be deleted."
+        ),
+    },
 }
 
 
@@ -132,6 +175,12 @@ def classify_inaccuracy(inaccuracy_text):
         return "missing_due_date"
     if 'missing' in text and ('payment amount' in text or 'monthly payment' in text):
         return "missing_payment_amount"
+    if 'late payment entries' in text and 'demand verification' in text:
+        return "unverified_late_payments"
+    if 'collection' in text and 'validate' in text:
+        return "unvalidated_collection"
+    if 'charge-off status' in text and 'demand verification' in text:
+        return "unverified_chargeoff"
     return None
 
 
@@ -189,8 +238,15 @@ def build_inaccuracy_context(account):
     sections.append(
         f"REQUESTED ACTION: Pursuant to 15 U.S.C. § 1681i, I demand that you conduct "
         f"a reasonable investigation of each inaccuracy identified above within 30 days. "
-        f"If you cannot verify the accuracy of this information, it must be deleted from "
-        f"my credit file per 15 U.S.C. § 1681i(a)(5)(A)."
+        f"Per CFPB Circular 2022-07, this investigation must go beyond forwarding a "
+        f"dispute code through the e-OSCAR system — you must forward all consumer-provided "
+        f"documentation to the data furnisher and independently verify the disputed fields. "
+        f"If the furnisher cannot verify the accuracy of each specific data point listed "
+        f"above, the account must be deleted from my credit file per "
+        f"15 U.S.C. § 1681i(a)(5)(A). A blanket e-OSCAR Response Code 01 ('verified as "
+        f"accurate') without field-level verification will be treated as a failure to "
+        f"conduct a reasonable investigation and may result in legal action under "
+        f"15 U.S.C. § 1681i and § 1681n."
     )
 
     return "\n".join(sections)
@@ -229,22 +285,120 @@ def build_inaccuracy_context_multi(accounts):
 
 PACKS = {
     "default": [
-        "Write a letter {action} for {entity} regarding {issue}. The account is {account_name} with account number {account_number} and has the following account status: {marks}",
-        "I need a letter {action} for {entity} about an issue regarding {issue}. The account is {account_name} with account number {account_number} and has the following account status: {marks}"
+        (
+            "Write a formal dispute letter to {entity} demanding investigation and correction "
+            "of the following account:\n\n"
+            "Account: {account_name}\n"
+            "Account Number: {account_number}\n"
+            "Reported Status: {marks}\n"
+            "Issues: {issue}\n"
+            "Requested Action: {action}\n\n"
+            "The letter must:\n"
+            "- Demand field-specific verification (date of first delinquency, balance amount, "
+            "payment history, account status, original creditor if applicable)\n"
+            "- Cite 15 U.S.C. § 1681i (CRA duty to investigate) and § 1681s-2(b) (furnisher "
+            "duty to investigate after receiving notice from CRA)\n"
+            "- Reference CFPB Circular 2022-07 requiring reasonable investigation beyond "
+            "e-OSCAR code forwarding\n"
+            "- State that a Response Code 01 ('verified as accurate') without field-level "
+            "verification constitutes a failure to conduct a reasonable investigation\n"
+            "- Set a 30-day deadline with specific consequences for non-compliance\n"
+            "- Demand the CRA forward all attached documentation to the data furnisher per "
+            "CFPB Circular 2022-07"
+        ),
+        (
+            "Write a dispute letter to {entity} challenging the accuracy and completeness "
+            "of reporting on account {account_name} (#{account_number}).\n\n"
+            "Current Status: {marks}\n"
+            "Dispute Issue: {issue}\n"
+            "Demanded Resolution: {action}\n\n"
+            "The letter must demand that the furnisher produce specific documentation to "
+            "verify every disputed data field. If the furnisher cannot produce original "
+            "records proving accuracy within 30 days, the account must be deleted per "
+            "15 U.S.C. § 1681i(a)(5)(A). Reference the 2026 FCRA updates regarding "
+            "high-risk reporting errors and the prohibition on resetting date of first "
+            "delinquency after disputes."
+        ),
     ],
     "arbitration": [
-        "Draft an arbitration demand under 15 U.S.C. 1681e(b) to {entity}, account {account_number}, stating {issue}. I will {action}.",
-        "Compose a formal arbitration request for {entity}, referencing {issue}, account {account_number}, and demanding {action}."
+        (
+            "Draft an arbitration demand letter to {entity} regarding account {account_name} "
+            "(#{account_number}).\n\n"
+            "Issue: {issue}\n"
+            "Demanded Action: {action}\n\n"
+            "Invoke 15 U.S.C. § 1681e(b) (CRA reasonable procedures for maximum accuracy) "
+            "and 15 U.S.C. § 1681n (willful noncompliance — statutory damages of $100-$1,000 "
+            "per violation plus punitive damages). Demand that the CRA submit to binding "
+            "arbitration per the consumer's election under the FCRA. Reference the e-OSCAR "
+            "system's inadequacy for handling complex disputes as evidence that the CRA's "
+            "investigation procedures are structurally unreasonable."
+        ),
+        (
+            "Compose a formal arbitration demand for {entity} concerning account "
+            "{account_name} (#{account_number}). Dispute: {issue}. Demanded resolution: "
+            "{action}. Cite the CRA's pattern of using automated e-OSCAR code verification "
+            "instead of conducting reasonable investigations as grounds for the arbitration "
+            "claim. Reference CFPB Circular 2022-07 and 15 U.S.C. § 1681i."
+        ),
     ],
     "consumer_law": [
-        "Write a letter to {entity} invoking the Fair Credit Billing Act regarding {issue} on account {account_number}. I request {action}.",
-        "Craft a demand under the Fair Debt Collection Practices Act for {entity}, account {account_number}, disputing {issue} and seeking {action}."
+        (
+            "Write a statutory demand letter to {entity} invoking multiple consumer protection "
+            "statutes regarding account {account_name} (#{account_number}).\n\n"
+            "Issue: {issue}\n"
+            "Demanded Action: {action}\n\n"
+            "Cite the following statutes as applicable:\n"
+            "- Fair Credit Reporting Act (15 U.S.C. § 1681 et seq.) — accuracy and investigation duties\n"
+            "- Fair Debt Collection Practices Act (15 U.S.C. § 1692g) — debt validation requirements\n"
+            "- Fair Credit Billing Act (15 U.S.C. § 1666) — billing error resolution\n"
+            "- CFPB Circular 2022-07 — reasonable investigation standard\n\n"
+            "Demand that the furnisher produce original documentation proving the accuracy of "
+            "every reported field. A code-only verification through e-OSCAR does not satisfy "
+            "the statutory investigation requirement."
+        ),
+        (
+            "Craft a multi-statute demand letter to {entity} for account {account_name} "
+            "(#{account_number}). Dispute: {issue}. Resolution demanded: {action}. "
+            "Combine FCRA, FDCPA, and state consumer protection law arguments. Reference "
+            "the e-OSCAR system's structural inability to handle complex disputes and "
+            "CFPB Circular 2022-07's requirement for genuine investigation."
+        ),
     ],
     "ACDV_response": [
-        "Compose a formal demand letter {action} to {entity} about the disputed credit file. File/Account No: {account_number}, Dispute Date: {dispute_date}. Invoke *Cushman v. Trans Union Corp.*, 115 F.3d 220 (3d Cir. 1997), and demand immediate production of the full Automated Consumer Dispute Verification (ACDV) record, including **Method of Verification**, **Submission Procedure**, and **FCRA Compliance Policies**, with delivery required within {days} business days or outline available FCRA remedies.",
-        "Compose a formal demand letter {action} to {entity} regarding flawed reinvestigation procedures. File/Account No: {account_number}, Dispute Date: {dispute_date}. Invoke *Giliespie v. Equifax Info. Servs.*, 484 F.3d 938, which held CRAs liable for unreasonable investigation processes, and demand documented proof of each step of your reinvestigation protocol—including source contact logs, verification methodologies, and internal quality-control policies—with delivery required within {days} business days or outline available FCRA remedies for failure to comply.",
-        "Write a formal demand letter to {entity} demanding immediate production of the full Automated Consumer Dispute Verification (ACDV) record related to the {account_name} and {account_number} and previous {dispute_date}."
-    ]
+        (
+            "Compose a formal ACDV enforcement demand to {entity} regarding the disputed "
+            "account {account_name} (#{account_number}).\n\n"
+            "Original Dispute Date: {dispute_date}\n"
+            "Deadline: {days} business days\n\n"
+            "Invoke *Cushman v. Trans Union Corp.*, 115 F.3d 220 (3d Cir. 1997), and demand "
+            "immediate production of the full ACDV record, including:\n"
+            "- Method of Verification used by the furnisher\n"
+            "- The specific e-OSCAR Response Code received (01/02/07/13)\n"
+            "- Whether consumer-provided documentation was forwarded per CFPB Circular 2022-07\n"
+            "- The furnisher's investigation file and contact logs\n"
+            "- FCRA Compliance Policies governing reinvestigation procedures\n\n"
+            "State that if the CRA's 'investigation' consisted solely of forwarding an "
+            "e-OSCAR code and accepting a Response Code 01 without independent verification, "
+            "this constitutes a failure to conduct a reasonable investigation under "
+            "15 U.S.C. § 1681i and CFPB Circular 2022-07."
+        ),
+        (
+            "Compose a formal demand to {entity} regarding flawed reinvestigation procedures "
+            "for account {account_name} (#{account_number}). Dispute Date: {dispute_date}. "
+            "Invoke *Gillespie v. Equifax Info. Servs.*, 484 F.3d 938, holding CRAs liable "
+            "for unreasonable investigation processes. Demand documented proof of each step "
+            "of the reinvestigation — including the e-OSCAR ACDV exchange, Response Code "
+            "received, source contact logs, and verification methodologies — within {days} "
+            "business days. Reference CFPB Circular 2022-07 and the 2026 FCRA updates."
+        ),
+        (
+            "Write a formal demand to {entity} for immediate production of the complete "
+            "ACDV record for account {account_name} (#{account_number}) related to the "
+            "dispute filed on {dispute_date}. Demand disclosure of the e-OSCAR Response Code, "
+            "the method of verification, and whether consumer documentation was forwarded to "
+            "the furnisher. Set a {days} business day deadline."
+        ),
+    ],
 }
 
 # Preamble injected before every prompt so GPT uses real client data
@@ -270,71 +424,137 @@ PACK_INFO = [
 ]
 
 
-SYSTEM_PROMPT_BASE = (
-    "You are uDispute, a bot that creates credit dispute letters. "
-    "Use your knowledge of UCC, CFPB regulations, and USC to write compelling "
-    "letters that address inaccuracies and potential infringements by creditors."
+# ─── e-OSCAR Intelligence Block (injected into all system prompts) ───
+# This block ensures GPT understands how the dispute system actually works
+# and writes letters designed to survive the e-OSCAR automation pipeline.
+
+_E_OSCAR_INTELLIGENCE = (
+    "CRITICAL CONTEXT — HOW DISPUTES ARE ACTUALLY PROCESSED:\n"
+    "When a consumer mails a dispute letter to a credit bureau (CRA), the letter "
+    "does NOT go to the creditor. Instead, a CRA employee has approximately 4 minutes "
+    "to reduce the entire dispute into a 2-3 digit code using the e-OSCAR system "
+    "(Automated Consumer Dispute Verification / ACDV). The same 4-5 codes are used "
+    "for over 90% of all disputes. The creditor (data furnisher) then receives ONLY "
+    "this code — not the consumer's letter, not their evidence, not their arguments.\n\n"
+    "The furnisher responds with one of these ACDV Response Codes:\n"
+    "• Code 01 — 'Verified as accurate' (most common — rubber stamp, no real investigation)\n"
+    "• Code 02 — 'Modify account' (updates a field)\n"
+    "• Code 07 — 'DELETE' (removes the account entirely — THIS IS THE TARGET)\n"
+    "• Code 13 — 'Deleted per furnisher policy'\n"
+    "• DNR (Did Not Respond) — Auto-delete after 30 days if furnisher fails to respond\n\n"
+    "YOUR OBJECTIVE: Write letters that CANNOT be reduced to a simple e-OSCAR code. "
+    "Force the CRA to conduct a genuine 'reasonable investigation' per CFPB Circular "
+    "2022-07, which affirms that CRAs must forward consumer-provided documents to "
+    "furnishers and cannot use automation alone to satisfy their investigation duty.\n\n"
+    "LETTER ENGINEERING RULES:\n"
+    "1. DEMAND FIELD-SPECIFIC VERIFICATION — Do not just say 'this account is inaccurate.' "
+    "Demand verification of 5+ specific data fields (date of first delinquency, charge-off "
+    "date, balance amount, payment history for specific months, original creditor name, "
+    "credit limit). Each field the furnisher cannot verify weakens their Response Code 01.\n"
+    "2. CITE CFPB CIRCULAR 2022-07 — State explicitly that under this circular, the CRA "
+    "has an independent duty to conduct a reasonable investigation and must forward ALL "
+    "consumer-provided documentation to the furnisher. Automation alone does not satisfy "
+    "this requirement.\n"
+    "3. REFERENCE 2026 FCRA UPDATES — Mismatched data between bureaus is now classified "
+    "as a 'high-risk reporting error' requiring a mandatory 10-day preliminary investigation. "
+    "Furnishers are prohibited from resetting the date of first delinquency after a dispute.\n"
+    "4. CREATE LEGAL LIABILITY — Make clear that if the CRA simply forwards a code through "
+    "e-OSCAR without investigation, the consumer will have grounds for an FCRA claim under "
+    "15 U.S.C. § 1681i (failure to conduct reasonable investigation) and § 1681s-2(b) "
+    "(furnisher duty to investigate after receiving notice).\n"
+    "5. NAME THE SYSTEM — Reference 'e-OSCAR' and 'ACDV' by name. This signals to the "
+    "CRA employee that the consumer understands the automated process and will pursue "
+    "legal remedies if it is used as a substitute for genuine investigation.\n"
+    "6. SET A TRAP FOR DNR — For collection accounts and charged-off debts, demand that "
+    "the furnisher produce specific documentation (signed credit application, complete "
+    "payment ledger, chain of assignment). If they cannot produce it within 30 days, "
+    "the account must be deleted per 15 U.S.C. § 1681i(a)(5)(A).\n"
+    "7. DO NOT use generic language like 'I believe this account is not mine' or "
+    "'please investigate' — these are trivially reduced to e-OSCAR Code 001 or Code 103 "
+    "and verified with a rubber stamp.\n\n"
 )
 
-SYSTEM_PROMPT_WITH_INACCURACIES = (
-    "You are uDispute, a bot that creates credit dispute letters. "
-    "Use your knowledge of UCC, CFPB regulations, and USC to write compelling "
-    "letters that address inaccuracies and potential infringements by creditors.\n\n"
-    "IMPORTANT: The consumer's credit report has been automatically analyzed and "
-    "specific reporting inaccuracies have been identified with their corresponding "
-    "FCRA violations. You MUST incorporate these specific findings into the letter — "
-    "cite the exact inaccuracies, the specific FCRA sections violated, and demand "
-    "investigation/correction of each one. This is what makes each letter unique "
-    "to the consumer's situation.\n\n"
+_EDUCATIONAL_NOTE = (
     "EDUCATIONAL NOTE: Write the letter in a way that helps the consumer understand "
     "WHY each inaccuracy is a violation and WHAT their rights are. This is not just "
     "a legal document — it's a learning tool that empowers the consumer to understand "
-    "the credit reporting system."
+    "the credit reporting system and the e-OSCAR process that works against them."
+)
+
+
+SYSTEM_PROMPT_BASE = (
+    "You are uDispute, a professional credit dispute letter generator. "
+    "You write precise, legally grounded dispute letters that address inaccuracies "
+    "and potential FCRA violations by creditors and credit reporting agencies.\n\n"
+    + _E_OSCAR_INTELLIGENCE
+    + _EDUCATIONAL_NOTE
+)
+
+SYSTEM_PROMPT_WITH_INACCURACIES = (
+    "You are uDispute, a professional credit dispute letter generator. "
+    "You write precise, legally grounded dispute letters backed by automated "
+    "credit report analysis.\n\n"
+    + _E_OSCAR_INTELLIGENCE
+    + "PARSER-DETECTED INACCURACIES: The consumer's credit report has been automatically "
+    "analyzed and specific reporting inaccuracies have been identified with their "
+    "corresponding FCRA violations. You MUST incorporate these specific findings into "
+    "the letter — cite the exact inaccuracies, the specific FCRA sections violated, "
+    "and demand field-by-field verification of each one. These detected inaccuracies "
+    "are your PRIMARY ammunition — they prove the furnisher is reporting data that "
+    "contradicts itself or is incomplete, which means a Response Code 01 ('verified') "
+    "would itself be a violation.\n\n"
+    + _EDUCATIONAL_NOTE
 )
 
 SYSTEM_PROMPT_WITH_LEGAL_RESEARCH = (
-    "You are uDispute, a bot that creates credit dispute letters backed by real "
-    "legal research. Use your knowledge of UCC, CFPB regulations, and USC to write "
-    "compelling letters that address inaccuracies and potential infringements by creditors.\n\n"
-    "IMPORTANT: The consumer's credit report has been automatically analyzed and "
-    "specific reporting inaccuracies have been identified. Additionally, CFPB complaint "
-    "data and relevant federal case law have been researched for this specific creditor "
-    "and violation type. You MUST incorporate ALL of this into the letter:\n"
-    "1. Cite the exact inaccuracies found in the report\n"
-    "2. Reference the specific FCRA sections violated\n"
-    "3. Cite the CFPB complaint data showing a PATTERN of similar complaints against "
-    "this creditor (this demonstrates the issue is systemic, not an isolated error)\n"
-    "4. Cite relevant court cases where consumers prevailed on similar claims\n"
-    "5. Demand investigation/correction with a clear deadline\n\n"
-    "The CFPB data and case law citations are provided in the prompt — use them "
-    "naturally within the letter. Do NOT fabricate case names or statistics. Only cite "
-    "what is provided.\n\n"
-    "EDUCATIONAL NOTE: Write the letter in a way that helps the consumer understand "
-    "WHY each inaccuracy is a violation, WHAT their rights are, and HOW other consumers "
-    "have successfully challenged similar issues. This is not just a legal document — "
-    "it's a learning tool that empowers the consumer."
+    "You are uDispute, a professional credit dispute letter generator backed by "
+    "real legal research — CFPB complaint data and federal case law.\n\n"
+    + _E_OSCAR_INTELLIGENCE
+    + "MULTI-LAYER EVIDENCE PACKAGE: The consumer's dispute is backed by three layers:\n"
+    "1. PARSER-DETECTED INACCURACIES — Specific data contradictions found in the report. "
+    "Cite each one with the exact FCRA section violated.\n"
+    "2. CFPB COMPLAINT DATA — Real complaint data showing a PATTERN of similar issues "
+    "against this creditor. This demonstrates systemic non-compliance, not an isolated error. "
+    "Reference the complaint count and common themes.\n"
+    "3. FEDERAL CASE LAW — Court decisions where consumers prevailed on similar claims. "
+    "Cite case names and holdings naturally within the letter to establish precedent.\n\n"
+    "The CFPB data and case law citations are provided in the prompt — use them naturally. "
+    "Do NOT fabricate case names or statistics. Only cite what is provided.\n\n"
+    "This three-layer approach makes it legally dangerous for the CRA to simply forward "
+    "an e-OSCAR code. They know the consumer has evidence, pattern data, and case law — "
+    "a rubber stamp Response Code 01 creates clear § 1681i liability.\n\n"
+    + _EDUCATIONAL_NOTE
 )
 
 
 SYSTEM_PROMPT_NOTICE_OF_DISPUTE = (
-    "You are uDispute, a bot that creates credit dispute letters. "
-    "You are generating a NOTICE OF DISPUTE — this is a formal notification letter "
+    "You are uDispute, a professional credit dispute letter generator. "
+    "You are generating a NOTICE OF DISPUTE — a formal notification letter "
     "sent to a credit bureau informing them that the consumer is disputing specific "
     "accounts on their credit report.\n\n"
+    "STRATEGIC PURPOSE: This letter starts the 30-day investigation clock under "
+    "15 U.S.C. § 1681i WITHOUT revealing the consumer's specific legal arguments. "
+    "This is how consumer attorneys operate — put the bureau on notice first, then "
+    "follow up with the detailed Bureau Assault letter 15-30 days later.\n\n"
     "IMPORTANT RULES FOR THIS LETTER TYPE:\n"
     "1. List every disputed account by name, account number, and account type in a "
     "clear, numbered format\n"
     "2. State that the consumer formally disputes the accuracy of these accounts "
-    "under 15 U.S.C. § 1681i (FCRA Right to Dispute)\n"
+    "under 15 U.S.C. § 1681i\n"
     "3. Demand investigation within 30 days per FCRA requirements\n"
-    "4. Do NOT include specific inaccuracies, legal citations beyond § 1681i, or "
-    "detailed arguments — those come in the follow-up letter\n"
-    "5. Keep the tone professional and direct — this is a formal notice, not an argument\n"
-    "6. Include a statement that failure to investigate within 30 days constitutes a "
+    "4. Reference CFPB Circular 2022-07 — the CRA must conduct a reasonable "
+    "investigation, not simply forward a code through e-OSCAR\n"
+    "5. Do NOT include specific inaccuracies, detailed FCRA citations, or legal "
+    "arguments — those come in the follow-up Bureau Assault letter\n"
+    "6. Keep the tone professional, direct, and confident\n"
+    "7. Include a statement that failure to investigate within 30 days constitutes a "
     "violation of 15 U.S.C. § 1681i(a)(1)\n"
-    "7. Request written confirmation of receipt and investigation results\n\n"
-    "This letter puts the bureau on notice. The detailed inaccuracy dispute follows "
-    "15-30 days later."
+    "8. Request written confirmation of receipt and investigation results\n"
+    "9. State that the consumer is aware their dispute will be processed through the "
+    "e-OSCAR/ACDV system and that a code-only verification does not constitute a "
+    "'reasonable investigation' under the FCRA\n\n"
+    "This letter puts the bureau on notice AND signals that the consumer understands "
+    "the system. The detailed Bureau Assault follows 15-30 days later."
 )
 
 
@@ -344,8 +564,12 @@ NOTICE_OF_DISPUTE_TEMPLATE = (
     "Generate a formal Notice of Dispute letter to {bureau_name}.\n\n"
     "The following accounts are being formally disputed:\n\n"
     "{account_table}\n\n"
-    "This is a Round 1 notice under the Fair Credit Reporting Act, "
-    "15 U.S.C. § 1681i. Demand a 30-day investigation of each account listed."
+    "This is a Dispute Prep notice under the Fair Credit Reporting Act, "
+    "15 U.S.C. § 1681i. Demand a 30-day investigation of each account listed. "
+    "State that the consumer is aware this dispute will be processed through the "
+    "e-OSCAR system and that a code-only ACDV verification does not constitute "
+    "a 'reasonable investigation' per CFPB Circular 2022-07. The detailed "
+    "Bureau Assault letter with specific inaccuracies and legal citations will follow."
 )
 
 
