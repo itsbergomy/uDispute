@@ -557,9 +557,17 @@ def tier1_mail(letter_id):
 @login_required
 def tier2_issues():
     """Show selectable issue/solution cards for the current account."""
+    import logging
+    logger = logging.getLogger(__name__)
+
     account_name = session.get('account_name', '')
     account_number = session.get('account_number', '')
     items = session.get('negative_items', [])
+
+    logger.info(f"[tier2_issues] account_name={account_name!r}, account_number={account_number!r}")
+    logger.info(f"[tier2_issues] negative_items count={len(items)}")
+    for i, it in enumerate(items):
+        logger.info(f"[tier2_issues]   item[{i}] name={it.get('account_name')!r} num={it.get('account_number')!r} inaccuracies={it.get('inaccuracies', [])}")
 
     # Find the specific account
     account = None
@@ -569,6 +577,7 @@ def tier2_issues():
             break
 
     if not account:
+        logger.warning(f"[tier2_issues] No matching account found in session — falling back to empty inaccuracies")
         account = {
             'account_name': account_name,
             'account_number': account_number,
@@ -576,6 +585,8 @@ def tier2_issues():
             'status': session.get('status', ''),
             'inaccuracies': [],
         }
+    else:
+        logger.info(f"[tier2_issues] Matched account: {account.get('account_name')!r} with {len(account.get('inaccuracies', []))} inaccuracies")
 
     # Determine which issues were auto-detected
     detected_keys = set()
