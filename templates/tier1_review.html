@@ -1,11 +1,21 @@
-{# templates/tier1_review.html — Review generated Tier 1 Notice of Dispute letters #}
+{# templates/tier1_review.html — Review + Mail Tier 1 Notice of Dispute letters #}
 {% extends "base_header.html" %}
 {% import '_icons.html' as icons %}
 
-{% block title %}Notice of Dispute — Review{% endblock %}
+{% block title %}Notice of Dispute — Review & Mail{% endblock %}
 
 {% block content %}
 <main class="px-4 py-10 max-w-3xl mx-auto">
+
+  {# ── Back Button ── #}
+  <a href="{{ url_for('disputes.tier1_notice') }}"
+     class="inline-flex items-center gap-2 mb-6 glass-btn glass-btn--ghost px-4 py-2 rounded-full text-sm"
+     style="color:var(--text-secondary);">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+    Back
+  </a>
 
   {# ── Success Header ── #}
   <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in text-center">
@@ -31,14 +41,63 @@
       Notices Generated
     </h2>
     <p style="color:var(--text-secondary);font-size:0.9rem;max-width:480px;margin:0 auto;">
-      Your Notice of Dispute letters are ready. Review them below, then send them to the bureaus.
+      Your Notice of Dispute letters are ready. Review them below, then mail them to the bureaus.
       Tier 2 inaccuracy letters can be generated 15&ndash;30 days after mailing.
     </p>
   </div>
 
+  {# ── Sender Address (shared across all letters) ── #}
+  <div class="glass-card glass-p mb-6 glass-animate-in" style="animation-delay:0.05s;">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="glass-icon-well" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
+        {{ icons.icon_clients(size=18, uid='t1sender') }}
+      </div>
+      <div>
+        <h3 class="text-base font-semibold" style="color:var(--text-primary);">Your Return Address</h3>
+        <p class="text-xs" style="color:var(--text-tertiary);">Required for mailing. Applies to all letters below.</p>
+      </div>
+    </div>
+
+    <div class="glass-inset rounded-xl p-4">
+      <div class="grid md:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="glass-label block text-xs mb-1">Full Name</label>
+          <input type="text" id="senderName" class="glass-input w-full text-sm"
+                 value="{{ current_user.first_name }} {{ current_user.last_name }}" />
+        </div>
+        <div>
+          <label class="glass-label block text-xs mb-1">Address Line 1</label>
+          <input type="text" id="senderAddress1" class="glass-input w-full text-sm" placeholder="123 Main St" />
+        </div>
+      </div>
+      <div class="grid md:grid-cols-4 gap-4">
+        <div>
+          <label class="glass-label block text-xs mb-1">Address Line 2</label>
+          <input type="text" id="senderAddress2" class="glass-input w-full text-sm" placeholder="Apt 4B" />
+        </div>
+        <div>
+          <label class="glass-label block text-xs mb-1">City</label>
+          <input type="text" id="senderCity" class="glass-input w-full text-sm" placeholder="City" />
+        </div>
+        <div>
+          <label class="glass-label block text-xs mb-1">State</label>
+          <select id="senderState" class="glass-input glass-select w-full text-sm">
+            <option value="">Select</option>
+          </select>
+        </div>
+        <div>
+          <label class="glass-label block text-xs mb-1">Zip Code</label>
+          <input type="text" id="senderZip" class="glass-input w-full text-sm" placeholder="12345" />
+        </div>
+      </div>
+    </div>
+  </div>
+
   {# ── Letter Cards ── #}
-  {% for item in letters %}
-  <div class="glass-card glass-p mb-4 glass-animate-in" style="animation-delay:{{ loop.index * 0.1 }}s;">
+  {% for L in letters %}
+  <div class="glass-card glass-p mb-5 glass-animate-in" style="animation-delay:{{ (loop.index * 0.1 + 0.1) }}s;">
+
+    {# ── Card Header: Bureau badge + status ── #}
     <div class="flex items-center justify-between mb-3">
       <div class="flex items-center gap-2">
         <span style="
@@ -50,36 +109,246 @@
           padding:2px 8px;
           border-radius:100px;
           background:linear-gradient(135deg,
-            {% if item.bureau == 'Experian' %}#0077ed, #005bb5
-            {% elif item.bureau == 'Transunion' or item.bureau == 'TransUnion' %}#34c759, #28a745
-            {% elif item.bureau == 'Equifax' %}#ff3b30, #d63031
+            {% if L.bureau == 'Experian' %}#0077ed, #005bb5
+            {% elif L.bureau == 'TransUnion' %}#34c759, #28a745
+            {% elif L.bureau == 'Equifax' %}#ff3b30, #d63031
             {% else %}#8e8e93, #636e72{% endif %}
           );
           color:#fff;
-        ">{{ item.bureau }}</span>
-        <span style="color:var(--text-tertiary);font-size:0.8rem;">{{ item.accounts }} account{{ 's' if item.accounts != 1 }}</span>
+        ">{{ L.bureau }}</span>
+        {% if L.account_name %}
+          <span style="color:var(--text-tertiary);font-size:0.75rem;">{{ L.account_name[:60] }}{% if L.account_name|length > 60 %}…{% endif %}</span>
+        {% endif %}
+      </div>
+
+      {# ── Status Badges ── #}
+      <div class="flex items-center gap-2">
+        {% if L.mailed_at %}
+          <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                style="background:rgba(52,199,89,0.15);color:rgba(52,199,89,0.9);">
+            Mailed {{ L.mailed_at.strftime('%b %d') }}
+          </span>
+        {% elif L.delivery_status == 'submitted' %}
+          <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                style="background:rgba(59,130,246,0.15);color:rgba(59,130,246,0.9);">
+            Submitted
+          </span>
+        {% else %}
+          <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                style="background:rgba(245,158,11,0.15);color:rgba(245,158,11,0.9);">
+            Ready to Mail
+          </span>
+        {% endif %}
       </div>
     </div>
 
-    <div class="glass-inset rounded-xl p-4" style="max-height:300px;overflow-y:auto;">
-      <pre style="white-space:pre-wrap;font-size:0.82rem;line-height:1.6;color:var(--text-secondary);font-family:inherit;">{{ item.letter }}</pre>
+    {# ── Letter Preview ── #}
+    <div class="glass-inset rounded-xl p-4 mb-4" style="max-height:280px;overflow-y:auto;">
+      <pre style="white-space:pre-wrap;font-size:0.82rem;line-height:1.6;color:var(--text-secondary);font-family:inherit;">{{ L.letter_text }}</pre>
     </div>
+
+    {# ── Action Buttons ── #}
+    <div class="flex flex-wrap items-center gap-3">
+      {# Download PDF #}
+      {% if L.pdf_url %}
+        <a href="{{ L.pdf_url }}" target="_blank"
+           class="glass-btn glass-btn--ghost glass-btn--pill text-xs px-4 py-2 flex items-center gap-1.5"
+           style="border:1px solid rgba(255,255,255,0.12);">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          Download PDF
+        </a>
+      {% endif %}
+
+      {# Mail via DocuPost — only show if not already mailed #}
+      {% if not L.mailed_at %}
+        <form method="POST" action="{{ url_for('disputes.tier1_mail', letter_id=L.id) }}"
+              class="tier1-mail-form inline-flex" data-bureau="{{ L.bureau }}">
+          <input type="hidden" name="mail_class" value="usps_first_class" />
+          <input type="hidden" name="servicelevel" value="" />
+          {# Sender fields populated by JS from shared sender section #}
+          <input type="hidden" name="from_name" class="js-from-name" />
+          <input type="hidden" name="from_address1" class="js-from-address1" />
+          <input type="hidden" name="from_address2" class="js-from-address2" />
+          <input type="hidden" name="from_city" class="js-from-city" />
+          <input type="hidden" name="from_state" class="js-from-state" />
+          <input type="hidden" name="from_zip" class="js-from-zip" />
+
+          <button type="submit"
+                  class="glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge text-xs px-4 py-2 flex items-center gap-1.5"
+                  style="position:relative;overflow:hidden;">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+            Mail to {{ L.bureau }}
+          </button>
+        </form>
+      {% endif %}
+    </div>
+
+    {# ── Recipient Info (collapsed, for transparency) ── #}
+    {% set bureau_addr = bureau_addresses.get(L.bureau, {}) %}
+    {% if bureau_addr %}
+    <details class="mt-3" style="color:var(--text-tertiary);font-size:0.75rem;">
+      <summary style="cursor:pointer;user-select:none;">Mailing to: {{ bureau_addr.get('name', L.bureau) }}</summary>
+      <div class="mt-1 pl-4" style="line-height:1.6;">
+        {{ bureau_addr.get('address1', '') }}<br/>
+        {% if bureau_addr.get('address2') %}{{ bureau_addr['address2'] }}<br/>{% endif %}
+        {{ bureau_addr.get('city', '') }}, {{ bureau_addr.get('state', '') }} {{ bureau_addr.get('zip', '') }}
+      </div>
+    </details>
+    {% endif %}
   </div>
   {% endfor %}
+
+  {# ── Mail All Button ── #}
+  {% set unmailed = letters | rejectattr('mailed_at') | list %}
+  {% if unmailed | length > 1 %}
+  <div class="text-center mb-6">
+    <button id="mailAllBtn"
+            class="glass-btn glass-btn--primary glass-shimmer-edge px-8 py-3 text-base"
+            style="position:relative;overflow:hidden;border-radius:14px;">
+      <svg class="w-4 h-4 inline mr-1.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+      </svg>
+      Mail All {{ unmailed | length }} Notices via DocuPost
+    </button>
+    <p style="color:var(--text-tertiary);font-size:0.7rem;margin-top:0.5rem;">
+      Sends each letter to its respective bureau &bull; USPS First Class
+    </p>
+  </div>
+  {% endif %}
 
   {# ── Next Steps ── #}
   <div class="flex flex-wrap justify-center gap-3 mt-6">
     <a href="{{ url_for('disputes.dispute_folder') }}"
-       class="glass-btn glass-btn--primary px-6 py-3"
-       style="border-radius:12px;">
+       class="glass-btn glass-btn--ghost px-6 py-3"
+       style="border-radius:12px;border:1px solid rgba(255,255,255,0.1);">
       Go to Dispute Folder
     </a>
     <a href="{{ url_for('disputes.select_account') }}"
        class="glass-btn glass-btn--ghost px-6 py-3"
-       style="border-radius:12px;">
+       style="border-radius:12px;border:1px solid rgba(255,255,255,0.1);">
       Start Tier 2 &mdash; Inaccuracy Letters
     </a>
   </div>
 
 </main>
+
+<script>
+// ─── Populate state dropdown ───
+(function(){
+  var states = [
+    ['AL','Alabama'],['AK','Alaska'],['AZ','Arizona'],['AR','Arkansas'],
+    ['CA','California'],['CO','Colorado'],['CT','Connecticut'],['DE','Delaware'],
+    ['FL','Florida'],['GA','Georgia'],['HI','Hawaii'],['ID','Idaho'],
+    ['IL','Illinois'],['IN','Indiana'],['IA','Iowa'],['KS','Kansas'],
+    ['KY','Kentucky'],['LA','Louisiana'],['ME','Maine'],['MD','Maryland'],
+    ['MA','Massachusetts'],['MI','Michigan'],['MN','Minnesota'],['MS','Mississippi'],
+    ['MO','Missouri'],['MT','Montana'],['NE','Nebraska'],['NV','Nevada'],
+    ['NH','New Hampshire'],['NJ','New Jersey'],['NM','New Mexico'],['NY','New York'],
+    ['NC','North Carolina'],['ND','North Dakota'],['OH','Ohio'],['OK','Oklahoma'],
+    ['OR','Oregon'],['PA','Pennsylvania'],['RI','Rhode Island'],['SC','South Carolina'],
+    ['SD','South Dakota'],['TN','Tennessee'],['TX','Texas'],['UT','Utah'],
+    ['VT','Vermont'],['VA','Virginia'],['WA','Washington'],['WV','West Virginia'],
+    ['WI','Wisconsin'],['WY','Wyoming'],['DC','District of Columbia']
+  ];
+  var sel = document.getElementById('senderState');
+  if (sel) {
+    states.forEach(function(s){
+      var opt = document.createElement('option');
+      opt.value = s[0]; opt.textContent = s[1];
+      sel.appendChild(opt);
+    });
+  }
+})();
+
+// ─── Copy sender fields into hidden form inputs before submit ───
+(function(){
+  function getSender(){
+    return {
+      name:     document.getElementById('senderName')     ? document.getElementById('senderName').value     : '',
+      address1: document.getElementById('senderAddress1') ? document.getElementById('senderAddress1').value : '',
+      address2: document.getElementById('senderAddress2') ? document.getElementById('senderAddress2').value : '',
+      city:     document.getElementById('senderCity')     ? document.getElementById('senderCity').value     : '',
+      state:    document.getElementById('senderState')    ? document.getElementById('senderState').value    : '',
+      zip:      document.getElementById('senderZip')      ? document.getElementById('senderZip').value      : '',
+    };
+  }
+
+  function validateSender(sender){
+    if (!sender.name.trim() || !sender.address1.trim() || !sender.city.trim() || !sender.state || !sender.zip.trim()){
+      alert('Please fill in your return address (name, address, city, state, zip) before mailing.');
+      return false;
+    }
+    return true;
+  }
+
+  function fillForm(form, sender){
+    form.querySelector('.js-from-name').value     = sender.name;
+    form.querySelector('.js-from-address1').value = sender.address1;
+    form.querySelector('.js-from-address2').value = sender.address2;
+    form.querySelector('.js-from-city').value     = sender.city;
+    form.querySelector('.js-from-state').value    = sender.state;
+    form.querySelector('.js-from-zip').value      = sender.zip;
+  }
+
+  // Individual mail buttons
+  document.querySelectorAll('.tier1-mail-form').forEach(function(form){
+    form.addEventListener('submit', function(e){
+      var sender = getSender();
+      if (!validateSender(sender)){ e.preventDefault(); return; }
+      fillForm(form, sender);
+      // Disable button to prevent double-click
+      var btn = form.querySelector('button[type="submit"]');
+      if (btn){
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        btn.style.opacity = '0.6';
+      }
+    });
+  });
+
+  // "Mail All" button — submits each form sequentially
+  var mailAllBtn = document.getElementById('mailAllBtn');
+  if (mailAllBtn){
+    mailAllBtn.addEventListener('click', function(){
+      var sender = getSender();
+      if (!validateSender(sender)) return;
+
+      var forms = document.querySelectorAll('.tier1-mail-form');
+      if (forms.length === 0) return;
+
+      mailAllBtn.disabled = true;
+      mailAllBtn.textContent = 'Sending all…';
+      mailAllBtn.style.opacity = '0.6';
+
+      // Fill all forms with sender data, then submit the first one
+      // (subsequent ones will submit on page reload since the first redirect comes back here)
+      // For a seamless UX, submit all via fetch
+      var promises = [];
+      forms.forEach(function(form){
+        fillForm(form, sender);
+        var formData = new FormData(form);
+        promises.push(
+          fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            redirect: 'follow',
+          })
+        );
+      });
+
+      Promise.all(promises).then(function(){
+        // Reload to show updated statuses
+        window.location.reload();
+      }).catch(function(err){
+        alert('An error occurred while mailing. Please check your Dispute Folder for status.');
+        window.location.reload();
+      });
+    });
+  }
+})();
+</script>
 {% endblock %}

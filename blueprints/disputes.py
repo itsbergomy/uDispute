@@ -244,6 +244,7 @@ SOLUTION_CARDS = [
 
 
 @disputes_bp.route('/select-account', methods=['GET'])
+@login_required
 def select_account():
     items = session.get('negative_items', [])
     return render_template('select_negative.html', negative_items=items)
@@ -280,11 +281,15 @@ def tier1_notice():
 
 @disputes_bp.route('/tier1-notice', methods=['POST'])
 @login_required
+@require_pro_or_business
 def generate_tier1_notices():
     """Generate one Notice of Dispute letter per bureau."""
+    import traceback
+    import tempfile
+
     items = session.get('negative_items', [])
     if not items:
-        flash("No accounts found.", "error")
+        flash("No accounts found. Please upload a credit report first.", "error")
         return redirect(url_for('disputes.upload_pdf'))
 
     # Normalize bureau names
@@ -310,7 +315,9 @@ def generate_tier1_notices():
         'today_date': datetime.utcnow().strftime('%B %d, %Y'),
     }
 
-    generated_letters = []
+    generated_ids = []
+    errors = []
+
     for bureau, accounts in accounts_by_bureau.items():
         # Fresh copy per bureau so address doesn't bleed across iterations
         client_context = dict(base_context)
@@ -323,10 +330,50 @@ def generate_tier1_notices():
                 f"{bureau_info.get('city', '')} {bureau_info.get('state', '')} {bureau_info.get('zip', '')}"
             )
 
-        prompt, _, _ = build_notice_of_dispute_prompt(bureau, accounts, client_context)
-        letter_text = generate_letter(prompt, is_notice=True)
+        # ── Generate letter via GPT with error handling ──
+        try:
+            prompt, _, _ = build_notice_of_dispute_prompt(bureau, accounts, client_context)
+            letter_text = generate_letter(prompt, is_notice=True)
+        except Exception as e:
+            traceback.print_exc()
+            errors.append(f"{bureau}: {str(e)}")
+            continue
 
-        # Save as MailedLetter
+        if not letter_text or not letter_text.strip():
+            errors.append(f"{bureau}: GPT returned an empty letter.")
+            continue
+
+        # ── Convert letter to PDF and upload ──
+        pdf_url = None
+        try:
+            upload_folder = current_app.config['UPLOAD_FOLDER']
+            os.makedirs(upload_folder, exist_ok=True)
+
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            pdf_filename = f'Notice_{bureau}_{timestamp}.pdf'
+            pdf_path = letter_to_pdf(letter_text, os.path.join(upload_folder, pdf_filename))
+
+            if cloud_configured():
+                cloud_result = upload_from_path(
+                    pdf_path,
+                    folder=f"users/{user.id}/notices",
+                    filename=pdf_filename.rsplit('.', 1)[0]
+                )
+                if cloud_result:
+                    pdf_url = cloud_result['secure_url']
+            else:
+                # Local storage — copy to user folder
+                user_folder = os.path.join(upload_folder, str(user.id))
+                os.makedirs(user_folder, exist_ok=True)
+                import shutil
+                shutil.copy2(pdf_path, os.path.join(user_folder, pdf_filename))
+                pdf_url = generate_public_pdf_url(pdf_filename)
+        except Exception as e:
+            traceback.print_exc()
+            # PDF generation failed — still save the letter, just without a PDF
+            pdf_url = None
+
+        # ── Save as MailedLetter ──
         account_names = ', '.join(a.get('account_name', '') for a in accounts)
         ml = MailedLetter(
             user_id=user.id,
@@ -336,26 +383,172 @@ def generate_tier1_notices():
             account_name=account_names,
             tier='notice',
             outcome='pending',
+            pdf_url=pdf_url,
         )
         db.session.add(ml)
-        generated_letters.append({'bureau': bureau, 'letter': letter_text, 'accounts': len(accounts)})
+        db.session.flush()  # Get the ID before commit
+        generated_ids.append(ml.id)
 
     db.session.commit()
 
-    session['tier1_generated'] = True
-    session['tier1_letters'] = generated_letters
-    flash(f"Generated {len(generated_letters)} Notice of Dispute letter(s). Review them in your Dispute Folder.", "success")
+    if errors and not generated_ids:
+        # All bureaus failed
+        flash(f"Failed to generate notices: {'; '.join(errors)}", "error")
+        return redirect(url_for('disputes.tier1_notice'))
+
+    if errors:
+        # Some succeeded, some failed
+        flash(f"Generated {len(generated_ids)} notice(s), but had errors: {'; '.join(errors)}", "warning")
+
+    # Store only the DB IDs in session — not full letter text (avoids cookie overflow)
+    session['tier1_letter_ids'] = generated_ids
+
+    flash(f"Generated {len(generated_ids)} Notice of Dispute letter(s).", "success")
     return redirect(url_for('disputes.tier1_review'))
 
 
 @disputes_bp.route('/tier1-review', methods=['GET'])
 @login_required
 def tier1_review():
-    """Show generated Tier 1 letters for review."""
-    letters = session.get('tier1_letters', [])
-    if not letters:
-        return redirect(url_for('disputes.tier1_notice'))
-    return render_template('tier1_review.html', letters=letters)
+    """Show generated Tier 1 letters for review, queried from DB by IDs."""
+    letter_ids = session.get('tier1_letter_ids', [])
+    if not letter_ids:
+        # Fallback: show most recent notice-tier letters for this user
+        letters = MailedLetter.query.filter_by(
+            user_id=current_user.id, tier='notice'
+        ).order_by(MailedLetter.created_at.desc()).limit(3).all()
+        if not letters:
+            flash("No Notice of Dispute letters found. Generate them first.", "info")
+            return redirect(url_for('disputes.tier1_notice'))
+    else:
+        letters = MailedLetter.query.filter(
+            MailedLetter.id.in_(letter_ids),
+            MailedLetter.user_id == current_user.id
+        ).all()
+        if not letters:
+            flash("Could not find the generated letters. Please try again.", "error")
+            return redirect(url_for('disputes.tier1_notice'))
+
+    return render_template(
+        'tier1_review.html',
+        letters=letters,
+        bureau_addresses=BUREAU_ADDRESSES,
+    )
+
+
+@disputes_bp.route('/tier1-mail/<int:letter_id>', methods=['POST'])
+@login_required
+@require_pro_or_business
+def tier1_mail(letter_id):
+    """Mail a single Tier 1 Notice of Dispute via DocuPost."""
+    ml = MailedLetter.query.filter_by(id=letter_id, user_id=current_user.id).first()
+    if not ml:
+        flash("Letter not found.", "error")
+        return redirect(url_for('disputes.tier1_review'))
+
+    # ── Resolve PDF URL ──
+    pdf_url = ml.pdf_url
+    if not pdf_url:
+        # PDF wasn't generated earlier — try generating now
+        try:
+            upload_folder = current_app.config['UPLOAD_FOLDER']
+            os.makedirs(upload_folder, exist_ok=True)
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            pdf_filename = f'Notice_{ml.bureau}_{timestamp}.pdf'
+            pdf_path = letter_to_pdf(ml.letter_text, os.path.join(upload_folder, pdf_filename))
+
+            if cloud_configured():
+                cloud_result = upload_from_path(
+                    pdf_path,
+                    folder=f"users/{current_user.id}/notices",
+                    filename=pdf_filename.rsplit('.', 1)[0]
+                )
+                if cloud_result:
+                    pdf_url = cloud_result['secure_url']
+            else:
+                user_folder = os.path.join(upload_folder, str(current_user.id))
+                os.makedirs(user_folder, exist_ok=True)
+                import shutil
+                shutil.copy2(pdf_path, os.path.join(user_folder, pdf_filename))
+                pdf_url = generate_public_pdf_url(pdf_filename)
+
+            if pdf_url:
+                ml.pdf_url = pdf_url
+                db.session.commit()
+        except Exception as e:
+            flash(f"Could not generate PDF for {ml.bureau}: {str(e)}", "error")
+            return redirect(url_for('disputes.tier1_review'))
+
+    if not pdf_url:
+        flash(f"No PDF available for {ml.bureau}. Please try regenerating.", "error")
+        return redirect(url_for('disputes.tier1_review'))
+
+    # ── Build recipient from bureau addresses ──
+    bureau_info = BUREAU_ADDRESSES.get(ml.bureau, {})
+    if not bureau_info:
+        flash(f"No mailing address found for {ml.bureau}.", "error")
+        return redirect(url_for('disputes.tier1_review'))
+
+    recipient = {
+        'name': bureau_info.get('name', ''),
+        'company': bureau_info.get('company', ''),
+        'address1': bureau_info.get('address1', ''),
+        'address2': bureau_info.get('address2', ''),
+        'city': bureau_info.get('city', ''),
+        'state': bureau_info.get('state', ''),
+        'zip': bureau_info.get('zip', ''),
+    }
+
+    # ── Build sender from form data ──
+    sender = {
+        'name': request.form.get('from_name', f"{current_user.first_name} {current_user.last_name}"),
+        'company': '',
+        'address1': request.form.get('from_address1', ''),
+        'address2': request.form.get('from_address2', ''),
+        'city': request.form.get('from_city', ''),
+        'state': request.form.get('from_state', ''),
+        'zip': request.form.get('from_zip', ''),
+    }
+
+    # Validate sender has at least an address
+    if not sender['address1'] or not sender['city'] or not sender['state'] or not sender['zip']:
+        flash("Please fill in your return address before mailing.", "error")
+        return redirect(url_for('disputes.tier1_review'))
+
+    mail_options = {
+        'mail_class': request.form.get('mail_class', 'usps_first_class'),
+        'servicelevel': request.form.get('servicelevel', ''),
+        'color': 'false',
+        'doublesided': 'false',
+        'return_envelope': 'false',
+    }
+
+    byok_token = get_docupost_token(current_user.id)
+    result = mail_letter_via_docupost(
+        pdf_url=pdf_url,
+        recipient=recipient,
+        sender=sender,
+        mail_options=mail_options,
+        api_token=byok_token,
+    )
+
+    if result.get('success'):
+        # Update the MailedLetter record with delivery info
+        ml.delivery_status = 'submitted'
+        if result.get('letter_id'):
+            ml.docupost_letter_id = str(result['letter_id'])
+        if result.get('cost'):
+            ml.docupost_cost = float(result['cost'])
+        ml.mailed_at = datetime.utcnow()
+        ml.mail_class = mail_options['mail_class']
+        ml.service_level = mail_options['servicelevel'] or None
+        db.session.commit()
+
+        flash(f"{ml.bureau} Notice of Dispute submitted for mailing! Track it in your Dispute Folder.", "success")
+    else:
+        flash(f"DocuPost error for {ml.bureau}: {result.get('error', 'Unknown error')}", "error")
+
+    return redirect(url_for('disputes.tier1_review'))
 
 
 # ─── Tier 2: Issue/Solution Selection ───

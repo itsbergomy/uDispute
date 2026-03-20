@@ -7,6 +7,16 @@
 {% block content %}
 <main class="px-4 py-10 max-w-3xl mx-auto">
 
+  {# ── Back Button ── #}
+  <a href="{{ url_for('disputes.select_account') }}"
+     class="inline-flex items-center gap-2 mb-6 glass-btn glass-btn--ghost px-4 py-2 rounded-full text-sm"
+     style="color:var(--text-secondary);">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+    Back to Accounts
+  </a>
+
   {# ── Educational Panel ── #}
   <div class="glass-card glass-card--heavy glass-p mb-8 glass-animate-in" style="text-align:center;">
     <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">

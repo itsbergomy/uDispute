@@ -77,6 +77,16 @@ class MailedLetter(db.Model):
     response_received_at = db.Column(db.DateTime, nullable=True)
     legal_research_json = db.Column(db.Text, nullable=True)  # cached CFPB + case law results
 
+    # DocuPost mailing
+    docupost_letter_id = db.Column(db.String(100), nullable=True)
+    docupost_cost = db.Column(db.Float, nullable=True)
+    delivery_status = db.Column(db.String(50), nullable=True)  # submitted / processing / in_transit / delivered / error
+    delivery_status_updated_at = db.Column(db.DateTime, nullable=True)
+    tracking_number = db.Column(db.String(100), nullable=True)
+    mailed_at = db.Column(db.DateTime, nullable=True)
+    mail_class = db.Column(db.String(50), nullable=True)
+    service_level = db.Column(db.String(50), nullable=True)
+
     # Round chaining
     previous_letter_id = db.Column(db.Integer, db.ForeignKey('mailed_letter.id'), nullable=True)
     previous_letter = db.relationship('MailedLetter', remote_side=[id], backref='next_letters')

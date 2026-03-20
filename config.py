@@ -110,6 +110,14 @@ def create_app():
                     'legal_research_json': 'TEXT',
                     'previous_letter_id': 'INTEGER REFERENCES mailed_letter(id)',
                     'tier': 'VARCHAR(20)',
+                    'docupost_letter_id': 'VARCHAR(100)',
+                    'docupost_cost': 'FLOAT',
+                    'delivery_status': 'VARCHAR(50)',
+                    'delivery_status_updated_at': 'TIMESTAMP',
+                    'tracking_number': 'VARCHAR(100)',
+                    'mailed_at': 'TIMESTAMP',
+                    'mail_class': 'VARCHAR(50)',
+                    'service_level': 'VARCHAR(50)',
                 }
                 for col_name, col_type in new_cols.items():
                     if col_name not in existing:
