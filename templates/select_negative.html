@@ -4,7 +4,7 @@
 {% block content %}
 <main class="flex justify-center items-center min-h-[75vh] px-4 py-10">
   <div class="glass-card glass-card--heavy glass-p max-w-md w-full relative text-center glass-animate-in">
-    <a href="{{ url_for('upload_pdf') }}"
+    <a href="{{ url_for('disputes.upload_pdf') }}"
        class="absolute top-4 left-4 glass-btn glass-btn--ghost p-3 rounded-full">
       &larr;
     </a>
@@ -16,8 +16,31 @@
 
     {% set disputed_accounts = session.get('disputed_accounts', []) %}
 
+    {# ── Tier 1 Notice of Dispute CTA ── #}
+    <div class="glass-inset rounded-xl p-4 mb-5 text-left">
+      <div class="flex items-center justify-between">
+        <div>
+          <p style="font-size:0.85rem;font-weight:600;color:var(--text-primary);margin-bottom:2px;">
+            Start with a Notice of Dispute?
+          </p>
+          <p style="font-size:0.75rem;color:var(--text-tertiary);">
+            Send one letter per bureau listing all accounts &mdash; the way consumer attorneys do it.
+          </p>
+        </div>
+        <a href="{{ url_for('disputes.tier1_notice') }}"
+           class="glass-btn glass-btn--primary px-4 py-2"
+           style="border-radius:10px;font-size:0.8rem;white-space:nowrap;">
+          Tier 1
+        </a>
+      </div>
+    </div>
+
+    <p style="color:var(--text-tertiary);font-size:0.75rem;text-align:center;margin-bottom:1rem;">
+      Or select an account below for a detailed inaccuracy dispute (Tier 2)
+    </p>
+
     {% for item in negative_items %}
-    <form method="GET" action="{{ url_for('confirm_account') }}"
+    <form method="GET" action="{{ url_for('disputes.confirm_account') }}"
           class="mb-3 glass-list-item text-left {% if item.account_number in disputed_accounts %}opacity-50 pointer-events-none{% endif %}"
           style="transition:box-shadow 0.2s ease,transform 0.2s ease;"
           onmouseenter="if(!this.classList.contains('pointer-events-none'))this.classList.add('glass-raised')"

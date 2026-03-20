@@ -18,13 +18,13 @@
       <p class="mb-2" style="color:var(--text-secondary);"><strong style="color:var(--text-primary);">Account Number:</strong> {{ account_number }}</p>
       <p style="color:var(--text-secondary);"><strong style="color:var(--text-primary);">Status:</strong> {{ status }}</p>
     </div>
-    <form method="POST" action="{{ url_for('save_confirmed_account') }}">
+    <form method="POST" action="{{ url_for('disputes.save_confirmed_account') }}">
       <input type="hidden" name="account_name" value="{{ account_name }}">
       <input type="hidden" name="account_number" value="{{ account_number }}">
       <input type="hidden" name="status" value="{{ status }}">
       <div class="flex gap-4">
         <button type="submit" class="glass-btn glass-btn--primary flex-1 glass-shimmer-edge" style="position:relative;overflow:hidden;">Confirm</button>
-        <a href="/select-account" class="glass-btn glass-btn--secondary glass-btn--pill flex-1 text-center">Go Back</a>
+        <a href="{{ url_for('disputes.select_account') }}" class="glass-btn glass-btn--secondary glass-btn--pill flex-1 text-center">Go Back</a>
       </div>
     </form>
   </div>

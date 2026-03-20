@@ -19,7 +19,8 @@ from services.pdf_parser import (
     extract_pdf_metrics, pdf_to_base64_images
 )
 from services.letter_generator import (
-    PACKS, PACK_INFO, generate_letter, build_prompt, letter_to_pdf,
+    PACKS, PACK_INFO, generate_letter, build_prompt,
+    build_notice_of_dispute_prompt, letter_to_pdf,
     image_to_pdf, merge_dispute_package
 )
 from services.delivery import mail_letter_via_docupost, get_docupost_token
@@ -194,10 +195,259 @@ def confirm_next_round():
     return render_template('confirm_next_round.html', current_round=current_round)
 
 
+# ─── Issue / Solution card definitions for Tier 2 ───
+
+ISSUE_CARDS = [
+    {"key": "status_contradicts_history", "name": "Status Contradicts Payment History",
+     "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+     "description": "The account status doesn't match the payment history grid — e.g., 'Pays as agreed' but shows late payments."},
+    {"key": "account_type_mismatch", "name": "Account Type Mismatch",
+     "section": "15 U.S.C. § 1681e(b)",
+     "description": "The account is classified with the wrong type (e.g., listed as 'Open' when it should be 'Collection')."},
+    {"key": "original_creditor_not_reflected", "name": "Original Creditor Not Reflected",
+     "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+     "description": "A transferred/sold debt doesn't properly identify the original creditor."},
+    {"key": "closed_account_with_balance", "name": "Closed Account With Balance",
+     "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+     "description": "A closed or paid account still shows an outstanding balance."},
+    {"key": "chargeoff_not_in_status", "name": "Charge-Off Not In Status",
+     "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+     "description": "Payment history shows charge-off entries but the account status doesn't reflect it."},
+    {"key": "balance_exceeds_limit", "name": "Balance Exceeds Credit Limit",
+     "section": "15 U.S.C. § 1681s-2(a)(1)(B)",
+     "description": "The reported balance is higher than the original credit limit."},
+    {"key": "double_reporting", "name": "Double/Duplicative Reporting",
+     "section": "15 U.S.C. § 1681s-2(a)(1)(B)",
+     "description": "The same debt appears from both the original creditor and a collector."},
+    {"key": "missing_due_date", "name": "Missing Due Date",
+     "section": "15 U.S.C. § 1681s-2(a)(1)(B)",
+     "description": "The account is missing a due date, which is required for accurate reporting."},
+    {"key": "missing_payment_amount", "name": "Missing Payment Amount",
+     "section": "15 U.S.C. § 1681s-2(a)(1)(B)",
+     "description": "The scheduled monthly payment amount is missing, making debt-to-income calculations inaccurate."},
+]
+
+SOLUTION_CARDS = [
+    {"key": "remove", "name": "Remove Account",
+     "description": "Remove this account entirely from my credit report."},
+    {"key": "update_status", "name": "Update Account Status",
+     "description": "Correct the account status to reflect accurate information."},
+    {"key": "delete_history", "name": "Delete Inaccurate Payment History",
+     "description": "Remove incorrect late payment or delinquency entries from the payment history."},
+    {"key": "correct_balance", "name": "Correct Balance to $0",
+     "description": "Update the balance to $0 for a paid or closed account."},
+    {"key": "remove_duplicate", "name": "Remove Duplicate Entry",
+     "description": "Delete the duplicate reporting of this debt."},
+    {"key": "add_missing_info", "name": "Add Missing Information",
+     "description": "Add the missing data fields (due date, payment amount, creditor name)."},
+]
+
+
 @disputes_bp.route('/select-account', methods=['GET'])
 def select_account():
     items = session.get('negative_items', [])
     return render_template('select_negative.html', negative_items=items)
+
+
+# ─── Tier 1: Notice of Dispute ───
+
+@disputes_bp.route('/tier1-notice', methods=['GET'])
+@login_required
+def tier1_notice():
+    """Show the Tier 1 Notice of Dispute screen with accounts grouped by bureau."""
+    items = session.get('negative_items', [])
+    if not items:
+        flash("No accounts found. Please upload a credit report first.", "error")
+        return redirect(url_for('disputes.upload_pdf'))
+
+    # Normalize bureau names to match BUREAU_ADDRESSES keys
+    BUREAU_NAME_MAP = {
+        'experian': 'Experian',
+        'transunion': 'TransUnion',
+        'equifax': 'Equifax',
+    }
+
+    accounts_by_bureau = {}
+    for item in items:
+        raw = (item.get('bureau') or 'Unknown').lower().strip()
+        bureau = BUREAU_NAME_MAP.get(raw, raw.title())
+        if bureau not in accounts_by_bureau:
+            accounts_by_bureau[bureau] = []
+        accounts_by_bureau[bureau].append(item)
+
+    return render_template('tier1_notice.html', accounts_by_bureau=accounts_by_bureau)
+
+
+@disputes_bp.route('/tier1-notice', methods=['POST'])
+@login_required
+def generate_tier1_notices():
+    """Generate one Notice of Dispute letter per bureau."""
+    items = session.get('negative_items', [])
+    if not items:
+        flash("No accounts found.", "error")
+        return redirect(url_for('disputes.upload_pdf'))
+
+    # Normalize bureau names
+    BUREAU_NAME_MAP = {
+        'experian': 'Experian',
+        'transunion': 'TransUnion',
+        'equifax': 'Equifax',
+    }
+    accounts_by_bureau = {}
+    for item in items:
+        raw = (item.get('bureau') or 'Unknown').lower().strip()
+        bureau = BUREAU_NAME_MAP.get(raw, raw.title())
+        if bureau not in accounts_by_bureau:
+            accounts_by_bureau[bureau] = []
+        accounts_by_bureau[bureau].append(item)
+
+    # Build client context from current user
+    user = current_user
+    base_context = {
+        'client_full_name': f"{user.first_name} {user.last_name}",
+        'client_address': '',
+        'client_city_state_zip': '',
+        'today_date': datetime.utcnow().strftime('%B %d, %Y'),
+    }
+
+    generated_letters = []
+    for bureau, accounts in accounts_by_bureau.items():
+        # Fresh copy per bureau so address doesn't bleed across iterations
+        client_context = dict(base_context)
+
+        # Get bureau mailing address
+        bureau_info = BUREAU_ADDRESSES.get(bureau, {})
+        if bureau_info:
+            client_context['bureau_address'] = (
+                f"{bureau_info.get('address1', '')}, "
+                f"{bureau_info.get('city', '')} {bureau_info.get('state', '')} {bureau_info.get('zip', '')}"
+            )
+
+        prompt, _, _ = build_notice_of_dispute_prompt(bureau, accounts, client_context)
+        letter_text = generate_letter(prompt, is_notice=True)
+
+        # Save as MailedLetter
+        account_names = ', '.join(a.get('account_name', '') for a in accounts)
+        ml = MailedLetter(
+            user_id=user.id,
+            letter_text=letter_text,
+            bureau=bureau,
+            round_number=session.get('current_round', 1),
+            account_name=account_names,
+            tier='notice',
+            outcome='pending',
+        )
+        db.session.add(ml)
+        generated_letters.append({'bureau': bureau, 'letter': letter_text, 'accounts': len(accounts)})
+
+    db.session.commit()
+
+    session['tier1_generated'] = True
+    session['tier1_letters'] = generated_letters
+    flash(f"Generated {len(generated_letters)} Notice of Dispute letter(s). Review them in your Dispute Folder.", "success")
+    return redirect(url_for('disputes.tier1_review'))
+
+
+@disputes_bp.route('/tier1-review', methods=['GET'])
+@login_required
+def tier1_review():
+    """Show generated Tier 1 letters for review."""
+    letters = session.get('tier1_letters', [])
+    if not letters:
+        return redirect(url_for('disputes.tier1_notice'))
+    return render_template('tier1_review.html', letters=letters)
+
+
+# ─── Tier 2: Issue/Solution Selection ───
+
+@disputes_bp.route('/tier2-issues', methods=['GET'])
+@login_required
+def tier2_issues():
+    """Show selectable issue/solution cards for the current account."""
+    account_name = session.get('account_name', '')
+    account_number = session.get('account_number', '')
+    items = session.get('negative_items', [])
+
+    # Find the specific account
+    account = None
+    for item in items:
+        if item.get('account_number') == account_number or item.get('account_name') == account_name:
+            account = item
+            break
+
+    if not account:
+        account = {
+            'account_name': account_name,
+            'account_number': account_number,
+            'account_type': session.get('account_type', ''),
+            'status': session.get('status', ''),
+            'inaccuracies': [],
+        }
+
+    # Determine which issues were auto-detected
+    detected_keys = set()
+    for inac_text in account.get('inaccuracies', []):
+        text = inac_text.lower()
+        if 'status' in text and ('contradict' in text or 'paying as agreed' in text):
+            detected_keys.add('status_contradicts_history')
+        elif 'account type' in text and ('mismatch' in text or 'open account' in text):
+            detected_keys.add('account_type_mismatch')
+        elif 'original creditor' in text:
+            detected_keys.add('original_creditor_not_reflected')
+        elif 'closed' in text and 'balance' in text:
+            detected_keys.add('closed_account_with_balance')
+        elif 'charge-off' in text and 'status' in text:
+            detected_keys.add('chargeoff_not_in_status')
+        elif 'exceeds' in text and 'limit' in text:
+            detected_keys.add('balance_exceeds_limit')
+        elif 'double' in text or 'duplicat' in text:
+            detected_keys.add('double_reporting')
+        elif 'missing' in text and 'due date' in text:
+            detected_keys.add('missing_due_date')
+        elif 'missing' in text and 'payment amount' in text:
+            detected_keys.add('missing_payment_amount')
+
+    return render_template('tier2_issues.html',
+        account=account,
+        all_issues=ISSUE_CARDS,
+        detected_keys=detected_keys,
+        solutions=SOLUTION_CARDS,
+    )
+
+
+@disputes_bp.route('/tier2-issues', methods=['POST'])
+@login_required
+def save_tier2_issues():
+    """Save selected issues/solutions and proceed to template selection."""
+    selected_issues = request.form.getlist('issues')
+    selected_solutions = request.form.getlist('solutions')
+
+    # Build the issue text from selected cards
+    issue_parts = []
+    for issue_key in selected_issues:
+        for card in ISSUE_CARDS:
+            if card['key'] == issue_key:
+                issue_parts.append(card['name'])
+                break
+
+    # Build the action text from selected solutions
+    action_parts = []
+    for sol_key in selected_solutions:
+        for card in SOLUTION_CARDS:
+            if card['key'] == sol_key:
+                action_parts.append(card['name'])
+                break
+
+    # Store in session for the existing define_details → choose_template flow
+    session['account_name'] = request.form.get('account_name', session.get('account_name', ''))
+    session['account_number'] = request.form.get('account_number', session.get('account_number', ''))
+    session['status'] = request.form.get('status', session.get('status', ''))
+    session['issue'] = '; '.join(issue_parts) if issue_parts else 'Inaccurate reporting'
+    session['action'] = '; '.join(action_parts) if action_parts else 'Remove this account from my credit report'
+    session['selected_issues'] = selected_issues
+    session['selected_solutions'] = selected_solutions
+
+    return redirect(url_for('disputes.select_entity'))
 
 
 @disputes_bp.route('/confirm-account', methods=['GET'])
@@ -240,8 +490,8 @@ def save_confirmed_account():
         round_record.set_disputed_accounts(disputed_accounts)
         db.session.commit()
 
-    flash("Account confirmed! Next: Choose a prompt pack and hit Generate to create your dispute letter.", "success")
-    return redirect(url_for('disputes.select_entity'))
+    flash("Account confirmed! Next: Select the issues and solutions for your dispute.", "success")
+    return redirect(url_for('disputes.tier2_issues'))
 
 
 @disputes_bp.route('/select-entity', methods=['GET', 'POST'])

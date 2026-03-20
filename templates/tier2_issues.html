@@ -1,0 +1,130 @@
+{# templates/tier2_issues.html — Tier 2: Select Issues & Solutions #}
+{% extends "base_header.html" %}
+{% import '_icons.html' as icons %}
+
+{% block title %}Select Issues &amp; Solutions — Tier 2{% endblock %}
+
+{% block content %}
+<main class="px-4 py-10 max-w-3xl mx-auto">
+
+  {# ── Header ── #}
+  <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in text-center">
+    <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
+      {{ icons.icon_check(size=28, uid='t2hdr') }}
+    </div>
+
+    <span style="
+      display:inline-block;
+      font-size:0.65rem;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:0.1em;
+      padding:4px 12px;
+      border-radius:100px;
+      background:linear-gradient(135deg, #6e5ce6, #af52de);
+      color:#fff;
+      margin-bottom:0.75rem;
+      box-shadow:0 3px 10px rgba(110,92,230,0.25), inset 0 1px 0 rgba(255,255,255,0.3);
+    ">Tier 2 of 2</span>
+
+    <h2 class="text-2xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">
+      Inaccuracy Dispute &mdash; {{ account.account_name }}
+    </h2>
+    <p style="color:var(--text-tertiary);font-size:0.85rem;">
+      {{ account.account_number or 'No number' }} &bull; {{ account.account_type or 'Unknown type' }}
+    </p>
+  </div>
+
+  <form method="POST" action="{{ url_for('disputes.save_tier2_issues') }}">
+    <input type="hidden" name="account_name" value="{{ account.account_name }}">
+    <input type="hidden" name="account_number" value="{{ account.account_number }}">
+    <input type="hidden" name="status" value="{{ account.status }}">
+
+    {# ── Detected Issues ── #}
+    <h3 class="text-lg font-semibold mb-3 glass-text-emboss" style="color:var(--text-primary);">
+      Select Issues to Dispute
+    </h3>
+    <p style="color:var(--text-tertiary);font-size:0.8rem;margin-bottom:1rem;">
+      {% if detected_keys %}
+        These inaccuracies were <strong>auto-detected</strong> from your credit report. Select the ones you want to include.
+      {% else %}
+        No inaccuracies were auto-detected. Select the issues that apply to this account.
+      {% endif %}
+    </p>
+
+    <div class="grid gap-3 mb-8" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));">
+      {% for issue in all_issues %}
+      <label class="glass-issue-card {% if issue.key in detected_keys %}glass-issue-card--detected{% endif %}"
+             for="issue-{{ issue.key }}">
+        <input type="checkbox"
+               id="issue-{{ issue.key }}"
+               name="issues"
+               value="{{ issue.key }}"
+               {% if issue.key in detected_keys %}checked{% endif %}
+               class="glass-issue-checkbox">
+        <div class="glass-issue-card__body">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="glass-issue-card__name">{{ issue.name }}</span>
+            {% if issue.key in detected_keys %}
+            <span style="
+              font-size:0.55rem;font-weight:700;text-transform:uppercase;
+              padding:2px 6px;border-radius:100px;
+              background:linear-gradient(135deg, #34c759, #30d158);
+              color:#fff;letter-spacing:0.05em;
+            ">Detected</span>
+            {% endif %}
+          </div>
+          <span class="glass-issue-card__section">{{ issue.section }}</span>
+          <p class="glass-issue-card__desc">{{ issue.description }}</p>
+        </div>
+        <div class="glass-issue-card__check">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+
+    {# ── Solutions ── #}
+    <h3 class="text-lg font-semibold mb-3 glass-text-emboss" style="color:var(--text-primary);">
+      What Do You Want Them to Do?
+    </h3>
+    <p style="color:var(--text-tertiary);font-size:0.8rem;margin-bottom:1rem;">
+      Select one or more actions you want the bureau/creditor to take.
+    </p>
+
+    <div class="grid gap-3 mb-8" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));">
+      {% for sol in solutions %}
+      <label class="glass-solution-card" for="sol-{{ sol.key }}">
+        <input type="checkbox"
+               id="sol-{{ sol.key }}"
+               name="solutions"
+               value="{{ sol.key }}"
+               {% if sol.key == 'remove' %}checked{% endif %}
+               class="glass-solution-checkbox">
+        <div class="glass-solution-card__body">
+          <span class="glass-solution-card__name">{{ sol.name }}</span>
+          <p class="glass-solution-card__desc">{{ sol.description }}</p>
+        </div>
+        <div class="glass-solution-card__check">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+
+    {# ── Submit ── #}
+    <div class="text-center">
+      <button type="submit"
+              class="glass-btn glass-btn--primary glass-shimmer-edge px-8 py-3 text-lg"
+              style="position:relative;overflow:hidden;border-radius:14px;">
+        Next: Select Prompt Template
+      </button>
+    </div>
+  </form>
+
+</main>
+{% endblock %}

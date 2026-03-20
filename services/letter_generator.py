@@ -88,6 +88,26 @@ FCRA_INACCURACY_MAP = {
             "consumer's apparent delinquent debt and is both inaccurate and misleading."
         ),
     },
+    "missing_due_date": {
+        "section": "15 U.S.C. § 1681s-2(a)(1)(B)",
+        "title": "Duty of Furnishers — Incomplete Reporting",
+        "explanation": (
+            "Under {section}, furnishers must not report information they know to be "
+            "incomplete. The account is missing a due date, which is a required data "
+            "field for accurate credit reporting. Without a due date, consumers and "
+            "potential creditors cannot properly evaluate the account's status."
+        ),
+    },
+    "missing_payment_amount": {
+        "section": "15 U.S.C. § 1681s-2(a)(1)(B)",
+        "title": "Duty of Furnishers — Incomplete Reporting",
+        "explanation": (
+            "Under {section}, furnishers must not report information they know to be "
+            "incomplete. The account is missing the scheduled monthly payment amount, "
+            "which is essential for accurate debt-to-income calculations and creditworthiness "
+            "assessment. This omission renders the reporting incomplete and potentially misleading."
+        ),
+    },
 }
 
 
@@ -108,6 +128,10 @@ def classify_inaccuracy(inaccuracy_text):
         return "balance_exceeds_limit"
     if 'double' in text or 'duplicat' in text:
         return "double_reporting"
+    if 'missing' in text and 'due date' in text:
+        return "missing_due_date"
+    if 'missing' in text and ('payment amount' in text or 'monthly payment' in text):
+        return "missing_payment_amount"
     return None
 
 
@@ -292,8 +316,96 @@ SYSTEM_PROMPT_WITH_LEGAL_RESEARCH = (
 )
 
 
+SYSTEM_PROMPT_NOTICE_OF_DISPUTE = (
+    "You are uDispute, a bot that creates credit dispute letters. "
+    "You are generating a NOTICE OF DISPUTE — this is a formal notification letter "
+    "sent to a credit bureau informing them that the consumer is disputing specific "
+    "accounts on their credit report.\n\n"
+    "IMPORTANT RULES FOR THIS LETTER TYPE:\n"
+    "1. List every disputed account by name, account number, and account type in a "
+    "clear, numbered format\n"
+    "2. State that the consumer formally disputes the accuracy of these accounts "
+    "under 15 U.S.C. § 1681i (FCRA Right to Dispute)\n"
+    "3. Demand investigation within 30 days per FCRA requirements\n"
+    "4. Do NOT include specific inaccuracies, legal citations beyond § 1681i, or "
+    "detailed arguments — those come in the follow-up letter\n"
+    "5. Keep the tone professional and direct — this is a formal notice, not an argument\n"
+    "6. Include a statement that failure to investigate within 30 days constitutes a "
+    "violation of 15 U.S.C. § 1681i(a)(1)\n"
+    "7. Request written confirmation of receipt and investigation results\n\n"
+    "This letter puts the bureau on notice. The detailed inaccuracy dispute follows "
+    "15-30 days later."
+)
+
+
+# ─── Notice of Dispute (Tier 1) ───
+
+NOTICE_OF_DISPUTE_TEMPLATE = (
+    "Generate a formal Notice of Dispute letter to {bureau_name}.\n\n"
+    "The following accounts are being formally disputed:\n\n"
+    "{account_table}\n\n"
+    "This is a Round 1 notice under the Fair Credit Reporting Act, "
+    "15 U.S.C. § 1681i. Demand a 30-day investigation of each account listed."
+)
+
+
+def build_notice_of_dispute_prompt(bureau, accounts, client_context):
+    """
+    Build a Notice of Dispute prompt for a single bureau.
+
+    Args:
+        bureau: Bureau name (e.g., 'Experian', 'TransUnion', 'Equifax')
+        accounts: List of account dicts for this bureau (from parser)
+        client_context: Dict with client_full_name, client_address, etc.
+
+    Returns:
+        Tuple of (prompt_string, False, False) — no inaccuracies, no legal research.
+    """
+    # Build account table
+    rows = []
+    for i, acct in enumerate(accounts, 1):
+        name = acct.get('account_name', 'Unknown')
+        number = acct.get('account_number', 'Unknown')
+        acct_type = acct.get('account_type', 'Unknown')
+        rows.append(f"{i}. {name} | Account #: {number} | Type: {acct_type}")
+
+    account_table = "\n".join(rows)
+
+    # Build preamble with client context
+    ctx = {
+        'entity': bureau,
+        'client_full_name': '',
+        'client_address': '',
+        'client_address_line2': '',
+        'client_city_state_zip': '',
+        'today_date': '',
+        'creditor_address': '',
+        'creditor_city_state_zip': '',
+        'bureau_address': '',
+    }
+    ctx.update(client_context)
+
+    addr2 = ctx.get('client_address_line2', '').strip()
+    ctx['client_address_line2_section'] = f"{addr2}\n" if addr2 else ''
+
+    recip_addr = ctx.get('bureau_address', '')
+    if recip_addr:
+        ctx['recipient_address_section'] = f"Address: {recip_addr}\n"
+    else:
+        ctx['recipient_address_section'] = ''
+
+    preamble = CLIENT_CONTEXT_PREAMBLE.format(**ctx)
+
+    body = NOTICE_OF_DISPUTE_TEMPLATE.format(
+        bureau_name=bureau,
+        account_table=account_table
+    )
+
+    return preamble + body, False, False
+
+
 def generate_letter(prompt, model="gpt-4o", has_inaccuracies=False,
-                    has_legal_research=False):
+                    has_legal_research=False, is_notice=False):
     """
     Generate a dispute letter using GPT.
 
@@ -304,11 +416,14 @@ def generate_letter(prompt, model="gpt-4o", has_inaccuracies=False,
                           GPT to incorporate parsed inaccuracy findings.
         has_legal_research: If True, uses the full legal research system prompt
                             (includes CFPB data + case law citation instructions).
+        is_notice: If True, uses the Notice of Dispute system prompt (Tier 1).
 
     Returns:
         The generated letter text.
     """
-    if has_legal_research:
+    if is_notice:
+        system_prompt = SYSTEM_PROMPT_NOTICE_OF_DISPUTE
+    elif has_legal_research:
         system_prompt = SYSTEM_PROMPT_WITH_LEGAL_RESEARCH
     elif has_inaccuracies:
         system_prompt = SYSTEM_PROMPT_WITH_INACCURACIES

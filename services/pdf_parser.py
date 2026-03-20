@@ -483,6 +483,36 @@ def _detect_inaccuracies(account):
     # 7. Double reporting check: collection has original creditor that matches
     #    another account name in the same report (handled at report level, not here)
 
+    # 8. Missing due date (only check if parser actually extracts this field)
+    payment_due_date = account.get("payment_due_date")
+    if payment_due_date is not None and not payment_due_date.strip():
+        # Field was extracted but is empty — genuinely missing from report
+        if balance and balance not in ("$0", "$0.00", ""):
+            balance_val = balance.replace('$', '').replace(',', '')
+            try:
+                if int(balance_val) > 0 and "closed" not in status_text:
+                    inaccuracies.append(
+                        "Account is missing a due date — this is a required data field for "
+                        "accurate credit reporting"
+                    )
+            except ValueError:
+                pass
+
+    # 9. Missing monthly payment amount (only check if parser actually extracts this field)
+    monthly_payment = account.get("monthly_payment", account.get("scheduled_payment"))
+    if monthly_payment is not None and not str(monthly_payment).strip():
+        # Field was extracted but is empty — genuinely missing from report
+        if balance and balance not in ("$0", "$0.00", ""):
+            balance_val = balance.replace('$', '').replace(',', '')
+            try:
+                if int(balance_val) > 0 and "closed" not in status_text and "collection" not in account_type:
+                    inaccuracies.append(
+                        "Account is missing the scheduled monthly payment amount — essential "
+                        "for accurate debt-to-income calculations"
+                    )
+            except ValueError:
+                pass
+
     return inaccuracies
 
 

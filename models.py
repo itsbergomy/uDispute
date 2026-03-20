@@ -68,6 +68,7 @@ class MailedLetter(db.Model):
     round_number = db.Column(db.Integer, default=1)
     account_name = db.Column(db.String(200), nullable=True)  # e.g. "Capital One #4821"
     account_number = db.Column(db.String(100), nullable=True)
+    tier = db.Column(db.String(20), nullable=True)           # 'notice' (Tier 1) or 'inaccuracy' (Tier 2)
 
     # Response tracking
     outcome = db.Column(db.String(20), default='pending')    # pending, removed, updated, verified, stall, no_response

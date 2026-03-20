@@ -1,0 +1,85 @@
+{# templates/tier1_review.html — Review generated Tier 1 Notice of Dispute letters #}
+{% extends "base_header.html" %}
+{% import '_icons.html' as icons %}
+
+{% block title %}Notice of Dispute — Review{% endblock %}
+
+{% block content %}
+<main class="px-4 py-10 max-w-3xl mx-auto">
+
+  {# ── Success Header ── #}
+  <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in text-center">
+    <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
+      {{ icons.icon_check(size=28, uid='t1rev') }}
+    </div>
+
+    <span style="
+      display:inline-block;
+      font-size:0.65rem;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:0.1em;
+      padding:4px 12px;
+      border-radius:100px;
+      background:linear-gradient(135deg, #34c759, #30d158);
+      color:#fff;
+      margin-bottom:0.75rem;
+      box-shadow:0 3px 10px rgba(52,199,89,0.25), inset 0 1px 0 rgba(255,255,255,0.3);
+    ">Tier 1 Complete</span>
+
+    <h2 class="text-2xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">
+      Notices Generated
+    </h2>
+    <p style="color:var(--text-secondary);font-size:0.9rem;max-width:480px;margin:0 auto;">
+      Your Notice of Dispute letters are ready. Review them below, then send them to the bureaus.
+      Tier 2 inaccuracy letters can be generated 15&ndash;30 days after mailing.
+    </p>
+  </div>
+
+  {# ── Letter Cards ── #}
+  {% for item in letters %}
+  <div class="glass-card glass-p mb-4 glass-animate-in" style="animation-delay:{{ loop.index * 0.1 }}s;">
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2">
+        <span style="
+          display:inline-block;
+          font-size:0.6rem;
+          font-weight:700;
+          text-transform:uppercase;
+          letter-spacing:0.08em;
+          padding:2px 8px;
+          border-radius:100px;
+          background:linear-gradient(135deg,
+            {% if item.bureau == 'Experian' %}#0077ed, #005bb5
+            {% elif item.bureau == 'Transunion' or item.bureau == 'TransUnion' %}#34c759, #28a745
+            {% elif item.bureau == 'Equifax' %}#ff3b30, #d63031
+            {% else %}#8e8e93, #636e72{% endif %}
+          );
+          color:#fff;
+        ">{{ item.bureau }}</span>
+        <span style="color:var(--text-tertiary);font-size:0.8rem;">{{ item.accounts }} account{{ 's' if item.accounts != 1 }}</span>
+      </div>
+    </div>
+
+    <div class="glass-inset rounded-xl p-4" style="max-height:300px;overflow-y:auto;">
+      <pre style="white-space:pre-wrap;font-size:0.82rem;line-height:1.6;color:var(--text-secondary);font-family:inherit;">{{ item.letter }}</pre>
+    </div>
+  </div>
+  {% endfor %}
+
+  {# ── Next Steps ── #}
+  <div class="flex flex-wrap justify-center gap-3 mt-6">
+    <a href="{{ url_for('disputes.dispute_folder') }}"
+       class="glass-btn glass-btn--primary px-6 py-3"
+       style="border-radius:12px;">
+      Go to Dispute Folder
+    </a>
+    <a href="{{ url_for('disputes.select_account') }}"
+       class="glass-btn glass-btn--ghost px-6 py-3"
+       style="border-radius:12px;">
+      Start Tier 2 &mdash; Inaccuracy Letters
+    </a>
+  </div>
+
+</main>
+{% endblock %}

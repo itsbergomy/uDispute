@@ -1,0 +1,127 @@
+{# templates/tier1_notice.html — Tier 1: Notice of Dispute #}
+{% extends "base_header.html" %}
+{% import '_icons.html' as icons %}
+
+{% block title %}Notice of Dispute — Tier 1{% endblock %}
+
+{% block content %}
+<main class="px-4 py-10 max-w-3xl mx-auto">
+
+  {# ── Educational Panel ── #}
+  <div class="glass-card glass-card--heavy glass-p mb-8 glass-animate-in" style="text-align:center;">
+    <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
+      {{ icons.icon_document(size=28, uid='t1edu') }}
+    </div>
+
+    {# Step badge — matches tour step badge styling #}
+    <span style="
+      display:inline-block;
+      font-size:0.65rem;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:0.1em;
+      padding:4px 12px;
+      border-radius:100px;
+      background:linear-gradient(135deg, #0077ed, #6e5ce6);
+      color:#fff;
+      margin-bottom:0.75rem;
+      box-shadow:0 3px 10px rgba(0,113,227,0.25), inset 0 1px 0 rgba(255,255,255,0.3);
+    ">Tier 1 of 2</span>
+
+    <h2 class="text-2xl font-bold mb-3 glass-text-3d" style="color:var(--text-primary);">
+      Notice of Dispute
+    </h2>
+
+    <p style="color:var(--text-secondary);font-size:0.95rem;line-height:1.65;max-width:540px;margin:0 auto 1rem;">
+      A Notice of Dispute is a <strong>formal legal notice</strong> to each credit bureau
+      under the Fair Credit Reporting Act, <strong>15 U.S.C. &sect; 1681i</strong>.
+      It lists the accounts you're disputing and starts the bureau's
+      <strong>30-day investigation clock</strong>.
+    </p>
+
+    <div class="glass-inset rounded-xl p-4 text-left" style="max-width:500px;margin:0 auto;">
+      <p style="color:var(--text-secondary);font-size:0.85rem;line-height:1.6;margin-bottom:0.5rem;">
+        <strong style="color:var(--accent, #0077ed);">Why no specific inaccuracies yet?</strong>
+        Consumer attorneys send the notice first, then follow up with detailed inaccuracy
+        letters 15&ndash;30 days later. This is strategic &mdash; you put the bureau on notice
+        without tipping your hand on the specific legal arguments you'll make.
+      </p>
+      <p style="color:var(--text-secondary);font-size:0.85rem;line-height:1.6;">
+        <strong style="color:var(--accent, #0077ed);">What happens next?</strong>
+        After sending these notices, the bureau must investigate within 30 days.
+        uDispute will unlock <strong>Tier 2: Inaccuracy Dispute Letters</strong> with
+        specific FCRA violations, legal citations, and case law for each account.
+      </p>
+    </div>
+  </div>
+
+  {# ── Account Summary by Bureau ── #}
+  <form method="POST" action="{{ url_for('disputes.generate_tier1_notices') }}">
+    {% for bureau, accounts in accounts_by_bureau.items() %}
+    <div class="glass-card glass-p mb-4 glass-animate-in" style="animation-delay:{{ loop.index * 0.1 }}s;">
+      <div class="flex items-center gap-3 mb-3">
+        <span style="
+          display:inline-block;
+          font-size:0.6rem;
+          font-weight:700;
+          text-transform:uppercase;
+          letter-spacing:0.08em;
+          padding:2px 8px;
+          border-radius:100px;
+          background:linear-gradient(135deg,
+            {% if bureau == 'Experian' %}#0077ed, #005bb5
+            {% elif bureau == 'TransUnion' %}#34c759, #28a745
+            {% elif bureau == 'Equifax' %}#ff3b30, #d63031
+            {% else %}#8e8e93, #636e72{% endif %}
+          );
+          color:#fff;
+        ">{{ bureau }}</span>
+        <span style="color:var(--text-tertiary);font-size:0.8rem;">{{ accounts|length }} account{{ 's' if accounts|length != 1 }}</span>
+      </div>
+
+      <div class="glass-inset rounded-xl overflow-hidden">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="border-bottom:1px solid rgba(0,0,0,0.06);">
+              <th style="text-align:left;padding:8px 12px;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-tertiary);">Account</th>
+              <th style="text-align:left;padding:8px 12px;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-tertiary);">Number</th>
+              <th style="text-align:left;padding:8px 12px;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-tertiary);">Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for acct in accounts %}
+            <tr style="border-bottom:1px solid rgba(0,0,0,0.04);">
+              <td style="padding:10px 12px;font-size:0.875rem;font-weight:600;color:var(--text-primary);">{{ acct.account_name }}</td>
+              <td style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);font-family:monospace;">{{ acct.account_number or '—' }}</td>
+              <td style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">{{ acct.account_type or 'Unknown' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+
+    {# ── Generate Button ── #}
+    <div class="text-center mt-6">
+      <button type="submit"
+              class="glass-btn glass-btn--primary glass-shimmer-edge px-8 py-3 text-lg"
+              style="position:relative;overflow:hidden;border-radius:14px;">
+        Generate {{ accounts_by_bureau|length }} Notice{{ 's' if accounts_by_bureau|length != 1 }} of Dispute
+      </button>
+      <p style="color:var(--text-tertiary);font-size:0.75rem;margin-top:0.75rem;">
+        One letter per bureau &bull; Lists all disputed accounts &bull; No API cost for generation
+      </p>
+    </div>
+  </form>
+
+  {# ── Skip to Tier 2 link ── #}
+  <div class="text-center mt-4">
+    <a href="{{ url_for('disputes.select_account') }}"
+       style="color:var(--text-tertiary);font-size:0.8rem;text-decoration:underline;">
+      Skip to Tier 2 &mdash; go straight to inaccuracy letters
+    </a>
+  </div>
+
+</main>
+{% endblock %}
