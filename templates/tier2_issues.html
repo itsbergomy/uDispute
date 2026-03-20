@@ -45,14 +45,6 @@
     </p>
   </div>
 
-  {# ── DEBUG: Remove after confirming pre-check works ── #}
-  <div class="glass-inset rounded-xl p-3 mb-4" style="font-size:0.7rem;color:var(--text-tertiary);font-family:monospace;">
-    <strong>DEBUG</strong> &mdash;
-    detected_keys: {{ detected_keys | list }}<br>
-    inaccuracies: {{ account.inaccuracies | default([]) }}<br>
-    account matched: {{ account.account_name }}
-  </div>
-
   <form method="POST" action="{{ url_for('disputes.save_tier2_issues') }}">
     <input type="hidden" name="account_name" value="{{ account.account_name }}">
     <input type="hidden" name="account_number" value="{{ account.account_number }}">

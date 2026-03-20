@@ -9,6 +9,7 @@ from flask import Flask
 from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask_mail import Mail
+from flask_session import Session
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -38,6 +39,12 @@ class Config:
         }
     SECRET_KEY = os.getenv('SECRET_KEY', 'smartflow')
 
+    # Server-side sessions (no 4KB cookie limit)
+    SESSION_TYPE = 'sqlalchemy'
+    SESSION_PERMANENT = True
+    SESSION_USE_SIGNER = True
+    SESSION_SQLALCHEMY_TABLE = 'flask_sessions'
+
     # Mail
     MAIL_SERVER = 'smtp.gmail.com'
     MAIL_PORT = 587
@@ -62,6 +69,10 @@ def create_app():
     from models import db
     db.init_app(app)
     Migrate(app, db)
+
+    # Server-side sessions — stores session data in PostgreSQL, not in cookies
+    app.config['SESSION_SQLALCHEMY'] = db
+    Session(app)
 
     # Enable WAL mode for SQLite so background threads can read/write concurrently
     from sqlalchemy import event
