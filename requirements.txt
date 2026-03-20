@@ -21,4 +21,3 @@ cryptography
 gunicorn
 cloudinary
 psycopg2-binary
-flask-session

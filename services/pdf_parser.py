@@ -483,10 +483,9 @@ def _detect_inaccuracies(account):
     # 7. Double reporting check: collection has original creditor that matches
     #    another account name in the same report (handled at report level, not here)
 
-    # 8. Missing due date (only check if parser actually extracts this field)
+    # 8. Missing due date — check if report shows no due date field or empty value
     payment_due_date = account.get("payment_due_date")
     if payment_due_date is not None and not payment_due_date.strip():
-        # Field was extracted but is empty — genuinely missing from report
         if balance and balance not in ("$0", "$0.00", ""):
             balance_val = balance.replace('$', '').replace(',', '')
             try:
@@ -498,10 +497,9 @@ def _detect_inaccuracies(account):
             except ValueError:
                 pass
 
-    # 9. Missing monthly payment amount (only check if parser actually extracts this field)
+    # 9. Missing monthly payment amount
     monthly_payment = account.get("monthly_payment", account.get("scheduled_payment"))
     if monthly_payment is not None and not str(monthly_payment).strip():
-        # Field was extracted but is empty — genuinely missing from report
         if balance and balance not in ("$0", "$0.00", ""):
             balance_val = balance.replace('$', '').replace(',', '')
             try:
@@ -512,6 +510,35 @@ def _detect_inaccuracies(account):
                     )
             except ValueError:
                 pass
+
+    # ── Condition-based detections (not contradictions — universally disputable) ──
+
+    # 10. Late payments present — demand verification of reporting accuracy
+    if has_lates and not positive_status:
+        # Status correctly shows negative, but late payments themselves are disputable
+        # (creditor must verify dates, amounts, and reporting to each bureau)
+        inaccuracies.append(
+            "Account shows late payment entries in the payment history grid — "
+            "demand verification that each reported delinquency is accurate "
+            "per the original creditor's records"
+        )
+
+    # 11. Collection account — demand debt validation
+    if "collection" in account_type or "COLLECTION" in comments_text or "PLACED FOR COLLECTION" in comments_text:
+        if not any("collection" in i.lower() for i in inaccuracies):
+            inaccuracies.append(
+                "Account is reported as a collection — creditor/collector must validate "
+                "the debt amount, original creditor, and date of first delinquency"
+            )
+
+    # 12. Charge-off — demand verification of balance and date
+    if "charge" in status_text or "charged" in status_text:
+        if not any("charge-off" in i.lower() or "charge off" in i.lower() for i in inaccuracies):
+            inaccuracies.append(
+                "Account shows charge-off status — demand verification that the "
+                "charged-off balance, date of charge-off, and original debt amount "
+                "are accurately reported"
+            )
 
     return inaccuracies
 

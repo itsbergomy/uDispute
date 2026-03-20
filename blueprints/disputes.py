@@ -225,6 +225,15 @@ ISSUE_CARDS = [
     {"key": "missing_payment_amount", "name": "Missing Payment Amount",
      "section": "15 U.S.C. § 1681s-2(a)(1)(B)",
      "description": "The scheduled monthly payment amount is missing, making debt-to-income calculations inaccurate."},
+    {"key": "unverified_late_payments", "name": "Unverified Late Payments",
+     "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+     "description": "Late payment entries require verification — the creditor must prove each reported delinquency date and amount."},
+    {"key": "unvalidated_collection", "name": "Unvalidated Collection Debt",
+     "section": "15 U.S.C. § 1692g",
+     "description": "Collection accounts require debt validation — the collector must verify the amount, original creditor, and date of first delinquency."},
+    {"key": "unverified_chargeoff", "name": "Unverified Charge-Off",
+     "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+     "description": "Charge-off balance, date, and original debt amount must be verified as accurately reported by the original creditor."},
 ]
 
 SOLUTION_CARDS = [
@@ -583,22 +592,29 @@ def tier2_issues():
         text = inac_text.lower()
         if 'status' in text and ('contradict' in text or 'paying as agreed' in text):
             detected_keys.add('status_contradicts_history')
-        elif 'account type' in text and ('mismatch' in text or 'open account' in text):
+        if 'account type' in text and ('mismatch' in text or 'open account' in text):
             detected_keys.add('account_type_mismatch')
-        elif 'original creditor' in text:
+        if 'original creditor' in text and 'does not reflect' in text:
             detected_keys.add('original_creditor_not_reflected')
-        elif 'closed' in text and 'balance' in text:
+        if 'closed' in text and 'balance' in text and 'should report' in text:
             detected_keys.add('closed_account_with_balance')
-        elif 'charge-off' in text and 'status' in text:
+        if 'charge-off' in text and 'status' in text and 'inconsistent' in text:
             detected_keys.add('chargeoff_not_in_status')
-        elif 'exceeds' in text and 'limit' in text:
+        if 'exceeds' in text and 'limit' in text:
             detected_keys.add('balance_exceeds_limit')
-        elif 'double' in text or 'duplicat' in text:
+        if 'double' in text or 'duplicat' in text:
             detected_keys.add('double_reporting')
-        elif 'missing' in text and 'due date' in text:
+        if 'missing' in text and 'due date' in text:
             detected_keys.add('missing_due_date')
-        elif 'missing' in text and 'payment amount' in text:
+        if 'missing' in text and 'payment amount' in text:
             detected_keys.add('missing_payment_amount')
+        # Condition-based detections (not contradictions)
+        if 'late payment entries' in text and 'demand verification' in text:
+            detected_keys.add('unverified_late_payments')
+        if 'collection' in text and 'validate' in text:
+            detected_keys.add('unvalidated_collection')
+        if 'charge-off status' in text and 'demand verification' in text:
+            detected_keys.add('unverified_chargeoff')
 
     return render_template('tier2_issues.html',
         account=account,
