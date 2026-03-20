@@ -109,6 +109,7 @@ def create_app():
                     'response_received_at': 'TIMESTAMP',
                     'legal_research_json': 'TEXT',
                     'previous_letter_id': 'INTEGER REFERENCES mailed_letter(id)',
+                    'tier': 'VARCHAR(20)',
                 }
                 for col_name, col_type in new_cols.items():
                     if col_name not in existing:
