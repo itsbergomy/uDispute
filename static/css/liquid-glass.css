@@ -1860,10 +1860,87 @@ body.glass-body p { color: var(--text-secondary); line-height: 1.7; }
   margin: 0;
 }
 
+/* ── Entity selection cards (radio, same visual as solution cards) ── */
+.glass-entity-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-radius: 14px;
+  cursor: pointer;
+  transition:
+    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.35) 0%,
+    rgba(255, 255, 255, 0.15) 100%
+  );
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  border-left: 3px solid rgba(110, 92, 230, 0.35);
+}
+
+.glass-entity-card:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    0 0 12px rgba(110, 92, 230, 0.06);
+  border-color: rgba(110, 92, 230, 0.2);
+}
+
+.glass-entity-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.glass-entity-card__desc {
+  font-size: 0.75rem;
+  color: var(--text-tertiary, #8e8e93);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.glass-entity-card__check {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    color 0.2s ease;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1.5px solid rgba(0, 0, 0, 0.1);
+  color: transparent;
+}
+
+.glass-entity-radio:checked ~ .glass-entity-card__check {
+  background: linear-gradient(135deg, #6e5ce6, #af52de);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(110, 92, 230, 0.3);
+}
+
+.glass-entity-card:has(.glass-entity-radio:checked) {
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.06),
+    0 0 16px rgba(110, 92, 230, 0.1);
+  border-color: rgba(110, 92, 230, 0.25);
+}
+
 /* Mobile: stack cards in single column */
 @media (max-width: 640px) {
   .glass-issue-card,
-  .glass-solution-card {
+  .glass-solution-card,
+  .glass-entity-card {
     padding: 0.75rem;
   }
 }

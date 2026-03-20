@@ -16,7 +16,7 @@
 
     {% set disputed_accounts = session.get('disputed_accounts', []) %}
 
-    {# ── Tier 1 Notice of Dispute CTA ── #}
+    {# ── Dispute Prep — Notice of Dispute CTA ── #}
     <div class="glass-inset rounded-xl p-4 mb-5 text-left">
       <div class="flex items-center justify-between">
         <div>
@@ -30,13 +30,13 @@
         <a href="{{ url_for('disputes.tier1_notice') }}"
            class="glass-btn glass-btn--primary px-4 py-2"
            style="border-radius:10px;font-size:0.8rem;white-space:nowrap;">
-          Tier 1
+          Dispute Prep
         </a>
       </div>
     </div>
 
     <p style="color:var(--text-tertiary);font-size:0.75rem;text-align:center;margin-bottom:1rem;">
-      Or select an account below for a detailed inaccuracy dispute (Tier 2)
+      Or select an account below for a Bureau Assault &mdash; detailed inaccuracy dispute
     </p>
 
     {% for item in negative_items %}

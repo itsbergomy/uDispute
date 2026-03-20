@@ -1,11 +1,21 @@
-{# templates/tier2_issues.html — Tier 2: Select Issues & Solutions #}
+{# templates/tier2_issues.html — Bureau Assault: Select Issues & Solutions #}
 {% extends "base_header.html" %}
 {% import '_icons.html' as icons %}
 
-{% block title %}Select Issues &amp; Solutions — Tier 2{% endblock %}
+{% block title %}Select Issues &amp; Solutions — Bureau Assault{% endblock %}
 
 {% block content %}
 <main class="px-4 py-10 max-w-3xl mx-auto">
+
+  {# ── Back Button ── #}
+  <a href="{{ url_for('disputes.select_entity') }}"
+     class="inline-flex items-center gap-2 mb-6 glass-btn glass-btn--ghost px-4 py-2 rounded-full text-sm"
+     style="color:var(--text-secondary);">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+    Back to Entity
+  </a>
 
   {# ── Header ── #}
   <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in text-center">
@@ -25,7 +35,7 @@
       color:#fff;
       margin-bottom:0.75rem;
       box-shadow:0 3px 10px rgba(110,92,230,0.25), inset 0 1px 0 rgba(255,255,255,0.3);
-    ">Tier 2 of 2</span>
+    ">Bureau Assault</span>
 
     <h2 class="text-2xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">
       Inaccuracy Dispute &mdash; {{ account.account_name }}

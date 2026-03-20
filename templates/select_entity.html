@@ -1,38 +1,87 @@
+{# templates/select_entity.html — Who are you disputing with? #}
 {% extends "base_header.html" %}
 {% import '_icons.html' as icons %}
 {% block title %}Select Entity{% endblock %}
 {% block content %}
-<main class="flex justify-center items-center min-h-[75vh] px-4 py-10">
-  <div class="glass-card glass-card--heavy glass-p max-w-md w-full relative text-center glass-animate-in">
+<main class="px-4 py-10 max-w-3xl mx-auto">
 
-    <!-- Back Button -->
-    <a href="/select-account" class="absolute top-4 left-4 glass-btn glass-btn--ghost p-3 rounded-full">
-      <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" style="color:var(--text-secondary);" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-      </svg>
-    </a>
+  {# ── Back Button ── #}
+  <a href="{{ url_for('disputes.select_account') }}"
+     class="inline-flex items-center gap-2 mb-6 glass-btn glass-btn--ghost px-4 py-2 rounded-full text-sm"
+     style="color:var(--text-secondary);">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+    Back to Accounts
+  </a>
 
-    <!-- Icon -->
-    <div class="glass-icon-well mx-auto mb-5" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
+  {# ── Header Card ── #}
+  <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in text-center">
+    <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
       {{ icons.icon_building(size=28, uid='se1') }}
     </div>
 
-    <h2 class="text-2xl font-bold mb-8 glass-text-3d" style="color:var(--text-primary);">Select Entity for Dispute <span class="glass-help-tip" data-term="bureau">?</span></h2>
-
-    <form method="POST" action="/handle-entity" class="space-y-4">
-      <button type="submit" name="entity" value="Experian"
-              class="w-full glass-btn glass-btn--secondary glass-raised" style="transition:box-shadow 0.2s ease,transform 0.2s ease;">
-        Experian
-      </button>
-      <button type="submit" name="entity" value="TransUnion"
-              class="w-full glass-btn glass-btn--secondary glass-raised" style="transition:box-shadow 0.2s ease,transform 0.2s ease;">
-        TransUnion
-      </button>
-      <button type="submit" name="entity" value="Equifax"
-              class="w-full glass-btn glass-btn--secondary glass-raised" style="transition:box-shadow 0.2s ease,transform 0.2s ease;">
-        Equifax
-      </button>
-    </form>
+    <h2 class="text-2xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">
+      Who Are You Disputing With?
+    </h2>
+    <p style="color:var(--text-tertiary);font-size:0.85rem;max-width:420px;margin:0 auto;">
+      Select the bureau you want to send this dispute to.
+    </p>
   </div>
+
+  {# ── Entity Cards ── #}
+  <form method="POST" action="{{ url_for('disputes.handle_entity') }}">
+    <div class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));">
+
+      {% set entities = [
+        ('Experian',   '#0077ed, #005bb5', 'The largest credit bureau — tracks over 220M consumers.'),
+        ('TransUnion', '#34c759, #28a745', 'Known for VantageScore — widely used by lenders.'),
+        ('Equifax',    '#ff3b30, #d63031', 'One of the Big Three — manages data for 800M+ consumers worldwide.')
+      ] %}
+
+      {% for name, gradient, desc in entities %}
+      <label class="glass-entity-card" for="entity-{{ name }}">
+        <input type="radio"
+               id="entity-{{ name }}"
+               name="entity"
+               value="{{ name }}"
+               class="glass-entity-radio"
+               style="display:none;">
+        <div class="glass-entity-card__body">
+          <div class="flex items-center gap-2 mb-1">
+            <span style="
+              display:inline-block;
+              font-size:0.6rem;
+              font-weight:700;
+              text-transform:uppercase;
+              letter-spacing:0.08em;
+              padding:2px 8px;
+              border-radius:100px;
+              background:linear-gradient(135deg, {{ gradient }});
+              color:#fff;
+            ">{{ name }}</span>
+          </div>
+          <p class="glass-entity-card__desc" style="color:var(--text-tertiary);font-size:0.8rem;margin-top:4px;">{{ desc }}</p>
+        </div>
+        <div class="glass-entity-card__check">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+      </label>
+      {% endfor %}
+
+    </div>
+
+    {# ── Submit ── #}
+    <div class="text-center mt-6">
+      <button type="submit"
+              class="glass-btn glass-btn--primary glass-shimmer-edge px-8 py-3 text-lg"
+              style="position:relative;overflow:hidden;border-radius:14px;">
+        Next: Select Issues &amp; Solutions
+      </button>
+    </div>
+  </form>
+
 </main>
 {% endblock %}

@@ -1,8 +1,8 @@
-{# templates/tier1_notice.html — Tier 1: Notice of Dispute #}
+{# templates/tier1_notice.html — Dispute Prep: Notice of Dispute #}
 {% extends "base_header.html" %}
 {% import '_icons.html' as icons %}
 
-{% block title %}Notice of Dispute — Tier 1{% endblock %}
+{% block title %}Notice of Dispute — Dispute Prep{% endblock %}
 
 {% block content %}
 <main class="px-4 py-10 max-w-3xl mx-auto">
@@ -36,7 +36,7 @@
       color:#fff;
       margin-bottom:0.75rem;
       box-shadow:0 3px 10px rgba(0,113,227,0.25), inset 0 1px 0 rgba(255,255,255,0.3);
-    ">Tier 1 of 2</span>
+    ">Dispute Prep</span>
 
     <h2 class="text-2xl font-bold mb-3 glass-text-3d" style="color:var(--text-primary);">
       Notice of Dispute
@@ -59,7 +59,7 @@
       <p style="color:var(--text-secondary);font-size:0.85rem;line-height:1.6;">
         <strong style="color:var(--accent, #0077ed);">What happens next?</strong>
         After sending these notices, the bureau must investigate within 30 days.
-        uDispute will unlock <strong>Tier 2: Inaccuracy Dispute Letters</strong> with
+        uDispute will unlock <strong>Bureau Assault: Inaccuracy Dispute Letters</strong> with
         specific FCRA violations, legal citations, and case law for each account.
       </p>
     </div>
@@ -129,7 +129,7 @@
   <div class="text-center mt-4">
     <a href="{{ url_for('disputes.select_account') }}"
        style="color:var(--text-tertiary);font-size:0.8rem;text-decoration:underline;">
-      Skip to Tier 2 &mdash; go straight to inaccuracy letters
+      Skip to Bureau Assault &mdash; go straight to inaccuracy letters
     </a>
   </div>
 

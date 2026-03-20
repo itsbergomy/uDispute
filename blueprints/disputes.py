@@ -195,7 +195,7 @@ def confirm_next_round():
     return render_template('confirm_next_round.html', current_round=current_round)
 
 
-# ─── Issue / Solution card definitions for Tier 2 ───
+# ─── Issue / Solution card definitions for Bureau Assault ───
 
 ISSUE_CARDS = [
     {"key": "status_contradicts_history", "name": "Status Contradicts Payment History",
@@ -551,7 +551,7 @@ def tier1_mail(letter_id):
     return redirect(url_for('disputes.tier1_review'))
 
 
-# ─── Tier 2: Issue/Solution Selection ───
+# ─── Bureau Assault: Issue/Solution Selection ───
 
 @disputes_bp.route('/tier2-issues', methods=['GET'])
 @login_required
@@ -640,7 +640,7 @@ def save_tier2_issues():
     session['selected_issues'] = selected_issues
     session['selected_solutions'] = selected_solutions
 
-    return redirect(url_for('disputes.select_entity'))
+    return redirect(url_for('disputes.choose_template'))
 
 
 @disputes_bp.route('/confirm-account', methods=['GET'])
@@ -683,8 +683,8 @@ def save_confirmed_account():
         round_record.set_disputed_accounts(disputed_accounts)
         db.session.commit()
 
-    flash("Account confirmed! Next: Select the issues and solutions for your dispute.", "success")
-    return redirect(url_for('disputes.tier2_issues'))
+    flash("Account confirmed! Next: Select who you're disputing with.", "success")
+    return redirect(url_for('disputes.select_entity'))
 
 
 @disputes_bp.route('/select-entity', methods=['GET', 'POST'])
@@ -703,7 +703,7 @@ def handle_entity():
         flash("Please select an entity.", "error")
         return redirect(url_for('disputes.select_entity'))
     session['selected_entity'] = selected
-    return redirect(url_for('disputes.define_details'))
+    return redirect(url_for('disputes.tier2_issues'))
 
 
 @disputes_bp.route('/define-details', methods=['GET', 'POST'])

@@ -1,4 +1,4 @@
-{# templates/tier1_review.html — Review + Mail Tier 1 Notice of Dispute letters #}
+{# templates/tier1_review.html — Review + Mail Dispute Prep Notice of Dispute letters #}
 {% extends "base_header.html" %}
 {% import '_icons.html' as icons %}
 
@@ -35,14 +35,14 @@
       color:#fff;
       margin-bottom:0.75rem;
       box-shadow:0 3px 10px rgba(52,199,89,0.25), inset 0 1px 0 rgba(255,255,255,0.3);
-    ">Tier 1 Complete</span>
+    ">Dispute Prep Complete</span>
 
     <h2 class="text-2xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">
       Notices Generated
     </h2>
     <p style="color:var(--text-secondary);font-size:0.9rem;max-width:480px;margin:0 auto;">
       Your Notice of Dispute letters are ready. Review them below, then mail them to the bureaus.
-      Tier 2 inaccuracy letters can be generated 15&ndash;30 days after mailing.
+      Bureau Assault inaccuracy letters can be generated 15&ndash;30 days after mailing.
     </p>
   </div>
 
@@ -230,7 +230,7 @@
     <a href="{{ url_for('disputes.select_account') }}"
        class="glass-btn glass-btn--ghost px-6 py-3"
        style="border-radius:12px;border:1px solid rgba(255,255,255,0.1);">
-      Start Tier 2 &mdash; Inaccuracy Letters
+      Start Bureau Assault &mdash; Inaccuracy Letters
     </a>
   </div>
 
