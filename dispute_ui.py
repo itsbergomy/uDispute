@@ -1103,6 +1103,12 @@ def create_client():
 def view_client(client_id):
     # Pull that client out of the database
     client = Client.query.get_or_404(client_id)
+
+    # Clear stale parsed accounts if viewing a different client
+    if session.get("parsed_accounts_client_id") != client_id:
+        session.pop("client_parsed_accounts", None)
+        session["parsed_accounts_client_id"] = client_id
+
     client_parsed_accounts = session.get("client_parsed_accounts", [])
 
     settings = WorkflowSetting.query.filter_by(client_id=client.id).all()
@@ -1528,6 +1534,7 @@ def extract_for_disputegpt(client_id):
     pdf_path = os.path.join(app.config["UPLOAD_FOLDER"], client.pdf_filename)
     parsed_accounts = extract_negative_items_from_pdf(pdf_path)
     session["client_parsed_accounts"] = parsed_accounts
+    session["parsed_accounts_client_id"] = client.id
 
     flash(f"✅ Found {len(parsed_accounts)} negative account(s) from the PDF.", "success")
     return redirect(url_for("view_client", client_id=client.id))
