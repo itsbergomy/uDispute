@@ -171,7 +171,7 @@ def generate_test_letter(account, pack_key, template_idx=0):
         'client_address': '123 Test Street',
         'client_city_state_zip': 'Test City, TS 00000',
         'today_date': datetime.now().strftime('%B %d, %Y'),
-        'dispute_date': '',
+        'dispute_date': 'February 15, 2026',
         'days': '15',
     }
 
