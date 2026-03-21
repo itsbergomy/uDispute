@@ -21,7 +21,7 @@ from models import (
 )
 from services.pdf_parser import extract_negative_items_from_pdf
 from services.report_analyzer import run_report_analysis
-from services.letter_generator import PACKS, generate_letter, build_prompt, letter_to_pdf, image_to_pdf, merge_dispute_package
+from services.letter_generator import PACKS, generate_letter, build_prompt, letter_to_pdf, image_to_pdf, merge_dispute_package, generate_dual_letters, build_dual_prompts
 from services.cloud_storage import upload_file, get_file_url, download_to_temp, delete_file, is_configured as cloud_configured
 from config import mail
 
@@ -650,6 +650,23 @@ def run_udispute_flow(client_id):
             return redirect(url_for("business.view_client", client_id=client.id))
         prompt = tpl.body
         letter = generate_letter(prompt)
+    elif prompt_pack == "dual_letter":
+        # Dual-Letter Strategy: generate CRA + furnisher letters
+        relevant_accounts = [selected] if selected.get('inaccuracies') else []
+        cra_prompt, furnisher_prompt, has_inaccuracies, has_legal = build_dual_prompts(
+            'default', ctx, parsed_accounts=relevant_accounts
+        )
+        cra_letter, furnisher_letter = generate_dual_letters(
+            cra_prompt, furnisher_prompt,
+            has_inaccuracies=has_inaccuracies, has_legal_research=has_legal
+        )
+        flash("Dual letters generated!", "success")
+        return render_template("udispute_dual_result.html",
+                               client=client,
+                               cra_letter=cra_letter,
+                               furnisher_letter=furnisher_letter,
+                               custom_letters=current_user.custom_letters,
+                               custom_id=custom_id)
     else:
         # Use build_prompt to inject parser-detected inaccuracies with FCRA citations
         relevant_accounts = [selected] if selected.get('inaccuracies') else []

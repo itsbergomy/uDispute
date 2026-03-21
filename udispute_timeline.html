@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>uDispute — Engineering Timeline</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: rgba(255,255,255,0.04);
+    --surface-hover: rgba(255,255,255,0.08);
+    --border: rgba(255,255,255,0.08);
+    --text: #e4e4e7;
+    --text-muted: #71717a;
+    --accent: #a855f7;
+    --accent-glow: rgba(168,85,247,0.3);
+    --green: #22c55e;
+    --green-glow: rgba(34,197,94,0.3);
+    --red: #ef4444;
+    --amber: #f59e0b;
+    --blue: #3b82f6;
+    --cyan: #06b6d4;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+    line-height: 1.6;
+  }
+
+  /* ─── Hero ─── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+    top: 20%; left: 50%;
+    transform: translateX(-50%);
+    animation: pulse-glow 4s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.3; transform: translateX(-50%) scale(1); }
+    50% { opacity: 0.6; transform: translateX(-50%) scale(1.1); }
+  }
+
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 16px;
+    border-radius: 100px;
+    background: rgba(168,85,247,0.15);
+    border: 1px solid rgba(168,85,247,0.3);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 24px;
+    animation: fade-in 1s ease-out 0.2s both;
+  }
+
+  .hero-badge .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: blink 2s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .hero h1 {
+    font-size: clamp(2.5rem, 6vw, 5rem);
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 50%, #c084fc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 16px;
+    animation: fade-in 1s ease-out 0.4s both;
+  }
+
+  .hero p {
+    font-size: 1.15rem;
+    color: var(--text-muted);
+    max-width: 600px;
+    animation: fade-in 1s ease-out 0.6s both;
+  }
+
+  .hero-stats {
+    display: flex; gap: 40px;
+    margin-top: 48px;
+    animation: fade-in 1s ease-out 0.8s both;
+  }
+
+  .hero-stat {
+    text-align: center;
+  }
+
+  .hero-stat .number {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #fff;
+  }
+
+  .hero-stat .label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 4px;
+  }
+
+  .scroll-hint {
+    position: absolute;
+    bottom: 40px;
+    animation: bounce 2s ease-in-out infinite, fade-in 1s ease-out 1.2s both;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+
+  .scroll-hint svg {
+    width: 20px; height: 20px;
+    stroke: var(--text-muted);
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(8px); }
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── Timeline Container ─── */
+  .timeline-section {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 80px 24px 120px;
+    position: relative;
+  }
+
+  .timeline-section::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, transparent, var(--border) 80px, var(--border) calc(100% - 80px), transparent);
+    transform: translateX(-50%);
+  }
+
+  .section-header {
+    text-align: center;
+    margin-bottom: 80px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .section-header h2 {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  .section-header h3 {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: #fff;
+  }
+
+  /* ─── Timeline Item ─── */
+  .tl-item {
+    position: relative;
+    margin-bottom: 60px;
+    opacity: 0;
+    transform: translateY(40px);
+    transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .tl-item.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .tl-item:nth-child(odd) .tl-card {
+    margin-left: calc(50% + 30px);
+  }
+
+  .tl-item:nth-child(even) .tl-card {
+    margin-right: calc(50% + 30px);
+  }
+
+  .tl-dot {
+    position: absolute;
+    left: 50%;
+    top: 24px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--accent);
+    transform: translateX(-50%);
+    z-index: 2;
+    transition: all 0.3s ease;
+  }
+
+  .tl-item.visible .tl-dot {
+    background: var(--accent);
+    box-shadow: 0 0 16px var(--accent-glow);
+  }
+
+  .tl-dot.green { border-color: var(--green); }
+  .tl-item.visible .tl-dot.green { background: var(--green); box-shadow: 0 0 16px var(--green-glow); }
+
+  .tl-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    transition: all 0.3s ease;
+  }
+
+  .tl-card:hover {
+    background: var(--surface-hover);
+    border-color: rgba(168,85,247,0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+
+  .tl-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .tl-tag.arch { background: rgba(168,85,247,0.15); color: var(--accent); }
+  .tl-tag.ui { background: rgba(6,182,212,0.15); color: var(--cyan); }
+  .tl-tag.parser { background: rgba(34,197,94,0.15); color: var(--green); }
+  .tl-tag.prompt { background: rgba(245,158,11,0.15); color: var(--amber); }
+  .tl-tag.model { background: rgba(59,130,246,0.15); color: var(--blue); }
+  .tl-tag.bug { background: rgba(239,68,68,0.15); color: var(--red); }
+  .tl-tag.engine { background: rgba(168,85,247,0.15); color: #c084fc; }
+  .tl-tag.deploy { background: rgba(34,197,94,0.15); color: var(--green); }
+  .tl-tag.infra { background: rgba(59,130,246,0.15); color: var(--blue); }
+  .tl-tag.ux { background: rgba(6,182,212,0.15); color: var(--cyan); }
+  .tl-tag.tour { background: rgba(245,158,11,0.15); color: var(--amber); }
+  .tl-tag.design { background: rgba(168,85,247,0.15); color: #c084fc; }
+  .tl-tag.beta { background: rgba(34,197,94,0.15); color: var(--green); }
+  .tl-tag.backlog { background: rgba(113,113,122,0.15); color: var(--text-muted); }
+
+  .tl-card h4 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+
+  .tl-card p {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .tl-card ul {
+    list-style: none;
+    margin-top: 12px;
+  }
+
+  .tl-card ul li {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    padding: 4px 0;
+    padding-left: 18px;
+    position: relative;
+  }
+
+  .tl-card ul li::before {
+    content: '▸';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .tl-files {
+    margin-top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .tl-file {
+    font-size: 0.7rem;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-muted);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  /* ─── Score Comparison ─── */
+  .score-section {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 40px 24px 120px;
+  }
+
+  .score-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 40px;
+  }
+
+  .score-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .score-card.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .score-card h4 {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+
+  .score-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+  }
+
+  .score-label {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+  }
+
+  .score-bar-wrap {
+    flex: 1;
+    margin: 0 12px;
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .score-bar {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1.5s cubic-bezier(0.16, 1, 0.3, 1);
+    width: 0;
+  }
+
+  .score-card.visible .score-bar { /* width set inline */ }
+
+  .score-value {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #fff;
+    min-width: 40px;
+    text-align: right;
+  }
+
+  .score-value.up { color: var(--green); }
+  .score-value.down { color: var(--red); }
+
+  /* ─── Upcoming ─── */
+  .upcoming-section {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 24px 120px;
+  }
+
+  .upcoming-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 40px;
+  }
+
+  .upcoming-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.5s ease;
+  }
+
+  .upcoming-card.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .upcoming-card h4 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+
+  .upcoming-card p {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .upcoming-card .status {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .status.queued { background: rgba(245,158,11,0.15); color: var(--amber); }
+  .status.planned { background: rgba(59,130,246,0.15); color: var(--blue); }
+
+  /* ─── Footer ─── */
+  footer {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 768px) {
+    .timeline-section::before { left: 24px; }
+    .tl-dot { left: 24px; }
+    .tl-item:nth-child(odd) .tl-card,
+    .tl-item:nth-child(even) .tl-card {
+      margin-left: 54px;
+      margin-right: 0;
+    }
+    .score-grid, .upcoming-grid { grid-template-columns: 1fr; }
+    .hero-stats { flex-direction: column; gap: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══ -->
+<section class="hero">
+  <div class="hero-badge"><span class="dot"></span> Engineering Timeline</div>
+  <h1>uDispute</h1>
+  <p>Credit dispute intelligence platform — every upgrade, tweak, and breakthrough from inception to today.</p>
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <div class="number">25+</div>
+      <div class="label">Files Modified</div>
+    </div>
+    <div class="hero-stat">
+      <div class="number">12</div>
+      <div class="label">Parser Rules</div>
+    </div>
+    <div class="hero-stat">
+      <div class="number">3</div>
+      <div class="label">Plan Tiers</div>
+    </div>
+    <div class="hero-stat">
+      <div class="number">Beta</div>
+      <div class="label">Live on Render</div>
+    </div>
+  </div>
+  <div class="scroll-hint">
+    Scroll to explore
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+  </div>
+</section>
+
+<!-- ═══ ARCHITECTURE & FLOW ═══ -->
+<section class="timeline-section">
+  <div class="section-header">
+    <h2>Chapter 1</h2>
+    <h3>Architecture & Flow</h3>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag arch">Architecture</span>
+      <h4>Two-Tier Dispute Framework</h4>
+      <p>Split Round 1 disputes into a two-phase strategy modeled after how consumer attorneys actually operate.</p>
+      <ul>
+        <li><strong>Dispute Prep</strong> — 3 Notice of Dispute letters (one per bureau). Lists accounts, starts the 30-day clock. No inaccuracies revealed.</li>
+        <li><strong>Bureau Assault</strong> — Detailed inaccuracy letters with FCRA citations, legal research, and e-OSCAR-resistant arguments. Sent 15-30 days later.</li>
+        <li>Educational panels explain each phase to the consumer</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">letter_generator.py</span>
+        <span class="tl-file">disputes.py</span>
+        <span class="tl-file">tier1_notice.html</span>
+        <span class="tl-file">tier1_review.html</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag arch">Architecture</span>
+      <h4>Flow Reorder</h4>
+      <p>Entity selection (Experian, TransUnion, Equifax) moved BEFORE issue/solution cards. Old "Define Details" page removed from the flow entirely.</p>
+      <ul>
+        <li>New flow: Confirm Account → Entity Selection → Issue/Solution Cards → Prompt Template</li>
+        <li>Back buttons added throughout for navigation</li>
+        <li>3 route redirects changed in disputes.py</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">disputes.py</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot green"></div>
+    <div class="tl-card">
+      <span class="tl-tag bug">Bug Fix</span>
+      <h4>Session Cookie Overflow</h4>
+      <p>Full letter text stored in Flask session exceeded 4KB cookie limit. Flask silently dropped the cookie, causing redirect loops.</p>
+      <ul>
+        <li>Root cause: <code>session['tier1_letters']</code> held 3 full letter texts (~12KB)</li>
+        <li>Fix: Store only <code>session['tier1_letter_ids'] = [14, 15, 16]</code> (few bytes)</li>
+        <li>Query letters from DB on review page instead</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">disputes.py</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot green"></div>
+    <div class="tl-card">
+      <span class="tl-tag bug">Bug Fix</span>
+      <h4>Inaccuracy Pre-Check Detection</h4>
+      <p>Issue/solution cards weren't auto-checking based on parser findings. Debug showed <code>detected_keys: []</code> even for accounts with clear issues.</p>
+      <ul>
+        <li>Root cause: Parser only detected CONTRADICTIONS. Affirm Inc's status matched its negative history — no contradiction, no detection.</li>
+        <li>Fix: Added 3 condition-based rules that fire on scenarios (late payments, collections, charge-offs) without needing contradictions</li>
+        <li>False lead: Tried flask-session with SQLAlchemy backend first, then reverted</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">pdf_parser.py</span>
+        <span class="tl-file">disputes.py</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ UI / DESIGN ═══ -->
+<section class="timeline-section">
+  <div class="section-header">
+    <h2>Chapter 2</h2>
+    <h3>UI & Design</h3>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag ui">UI</span>
+      <h4>Glass Entity Cards</h4>
+      <p>Replaced plain button list with Liquid Glass radio cards featuring purple gradient accent, backdrop blur, and animated check states.</p>
+      <ul>
+        <li>Hidden radio inputs with label-driven selection</li>
+        <li>~60 lines of new CSS matching the issue/solution card pattern</li>
+        <li>Hover states, selection glow, responsive grid</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">select_entity.html</span>
+        <span class="tl-file">liquid-glass.css</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag ui">UI</span>
+      <h4>Issue/Solution Card Grid</h4>
+      <p>12 inaccuracy cards + 6 solution cards, each with FCRA badge, severity border, and auto-check from parser findings.</p>
+      <ul>
+        <li>Cards auto-pre-check when parser detects matching inaccuracies</li>
+        <li>Glass design with <code>.glass-inset</code> background</li>
+        <li>Selected cards get subtle glow animation</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">tier2_issues.html</span>
+        <span class="tl-file">liquid-glass.css</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag ui">UI</span>
+      <h4>Educational Panels</h4>
+      <p>Inline glass cards explaining each phase of the dispute process to the consumer. Not spotlight overlays — persistent on-page panels.</p>
+      <ul>
+        <li>"What is Dispute Prep?" — explains 30-day clock strategy</li>
+        <li>"What happens next?" — previews Bureau Assault phase</li>
+        <li>"Dispute Prep Complete" — summary with next steps</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">tier1_notice.html</span>
+        <span class="tl-file">tier1_review.html</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag ui">UI</span>
+      <h4>Branding & Polish</h4>
+      <p>"This is a LUXURY PRODUCT!" — Complete branding overhaul of naming and CTA styling.</p>
+      <ul>
+        <li>"Tier 1 / Tier 2" renamed → "Dispute Prep / Bureau Assault" across all templates</li>
+        <li>CTA pill button: <code>border-radius: 100px</code>, uppercase, <code>0.08em</code> letter-spacing, glass-shimmer-edge</li>
+        <li>All badges, subtexts, and flow references updated</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">select_negative.html</span>
+        <span class="tl-file">tier1_notice.html</span>
+        <span class="tl-file">tier1_review.html</span>
+        <span class="tl-file">tier2_issues.html</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ PARSER ═══ -->
+<section class="timeline-section">
+  <div class="section-header">
+    <h2>Chapter 3</h2>
+    <h3>Parser & Detection Engine</h3>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag parser">Parser</span>
+      <h4>Contradiction-Based Detection (Rules 1-9)</h4>
+      <p>Original parser detected inaccuracies only when data contradicted itself within the same report.</p>
+      <ul>
+        <li>Status contradicts payment history</li>
+        <li>Account type mismatch</li>
+        <li>Original creditor not reflected</li>
+        <li>Closed account with balance</li>
+        <li>Charge-off not in status</li>
+        <li>Balance exceeds credit limit</li>
+        <li>Double/duplicative reporting</li>
+        <li>Missing due date / Missing payment amount</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">pdf_parser.py</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot green"></div>
+    <div class="tl-card">
+      <span class="tl-tag parser">Parser</span>
+      <h4>Condition-Based Detection (Rules 10-12)</h4>
+      <p>Added 3 rules that fire on universally disputable scenarios without needing contradictions. This was the breakthrough that made pre-checks work.</p>
+      <ul>
+        <li><strong>#10:</strong> Unverified late payments — any late payment entries trigger demand for date-level verification</li>
+        <li><strong>#11:</strong> Unvalidated collection — any collection account triggers FDCPA debt validation demand</li>
+        <li><strong>#12:</strong> Unverified charge-off — any charge-off triggers verification of charge-off date, balance breakdown, and DOFD</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">pdf_parser.py</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ PROMPT ENGINEERING ═══ -->
+<section class="timeline-section">
+  <div class="section-header">
+    <h2>Chapter 4</h2>
+    <h3>Prompt Engineering & AI</h3>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag prompt">Prompts v1</span>
+      <h4>Generic System Prompts</h4>
+      <p>Original prompts gave GPT vague instructions with no understanding of how disputes are actually processed.</p>
+      <ul>
+        <li>"Use your knowledge of UCC, CFPB regulations..."</li>
+        <li>One-liner pack templates</li>
+        <li>No awareness of e-OSCAR, ACDV codes, or CRA processing workflows</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag prompt">Prompts v2</span>
+      <h4>e-OSCAR Intelligence Bake-In</h4>
+      <p>Researched the e-OSCAR system and injected that knowledge into every system prompt. GPT now understands the enemy.</p>
+      <ul>
+        <li><code>_E_OSCAR_INTELLIGENCE</code> shared block — explains 4-minute ACDV process, Response Codes (01/02/07/13/DNR)</li>
+        <li>7 Letter Engineering Rules — field-specific verification, CFPB Circular 2022-07, DNR traps</li>
+        <li>All 4 prompt packs rewritten: default, arbitration, consumer_law, ACDV_response</li>
+        <li>3 new FCRA_INACCURACY_MAP entries with e-OSCAR awareness</li>
+        <li>Result: Composite score jumped from 8.3 → 8.5</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">letter_generator.py</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag prompt">Prompts v3</span>
+      <h4>Anti-Code-Reduction Overhaul</h4>
+      <p>Autoresearch revealed letters were still being reduced to e-OSCAR codes 103 and 001 despite legal sophistication. Complete structural rewrite to resist code reduction.</p>
+      <ul>
+        <li><strong>Rule 8:</strong> Multi-point DISPUTE POINT format — forces CRA to assign multiple codes or escalate</li>
+        <li><strong>Rule 9:</strong> Concrete factual allegations — "balance is $X but should be $Y" instead of generic "verify the balance"</li>
+        <li>Removed "2026 FCRA updates" references — undermined credibility</li>
+        <li>Fixed documentary demands — directed through CRA to furnisher, not demanding CRA produce docs it doesn't have</li>
+        <li>Cross-bureau discrepancy exploitation</li>
+        <li>650-word cap to avoid frivolous-claim flag</li>
+        <li>Proof-of-error injection for parser-detected inaccuracies</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">letter_generator.py</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag model">Model</span>
+      <h4>GPT-4o → o3</h4>
+      <p>Upgraded the AI model from GPT-4o to o3 — a reasoning model that thinks through legal arguments before writing. Same price ($2/$8).</p>
+      <ul>
+        <li>Zero backend changes — same API, just swapped the model string</li>
+        <li>Removed <code>temperature</code> parameter (o3 doesn't support custom values)</li>
+        <li>Legal citations jumped 7.8 → 9.0, field verification 8.6 → 9.4</li>
+        <li>e-OSCAR resistance initially dropped 8.8 → 7.6 (prompted v3 overhaul)</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">letter_generator.py</span>
+        <span class="tl-file">autoresearch_prompts.py</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ AUTORESEARCH ═══ -->
+<section class="timeline-section">
+  <div class="section-header">
+    <h2>Chapter 5</h2>
+    <h3>Autoresearch Engine</h3>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag engine">Engine</span>
+      <h4>Built Autoresearch Loop</h4>
+      <p>Autonomous prompt optimization system — parses real credit reports, generates letters, scores them on 7 dimensions, and proposes improvements.</p>
+      <ul>
+        <li><strong>Parse:</strong> 68 accounts from 19 PDFs in corpus</li>
+        <li><strong>Generate:</strong> Full dispute letters using each prompt pack</li>
+        <li><strong>Score:</strong> 7 dimensions — e-OSCAR resistance, field verification, legal citations, deadline/consequences, DNR trap potential, personalization, professional tone</li>
+        <li><strong>Improve:</strong> GPT analyzes weaknesses and proposes prompt rewrites</li>
+        <li>CLI: <code>--pack</code>, <code>--sample</code>, <code>--iterations</code>, <code>--dry-run</code></li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">autoresearch_prompts.py</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CHAPTER 6: LIQUID GLASS DESIGN SYSTEM v2 ═══ -->
+<section class="timeline-section">
+  <div class="section-header">
+    <h2>Chapter 6</h2>
+    <h3>Liquid Glass Design System v2</h3>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag design">Design System</span>
+      <h4>Premium Neumorphic Overhaul</h4>
+      <p>Complete visual redesign with frosted glass surfaces, noise grain textures, spring easing animations, and 3D chrome typography. Every component rebuilt for a luxury feel.</p>
+      <ul>
+        <li>Frosted blur backdrop with layered noise grain</li>
+        <li>Double-bezel card system — outer glow + inner highlight</li>
+        <li>Neumorphic input fields with inset shadows</li>
+        <li>Tactile button feedback — <code>scale(0.98)</code> on :active with spring easing</li>
+        <li>Active nav indicator with accent underline</li>
+        <li>SVG icon library replacing emoji throughout</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">liquid-glass.css</span>
+        <span class="tl-file">base_header.html</span>
+        <span class="tl-file">landing.html</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag design">Design System</span>
+      <h4>Scroll Reveal &amp; Empty States</h4>
+      <p>Directional scroll-reveal animations (fade-up, fade-left, fade-right) and composed empty states with contextual icons replacing bare text placeholders.</p>
+      <ul>
+        <li>Landing page sections animate in from different directions on scroll</li>
+        <li>Empty states: upload area, mailed letters, dispute folder — all get illustrations + guidance copy</li>
+        <li>Skeleton loaders for async content</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">liquid-glass.css</span>
+        <span class="tl-file">index.html</span>
+        <span class="tl-file">landing.html</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag ui">UI</span>
+      <h4>Dispute Folder — Draggable Window</h4>
+      <p>Free-floating draggable window with edge shimmer. Fixed centering bug where window jumped to far-left corner on drag.</p>
+      <ul>
+        <li>Replaced percentage-based centering with pixel-based measurement</li>
+        <li>Window measured offscreen first, then positioned with exact coordinates</li>
+        <li>Tabs: Active Disputes, Mailed Letters, Correspondence</li>
+        <li>Bureau badge, round number, and date formatting on mailed letters</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">base_header.html</span>
+        <span class="tl-file">_dispute_folder_fragment.html</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CHAPTER 7: ONBOARDING TOUR ENGINE ═══ -->
+<section class="timeline-section">
+  <div class="section-header">
+    <h2>Chapter 7</h2>
+    <h3>Onboarding Tour Engine</h3>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag tour">Tour Engine</span>
+      <h4>GlassTour — Centered Positioning Strategy</h4>
+      <p>Custom onboarding tour engine built from scratch. Spotlight wraps each target element; instruction panel centers on the page in the opposite viewport half.</p>
+      <ul>
+        <li>Element in top half → tooltip in bottom half (and vice versa)</li>
+        <li>Freeze/unfreeze transitions pattern — eliminates flash-then-correct artifact</li>
+        <li>Double-RAF rendering: measure offscreen → position → reveal in one frame</li>
+        <li>Keyboard nav: ArrowRight/Enter = next, Escape = skip</li>
+        <li>LocalStorage persistence — tour only shows once per plan</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">glass-tour.js</span>
+        <span class="tl-file">glass-tour.css</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag tour">Tour Engine</span>
+      <h4>Interactive Tour Steps</h4>
+      <p>Tour steps that let users actually try features instead of just reading about them. Spotlight becomes clickable, navigates to target page, and resumes the tour.</p>
+      <ul>
+        <li>Green "Try it" badge + "Try it →" button label on interactive steps</li>
+        <li>Cross-page navigation via sessionStorage resume state</li>
+        <li>In-page actions: <code>target.click()</code> with auto-advance after 600ms</li>
+        <li>Pulsing green border on interactive spotlight</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">glass-tour.js</span>
+        <span class="tl-file">glass-tour.css</span>
+        <span class="tl-file">index.html</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag tour">Tour Engine</span>
+      <h4>Per-Plan Tour Definitions</h4>
+      <p>Separate onboarding tours for Free, Pro, and Business plans — each highlights features relevant to that tier.</p>
+      <ul>
+        <li><strong>Free/Pro:</strong> Upload PDF, Dispute Mode, Settings, Dispute Folder, Manual Mode</li>
+        <li><strong>Business Dashboard:</strong> Client CRM, Add Client, Analytics, Autonomous Pipeline toggle</li>
+        <li><strong>Client View:</strong> Client header, account table, prompt packs, run analyzer, supporting docs, mailed letters, client portal, CFPB search</li>
+        <li>ID-based selectors for reliable targeting across all views</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">index.html</span>
+        <span class="tl-file">view_client.html</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag ux">UX</span>
+      <h4>Contextual Help Tooltips</h4>
+      <p>Inline <code>?</code> icons next to credit repair jargon. Hover or tap to see plain-English definitions in frosted glass popups.</p>
+      <ul>
+        <li>10 terms: Bureau, Prompt Pack, ACDV, Round, Dispute Mode, Manual Mode, Escalation, Supporting Docs, FCRA, Certified Mail</li>
+        <li>Auto-init on DOMContentLoaded, dismiss on click outside</li>
+        <li>z-index layered below tour overlay (9500 vs 9990)</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">glass-help-tips.js</span>
+        <span class="tl-file">liquid-glass.css</span>
+        <span class="tl-file">base_header.html</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CHAPTER 8: DEPLOYMENT & INFRASTRUCTURE ═══ -->
+<section class="timeline-section">
+  <div class="section-header">
+    <h2>Chapter 8</h2>
+    <h3>Deployment &amp; Infrastructure</h3>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag deploy">Deployment</span>
+      <h4>Render — Production Hosting</h4>
+      <p>Deployed uDispute to Render for persistent beta hosting. Moved off local ngrok tunneling to a real URL.</p>
+      <ul>
+        <li>Gunicorn WSGI server for production</li>
+        <li>Environment variables for all secrets (API keys, DB URL)</li>
+        <li>Auto-deploy from GitHub on push to main</li>
+        <li>Public URL for DocuPost PDF access</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">requirements.txt</span>
+        <span class="tl-file">_run_dev.py</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag infra">Infrastructure</span>
+      <h4>PostgreSQL — Persistent Database</h4>
+      <p>Replaced SQLite (lost on every Render redeploy) with PostgreSQL via Render's managed database. User accounts and dispute data now survive deploys.</p>
+      <ul>
+        <li><code>DATABASE_URL</code> env var with <code>postgres://</code> → <code>postgresql://</code> rewrite</li>
+        <li>SQLite-specific pragmas only run on SQLite connections</li>
+        <li>Fallback to SQLite for local development</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">config.py</span>
+        <span class="tl-file">requirements.txt</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag infra">Infrastructure</span>
+      <h4>Cloudinary — Persistent File Storage</h4>
+      <p>Integrated Cloudinary for cloud file storage. Uploaded PDFs, dispute packages, and correspondence persist across Render redeploys.</p>
+      <ul>
+        <li><code>upload_file()</code> — uploads with folder organization</li>
+        <li><code>get_file_url()</code> — signed URLs with inline display support</li>
+        <li><code>download_to_temp()</code> — downloads to temp directory for processing</li>
+        <li>Flask proxy for PDF viewing — sets <code>Content-Type: application/pdf</code> + <code>Content-Disposition: inline</code></li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">cloud_storage.py</span>
+        <span class="tl-file">disputes.py</span>
+        <span class="tl-file">business.py</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag infra">Infrastructure</span>
+      <h4>DocuPost USPS Mailing Integration</h4>
+      <p>End-to-end bureau mailing via DocuPost API. HMAC-signed public PDF routes for secure access. Confirmed working on Pro plan.</p>
+      <ul>
+        <li>Publicly accessible PDF URLs required by DocuPost</li>
+        <li>HMAC signature validation on public routes</li>
+        <li>Mail class options: First Class, Certified, Certified with Return Receipt</li>
+        <li>Tracking numbers saved to MailedLetter model</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">delivery.py</span>
+        <span class="tl-file">disputes.py</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CHAPTER 9: BETA FEATURES ═══ -->
+<section class="timeline-section">
+  <div class="section-header">
+    <h2>Chapter 9</h2>
+    <h3>Beta Features &amp; Plan Gating</h3>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag beta">Beta</span>
+      <h4>BYOK — Bring Your Own Key</h4>
+      <p>Users can plug in their own OpenAI API key for letter generation. Reduces platform cost and gives power users control.</p>
+      <div class="tl-files">
+        <span class="tl-file">disputes.py</span>
+        <span class="tl-file">settings.html</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag beta">Beta</span>
+      <h4>CFPB Complaint Search</h4>
+      <p>Integrated CFPB complaint database search into client view. Business users can research prior complaints against creditors and collection agencies.</p>
+      <div class="tl-files">
+        <span class="tl-file">view_client.html</span>
+        <span class="tl-file">business.py</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag beta">Beta</span>
+      <h4>Letter Tracking &amp; Supporting Docs</h4>
+      <p>Mailed letters tracked by bureau, date, and round number in the Dispute Folder. Supporting document uploads for evidence and prior correspondence.</p>
+      <ul>
+        <li>Mailed Letters organized by bureau + date + round</li>
+        <li>Multi-upload document section for Business client forms</li>
+        <li>Client Portal link for external client access</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">view_client.html</span>
+        <span class="tl-file">_dispute_folder_fragment.html</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag beta">Beta</span>
+      <h4>Bureau Address Auto-Fill</h4>
+      <p>Mail page pre-fills recipient address based on selected bureau. Dropdown switches between Equifax, TransUnion, Experian, or Custom entry.</p>
+      <ul>
+        <li>Equifax → P.O. Box 740256, Atlanta, GA 30374</li>
+        <li>TransUnion → P.O. Box 2000, Chester, PA 19016</li>
+        <li>Experian → P.O. Box 4500, Allen, TX 75013</li>
+        <li>Pre-selected based on session entity from dispute flow</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">disputes.py</span>
+        <span class="tl-file">mail_letter.html</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag ux">UX</span>
+      <h4>Post-Action Guidance Banners</h4>
+      <p>Every major action now tells the user what to do next. Flash messages upgraded with guidance copy so users never feel lost in the flow.</p>
+      <ul>
+        <li>After PDF upload → "Next: Select accounts and choose your strategy"</li>
+        <li>After letter generation → "Next: Choose a prompt pack and hit Generate"</li>
+        <li>After mailing → "It will arrive in 3–10 business days. Track it in your Dispute Folder."</li>
+        <li>After PDF convert → "Dispute Package ready! Head to Mail to send it."</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">disputes.py</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CHAPTER 10: PITCH DECK & BACKLOG ═══ -->
+<section class="timeline-section">
+  <div class="section-header">
+    <h2>Chapter 10</h2>
+    <h3>Pitch Deck &amp; Product Roadmap</h3>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag design">Design</span>
+      <h4>Investor Pitch Deck (12 Slides)</h4>
+      <p>Programmatically generated PowerPoint using pptxgenjs. Dark navy-black theme with glass-style card panels, uDispute blue + purple accents.</p>
+      <ul>
+        <li>12 slides: Title, Problem, Solution, How It Works, AI Engine, Tiers, Market, Traction, Business Model, Roadmap, Team, CTA</li>
+        <li>Built for Skool community and investor conversations</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">build_pitchdeck.js</span>
+        <span class="tl-file">uDispute_PitchDeck.pptx</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot"></div>
+    <div class="tl-card">
+      <span class="tl-tag backlog">Backlog</span>
+      <h4>Product Roadmap — 4 Post-Beta Items</h4>
+      <p>Documented full backlog with detailed implementation plans for post-beta features.</p>
+      <ul>
+        <li><strong>Flow Persistence:</strong> Save dispute progress when free users hit the mail gate — resume after upgrade</li>
+        <li><strong>Twin Agents:</strong> Dual autonomous AI agents running parallel dispute strategies per client</li>
+        <li><strong>Pro Semi-Auto Agent:</strong> 48hr cooldown, auto-generates but stops at mailing. Natural upsell to Business.</li>
+        <li><strong>Dispute Strategies:</strong> Full workflow playbooks — 7-Day CFPB Deletion Process documented step-by-step</li>
+      </ul>
+      <div class="tl-files">
+        <span class="tl-file">BACKLOG.md</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SCORE PROGRESSION ═══ -->
+<section class="score-section">
+  <div class="section-header">
+    <h2>Metrics</h2>
+    <h3>Score Progression</h3>
+  </div>
+
+  <div class="score-grid">
+    <div class="score-card">
+      <h4>GPT-4o — Iteration 1 (Baseline)</h4>
+      <div class="score-row">
+        <span class="score-label">e-OSCAR</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:84%;background:var(--amber)"></div></div>
+        <span class="score-value">8.4</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label">Field Verif.</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:88%;background:var(--cyan)"></div></div>
+        <span class="score-value">8.8</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label">Legal Cite</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:74%;background:var(--red)"></div></div>
+        <span class="score-value">7.4</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label">DNR Trap</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:76%;background:var(--amber)"></div></div>
+        <span class="score-value">7.6</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label">Pro Tone</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:90%;background:var(--green)"></div></div>
+        <span class="score-value">9.0</span>
+      </div>
+      <div class="score-row" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <span class="score-label" style="font-weight:700;color:#fff">Composite</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:83%;background:linear-gradient(90deg,var(--accent),var(--cyan))"></div></div>
+        <span class="score-value" style="font-size:1rem">8.3</span>
+      </div>
+    </div>
+
+    <div class="score-card">
+      <h4>GPT-4o — Iteration 2 (e-OSCAR Intel)</h4>
+      <div class="score-row">
+        <span class="score-label">e-OSCAR</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:88%;background:var(--green)"></div></div>
+        <span class="score-value up">8.8 ↑</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label">Field Verif.</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:86%;background:var(--cyan)"></div></div>
+        <span class="score-value">8.6</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label">Legal Cite</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:78%;background:var(--amber)"></div></div>
+        <span class="score-value up">7.8 ↑</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label">DNR Trap</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:78%;background:var(--amber)"></div></div>
+        <span class="score-value up">7.8 ↑</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label">Pro Tone</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:90%;background:var(--green)"></div></div>
+        <span class="score-value">9.0</span>
+      </div>
+      <div class="score-row" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <span class="score-label" style="font-weight:700;color:#fff">Composite</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:85%;background:linear-gradient(90deg,var(--accent),var(--cyan))"></div></div>
+        <span class="score-value" style="font-size:1rem">8.5</span>
+      </div>
+    </div>
+
+    <div class="score-card">
+      <h4>o3 — v2 Prompts (Model Upgrade)</h4>
+      <div class="score-row">
+        <span class="score-label">e-OSCAR</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:76%;background:var(--red)"></div></div>
+        <span class="score-value down">7.6 ↓</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label">Field Verif.</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:94%;background:var(--green)"></div></div>
+        <span class="score-value up">9.4 ↑</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label">Legal Cite</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:90%;background:var(--green)"></div></div>
+        <span class="score-value up">9.0 ↑</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label">DNR Trap</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:88%;background:var(--green)"></div></div>
+        <span class="score-value up">8.8 ↑</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label">Pro Tone</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:90%;background:var(--green)"></div></div>
+        <span class="score-value">9.0</span>
+      </div>
+      <div class="score-row" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <span class="score-label" style="font-weight:700;color:#fff">Composite</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:86%;background:linear-gradient(90deg,var(--accent),var(--cyan))"></div></div>
+        <span class="score-value" style="font-size:1rem">8.6</span>
+      </div>
+    </div>
+
+    <div class="score-card" style="border-color:rgba(168,85,247,0.3);box-shadow:0 0 30px rgba(168,85,247,0.1)">
+      <h4 style="color:var(--accent)">o3 — v3 Prompts (Running Now...)</h4>
+      <div class="score-row">
+        <span class="score-label">e-OSCAR</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:85%;background:var(--accent)"></div></div>
+        <span class="score-value" style="color:var(--accent)">8.5?</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label">Field Verif.</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:94%;background:var(--accent)"></div></div>
+        <span class="score-value" style="color:var(--accent)">9.4?</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label">Legal Cite</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:90%;background:var(--accent)"></div></div>
+        <span class="score-value" style="color:var(--accent)">9.0?</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label">DNR Trap</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:88%;background:var(--accent)"></div></div>
+        <span class="score-value" style="color:var(--accent)">8.8?</span>
+      </div>
+      <div class="score-row">
+        <span class="score-label">Pro Tone</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:90%;background:var(--accent)"></div></div>
+        <span class="score-value" style="color:var(--accent)">9.0?</span>
+      </div>
+      <div class="score-row" style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(168,85,247,0.2)">
+        <span class="score-label" style="font-weight:700;color:#fff">Composite</span>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:90%;background:linear-gradient(90deg,var(--accent),#c084fc)"></div></div>
+        <span class="score-value" style="font-size:1rem;color:var(--accent)">9.0?</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ UPCOMING ═══ -->
+<section class="upcoming-section">
+  <div class="section-header">
+    <h2>What's Next</h2>
+    <h3>Upcoming Builds</h3>
+  </div>
+
+  <div class="upcoming-grid">
+    <div class="upcoming-card">
+      <h4>Flow Persistence Across Upgrades</h4>
+      <p>Save dispute progress when free users hit the mail gate. Resume after upgrading to Pro.</p>
+      <span class="status queued">Queued</span>
+    </div>
+    <div class="upcoming-card">
+      <h4>Pro Semi-Auto Agent (48hr Cooldown)</h4>
+      <p>Autonomous letter generation with manual send. 48hr cooldown between rounds. Natural upsell to Business.</p>
+      <span class="status queued">Queued</span>
+    </div>
+    <div class="upcoming-card">
+      <h4>Twin Agents on Auto Mode</h4>
+      <p>Dual AI agents running parallel dispute strategies per client. Different legal angles, merged timeline view.</p>
+      <span class="status planned">Planned</span>
+    </div>
+    <div class="upcoming-card">
+      <h4>Dispute Strategies (Workflow Playbooks)</h4>
+      <p>7-Day CFPB Deletion Process, Standard 30-Day, Aggressive Arbitration. Strategy picker in dispute flow.</p>
+      <span class="status planned">Planned</span>
+    </div>
+    <div class="upcoming-card">
+      <h4>Response Mode</h4>
+      <p>Upload bureau responses, win/loss tracking, Legal Research Agent with CFPB + case law, escalation letters.</p>
+      <span class="status planned">Planned</span>
+    </div>
+    <div class="upcoming-card">
+      <h4>Prompt Pack Optimization</h4>
+      <p>Arbitration, Consumer Law, and ACDV packs — push composite score past 9.0 with e-OSCAR resistance tuning.</p>
+      <span class="status queued">Queued</span>
+    </div>
+  </div>
+</section>
+
+<footer>
+  uDispute Engineering Timeline &mdash; Updated March 20, 2026
+</footer>
+
+<script>
+// ─── Scroll Animation ───
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+
+      // Animate score bars
+      if (entry.target.classList.contains('score-card')) {
+        const bars = entry.target.querySelectorAll('.score-bar');
+        bars.forEach((bar, i) => {
+          const target = bar.style.width;
+          bar.style.width = '0%';
+          setTimeout(() => { bar.style.width = target; }, 100 + i * 80);
+        });
+      }
+    }
+  });
+}, { threshold: 0.15, rootMargin: '0px 0px -50px 0px' });
+
+document.querySelectorAll('.tl-item, .score-card, .upcoming-card').forEach(el => {
+  observer.observe(el);
+});
+</script>
+
+</body>
+</html>

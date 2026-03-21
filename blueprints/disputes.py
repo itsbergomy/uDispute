@@ -21,7 +21,8 @@ from services.pdf_parser import (
 from services.letter_generator import (
     PACKS, PACK_INFO, generate_letter, build_prompt,
     build_notice_of_dispute_prompt, letter_to_pdf,
-    image_to_pdf, merge_dispute_package
+    image_to_pdf, merge_dispute_package,
+    generate_dual_letters, build_dual_prompts
 )
 from services.delivery import mail_letter_via_docupost, get_docupost_token
 from services.report_analyzer import run_report_analysis
@@ -829,9 +830,22 @@ def generate_process():
         and acct.get('inaccuracies')
     ]
 
-    if relevant_accounts:
+    pack_key = session.get('prompt_pack', 'default')
+
+    if pack_key == 'dual_letter':
+        # Dual-Letter Strategy: generate CRA + furnisher letters
+        cra_prompt, furnisher_prompt, has_inaccuracies, has_legal = build_dual_prompts(
+            'default', data, parsed_accounts=relevant_accounts
+        )
+        cra_letter, furnisher_letter = generate_dual_letters(
+            cra_prompt, furnisher_prompt,
+            has_inaccuracies=has_inaccuracies, has_legal_research=has_legal
+        )
+        session['generated_letter'] = cra_letter
+        session['furnisher_letter'] = furnisher_letter
+        return redirect(url_for('disputes.dual_review'))
+    elif relevant_accounts:
         # Use build_prompt to inject inaccuracy details with FCRA citations
-        pack_key = session.get('prompt_pack', 'default')
         prompt, has_inaccuracies, has_legal = build_prompt(pack_key, 0, data, parsed_accounts=relevant_accounts)
         letter_text = generate_letter(prompt, has_inaccuracies=has_inaccuracies, has_legal_research=has_legal)
     else:
@@ -847,6 +861,15 @@ def generate_process():
 def final_review():
     letter = session.get('generated_letter')
     return render_template('final_review.html', letter=letter)
+
+
+@disputes_bp.route('/dual-review')
+def dual_review():
+    cra_letter = session.get('generated_letter')
+    furnisher_letter = session.get('furnisher_letter')
+    return render_template('dual_review.html',
+                           cra_letter=cra_letter,
+                           furnisher_letter=furnisher_letter)
 
 
 @disputes_bp.route('/manual-mode', methods=['GET', 'POST'])

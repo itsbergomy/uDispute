@@ -1,0 +1,123 @@
+{% extends "base_header.html" %}
+{% import '_icons.html' as icons %}
+{% block title %}Dual-Letter Strategy — {{ client.first_name }}{% endblock %}
+
+{% block content %}
+<main class="pt-20 pb-12 min-h-screen px-6 md:px-12">
+
+  <!-- Back Button -->
+  <a href="{{ url_for('view_client', client_id=client.id) }}"
+     class="glass-btn glass-btn--secondary glass-btn--pill mb-6 inline-flex items-center gap-1 text-sm">
+    &larr; Back to Client
+  </a>
+
+  <!-- Strategy Header -->
+  <div class="glass-card glass-card--heavy glass-p glass-animate-in mb-6">
+    <div class="flex items-center gap-3 mb-3">
+      <div class="glass-icon-well" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
+        {{ icons.icon_document(size=22, uid='dual1') }}
+      </div>
+      <h2 class="text-2xl font-bold glass-text-3d" style="color:var(--text-primary);">Dual-Letter Strategy</h2>
+    </div>
+    <p class="text-sm" style="color:var(--text-secondary);">
+      Two letters generated for maximum impact. <strong>Letter 1</strong> goes to the credit bureau (CRA) to preserve your
+      &sect; 1681s-2(b) private right of action and start the 30-day clock. <strong>Letter 2</strong> goes directly to the
+      data furnisher under Regulation V (12 C.F.R. &sect; 1022.43), bypassing the e-OSCAR system entirely.
+    </p>
+  </div>
+
+  <!-- Two-Column Letter Layout -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <!-- CRA Letter -->
+    <div class="glass-card glass-card--heavy glass-p glass-animate-in">
+      <div class="flex items-center gap-2 mb-3">
+        <span style="font-size:1.3rem;">🏛️</span>
+        <h3 class="text-lg font-bold" style="color:var(--text-primary);">Letter 1 — To Credit Bureau</h3>
+      </div>
+      <p class="text-xs mb-3" style="color:var(--text-tertiary);">
+        Sent to the CRA via certified mail. Preserves &sect; 1681s-2(b) rights and triggers the 30-day investigation clock.
+      </p>
+      <form method="POST" action="{{ url_for('finalize_udispute_letter', client_id=client.id) }}" enctype="multipart/form-data" class="space-y-4">
+        <div class="glass-inset rounded-xl p-3">
+          <textarea name="edited_letter" rows="18" class="glass-input glass-textarea w-full text-sm" style="background:transparent;border:none;box-shadow:none;">
+{{ cra_letter }}
+          </textarea>
+        </div>
+
+        <div>
+          <label class="glass-label mb-1 text-xs">Upload ID (Image or PDF):</label>
+          <input type="file" name="id_file" accept=".jpg,.jpeg,.png,.pdf" class="glass-input w-full text-xs">
+        </div>
+        <div>
+          <label class="glass-label mb-1 text-xs">Upload SSN Card (Image or PDF):</label>
+          <input type="file" name="ssn_file" accept=".jpg,.jpeg,.png,.pdf" class="glass-input w-full text-xs">
+        </div>
+
+        <div class="flex space-x-3">
+          <button formaction="{{ url_for('convert_pdf') }}" formmethod="POST"
+                  class="glass-btn glass-btn--secondary text-xs">
+            PDF Package
+          </button>
+          <button type="submit"
+                  class="glass-btn glass-btn--primary glass-shimmer-edge text-xs" style="position:relative;overflow:hidden;">
+            Finalize &amp; Mail to CRA
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Furnisher Letter -->
+    <div class="glass-card glass-card--heavy glass-p glass-animate-in">
+      <div class="flex items-center gap-2 mb-3">
+        <span style="font-size:1.3rem;">🏦</span>
+        <h3 class="text-lg font-bold" style="color:var(--text-primary);">Letter 2 — Direct to Furnisher</h3>
+      </div>
+      <p class="text-xs mb-3" style="color:var(--text-tertiary);">
+        Sent directly to the creditor/collector. Bypasses e-OSCAR entirely under 12 C.F.R. &sect; 1022.43 (Regulation V).
+      </p>
+      <form method="POST" action="{{ url_for('finalize_udispute_letter', client_id=client.id) }}" enctype="multipart/form-data" class="space-y-4">
+        <div class="glass-inset rounded-xl p-3">
+          <textarea name="edited_letter" rows="18" class="glass-input glass-textarea w-full text-sm" style="background:transparent;border:none;box-shadow:none;">
+{{ furnisher_letter }}
+          </textarea>
+        </div>
+
+        <div>
+          <label class="glass-label mb-1 text-xs">Upload ID (Image or PDF):</label>
+          <input type="file" name="id_file" accept=".jpg,.jpeg,.png,.pdf" class="glass-input w-full text-xs">
+        </div>
+        <div>
+          <label class="glass-label mb-1 text-xs">Upload SSN Card (Image or PDF):</label>
+          <input type="file" name="ssn_file" accept=".jpg,.jpeg,.png,.pdf" class="glass-input w-full text-xs">
+        </div>
+
+        <div class="flex space-x-3">
+          <button formaction="{{ url_for('convert_pdf') }}" formmethod="POST"
+                  class="glass-btn glass-btn--secondary text-xs">
+            PDF Package
+          </button>
+          <button type="submit"
+                  class="glass-btn glass-btn--primary glass-shimmer-edge text-xs" style="position:relative;overflow:hidden;">
+            Finalize &amp; Mail to Furnisher
+          </button>
+        </div>
+      </form>
+    </div>
+
+  </div>
+
+  <!-- Strategy Tips -->
+  <div class="glass-card glass-card--heavy glass-p glass-animate-in mt-6">
+    <h3 class="text-sm font-bold mb-2" style="color:var(--text-primary);">Strategy Tips</h3>
+    <ul class="text-xs space-y-1" style="color:var(--text-secondary);">
+      <li>&#x2022; Send <strong>both letters on the same day</strong> via certified mail with return receipt requested.</li>
+      <li>&#x2022; The CRA letter triggers the 30-day FCRA investigation clock and preserves your right to sue the furnisher under &sect; 1681s-2(b).</li>
+      <li>&#x2022; The furnisher letter bypasses e-OSCAR entirely — the creditor reads your ACTUAL dispute, not a 2-digit code.</li>
+      <li>&#x2022; Under Regulation V, the furnisher must investigate and report results to ALL bureaus (&sect; 1022.43(e)).</li>
+      <li>&#x2022; If the furnisher ignores the direct dispute, you have evidence of willful noncompliance under &sect; 1681n ($100-$1,000 per violation + punitive damages).</li>
+    </ul>
+  </div>
+
+</main>
+{% endblock %}

@@ -119,7 +119,7 @@ FCRA_INACCURACY_MAP = {
             "bucket (30/60/90/120 days). The furnisher must produce documentation proving "
             "each reported delinquency. A blanket e-OSCAR Response Code 01 ('verified') "
             "without field-level verification does not constitute a reasonable investigation "
-            "per CFPB Circular 2022-07."
+            "as established in CFPB v. Experian (2025)."
         ),
     },
     "unvalidated_collection": {
@@ -145,7 +145,7 @@ FCRA_INACCURACY_MAP = {
             "exact charge-off date, (2) the charge-off balance vs. the original debt amount, "
             "(3) whether post-charge-off interest or fees were added (which may violate state "
             "usury laws), and (4) the date of first delinquency (which determines the 7-year "
-            "reporting window). Under the 2026 FCRA updates, furnishers are prohibited from "
+            "reporting window). Furnishers are prohibited from "
             "resetting the date of first delinquency after a dispute. If the reported charge-off "
             "data cannot be independently verified with original creditor records, the account "
             "must be deleted."
@@ -238,9 +238,10 @@ def build_inaccuracy_context(account):
     sections.append(
         f"REQUESTED ACTION: Pursuant to 15 U.S.C. § 1681i, I demand that you conduct "
         f"a reasonable investigation of each inaccuracy identified above within 30 days. "
-        f"Per CFPB Circular 2022-07, this investigation must go beyond forwarding a "
-        f"dispute code through the e-OSCAR system — you must forward all consumer-provided "
-        f"documentation to the data furnisher and independently verify the disputed fields. "
+        f"As established in CFPB v. Experian (2025) and CFPB v. Equifax (2025), this "
+        f"investigation must go beyond forwarding a dispute code through the e-OSCAR system — "
+        f"you must forward all consumer-provided documentation to the data furnisher and "
+        f"independently verify the disputed fields. "
         f"If the furnisher cannot verify the accuracy of each specific data point listed "
         f"above, the account must be deleted from my credit file per "
         f"15 U.S.C. § 1681i(a)(5)(A). A blanket e-OSCAR Response Code 01 ('verified as "
@@ -293,18 +294,49 @@ PACKS = {
             "Reported Status: {marks}\n"
             "Issues: {issue}\n"
             "Requested Action: {action}\n\n"
-            "The letter must:\n"
-            "- Demand field-specific verification (date of first delinquency, balance amount, "
-            "payment history, account status, original creditor if applicable)\n"
-            "- Cite 15 U.S.C. § 1681i (CRA duty to investigate) and § 1681s-2(b) (furnisher "
-            "duty to investigate after receiving notice from CRA)\n"
-            "- Reference CFPB Circular 2022-07 requiring reasonable investigation beyond "
-            "e-OSCAR code forwarding\n"
-            "- State that a Response Code 01 ('verified as accurate') without field-level "
-            "verification constitutes a failure to conduct a reasonable investigation\n"
-            "- Set a 30-day deadline with specific consequences for non-compliance\n"
-            "- Demand the CRA forward all attached documentation to the data furnisher per "
-            "CFPB Circular 2022-07"
+            "CRITICAL STRUCTURE — MULTI-CATEGORY DISPUTE FORMAT:\n"
+            "Structure the letter as 3+ separately labeled dispute points. Each point must "
+            "target a DIFFERENT Metro 2 data field category so no single e-OSCAR code covers "
+            "the entire dispute:\n"
+            "  DISPUTE POINT 1 — ACCOUNT STATUS: [Cite the Account Status field by name. "
+            "State the reported value and why it is factually wrong.]\n"
+            "  DISPUTE POINT 2 — BALANCE/FINANCIAL DATA: [Cite the Current Balance field "
+            "and/or Credit Limit field. State the reported dollar amount and why it is wrong.]\n"
+            "  DISPUTE POINT 3 — PAYMENT HISTORY/DATES: [Cite the Payment History Profile "
+            "and/or Date of First Delinquency field. State the reported dates and why they "
+            "are wrong.]\n"
+            "This structure forces the CRA employee to choose between Code 002 (balance), "
+            "Code 103 (status), Code 023 (account info), and Code 105 (payment history) — "
+            "they cannot select one code, so they must escalate.\n\n"
+            "METHOD OF VERIFICATION DEMAND (INCLUDE VERBATIM):\n"
+            "'Pursuant to 15 U.S.C. § 1681i(a)(7), I hereby request that upon completion "
+            "of your investigation, you provide me with a description of the procedure used "
+            "to determine the accuracy of the disputed information, including the name, "
+            "address, and telephone number of each furnisher contacted. You have 15 days "
+            "to comply.'\n\n"
+            "LEGAL CITATIONS (weave into dispute points, not a separate block):\n"
+            "- 15 U.S.C. § 1681i(a) — CRA duty to investigate within 30 days\n"
+            "- 15 U.S.C. § 1681s-2(b) — Furnisher duty to investigate\n"
+            "- 15 U.S.C. § 1681i(a)(5)(A) — Mandatory deletion if unverifiable\n"
+            "- *Cushman v. Trans Union Corp.*, 115 F.3d 220 (3d Cir. 1997) — CRA cannot "
+            "parrot furnisher response\n"
+            "- *Gorman v. Wolpoff & Abramson*, 584 F.3d 1147 (9th Cir. 2009) — furnisher "
+            "must conduct 'fairly searching inquiry'\n"
+            "- Reference CFPB v. Experian, Case No. 1:25-cv-00001 (C.D. Cal. filed Jan. "
+            "2025, pending) and CFPB v. Equifax, Consent Order 2025-CFPB-0002 ($15M penalty) "
+            "for conducting 'sham investigations' via e-OSCAR\n"
+            "- Include anti-compression warning: 'Any attempt to compress this multi-field "
+            "dispute into a single e-OSCAR ACDV code will constitute willful noncompliance "
+            "under 15 U.S.C. § 1681n.'\n\n"
+            "DOCUMENTARY SUPPORT:\n"
+            "- Instruct consumer to enclose driver's license (front & back) and recent "
+            "utility bill as 'Enclosures' to pre-empt frivolous claim under § 1681i(a)(3)\n"
+            "- Direct furnisher document demands THROUGH the CRA, not at the CRA itself\n\n"
+            "CONSTRAINTS:\n"
+            "- Keep under 650 words\n"
+            "- Every disputed field must state the REPORTED value and WHY it is wrong\n"
+            "- Use Metro 2 field names with segment/field numbers (Account Status – Fld 17, "
+            "Current Balance – Fld 21, Payment History Profile – Fld 25, DOFD – Fld 26)"
         ),
         (
             "Write a dispute letter to {entity} challenging the accuracy and completeness "
@@ -312,33 +344,114 @@ PACKS = {
             "Current Status: {marks}\n"
             "Dispute Issue: {issue}\n"
             "Demanded Resolution: {action}\n\n"
-            "The letter must demand that the furnisher produce specific documentation to "
-            "verify every disputed data field. If the furnisher cannot produce original "
-            "records proving accuracy within 30 days, the account must be deleted per "
-            "15 U.S.C. § 1681i(a)(5)(A). Reference the 2026 FCRA updates regarding "
-            "high-risk reporting errors and the prohibition on resetting date of first "
-            "delinquency after disputes."
+            "FORMAT: Structure as 3+ labeled DISPUTE POINTS, each targeting a DIFFERENT "
+            "Metro 2 field category (status, balance, payment history, dates) so no single "
+            "e-OSCAR code can capture the entire dispute.\n\n"
+            "REQUIRED ELEMENTS:\n"
+            "1. Reference Metro 2 field names in each dispute point (Account Status field, "
+            "Current Balance field, Payment History Profile, Date of First Delinquency, etc.)\n"
+            "2. State the REPORTED value and WHY it is factually incorrect — never generic\n"
+            "3. Cite *Cushman v. Trans Union* (cannot parrot furnisher) and *Gorman v. Wolpoff* "
+            "(must conduct 'fairly searching inquiry')\n"
+            "4. Reference CFPB v. Experian, Case No. 1:25-cv-00001 (C.D. Cal. 2025) for "
+            "conducting 'sham investigations'\n"
+            "5. Include verbatim method of verification request per § 1681i(a)(7)\n"
+            "6. Demand CRA direct furnisher to produce original credit agreement, payment "
+            "ledger, and chain of assignment — deletion mandatory if unproduced per "
+            "§ 1681i(a)(5)(A)\n"
+            "7. Include anti-compression warning: compressing into a single code = willful "
+            "noncompliance under § 1681n\n"
+            "8. Instruct consumer to enclose driver's license and utility bill as 'Enclosures'\n"
+            "9. Use Metro 2 field numbers (Fld 17, 21, 25, 26) alongside field names\n"
+            "10. Keep under 650 words"
         ),
     ],
     "arbitration": [
         (
-            "Draft an arbitration demand letter to {entity} regarding account {account_name} "
-            "(#{account_number}).\n\n"
+            "Draft a formal arbitration demand letter to {entity} regarding account "
+            "{account_name} (#{account_number}).\n\n"
+            "Reported Status: {marks}\n"
             "Issue: {issue}\n"
             "Demanded Action: {action}\n\n"
-            "Invoke 15 U.S.C. § 1681e(b) (CRA reasonable procedures for maximum accuracy) "
-            "and 15 U.S.C. § 1681n (willful noncompliance — statutory damages of $100-$1,000 "
-            "per violation plus punitive damages). Demand that the CRA submit to binding "
-            "arbitration per the consumer's election under the FCRA. Reference the e-OSCAR "
-            "system's inadequacy for handling complex disputes as evidence that the CRA's "
-            "investigation procedures are structurally unreasonable."
+            "STRUCTURE — DUAL-TRACK LETTER:\n"
+            "This letter serves TWO purposes simultaneously:\n"
+            "Track 1 — DISPUTE: Challenge specific Metro 2 data fields as factually "
+            "inaccurate using 4+ labeled DISPUTE POINTS, each targeting a different field "
+            "category (Account Status – Base Seg. Fld 17, Current Balance – Base Seg. Fld 21, "
+            "Payment History Profile – Base Seg. Fld 25, Date of First Delinquency – "
+            "Base Seg. Fld 26). State the REPORTED value and WHY it is wrong — never "
+            "generic 'please verify.'\n"
+            "Track 2 — ARBITRATION DEMAND: Demand binding arbitration as the consumer's "
+            "elected remedy for the CRA's structurally unreasonable investigation procedures.\n\n"
+            "ANTI-CODE-REDUCTION WARNING (include in letter body):\n"
+            "'Any attempt to compress this multi-field dispute into a single e-OSCAR ACDV "
+            "code (001, 103, or 106) will constitute willful noncompliance under 15 U.S.C. "
+            "§ 1681n, as established in CFPB v. Experian, Case No. 1:25-cv-00001 (C.D. Cal. "
+            "filed Jan. 2025, pending), where the CFPB found the CRA conducted sham "
+            "investigations by distorting consumer disputes into e-OSCAR codes.'\n\n"
+            "ARBITRATION LEGAL FRAMEWORK:\n"
+            "- 15 U.S.C. § 1681e(b) — CRA must follow reasonable procedures to assure "
+            "maximum possible accuracy. The e-OSCAR system's 4-minute code reduction is "
+            "inherently unreasonable for complex, multi-field disputes.\n"
+            "- 15 U.S.C. § 1681n — Willful noncompliance: statutory damages of $100-$1,000 "
+            "per violation PLUS punitive damages.\n"
+            "- 15 U.S.C. § 1681o — Negligent noncompliance: actual damages plus attorney fees\n"
+            "- *Cushman v. Trans Union Corp.*, 115 F.3d 220 (3d Cir. 1997) — punitive "
+            "damages available when CRA adopts reinvestigation policy 'either knowing that "
+            "policy to be in contravention of consumer rights or in reckless disregard'\n"
+            "- *Gorman v. Wolpoff*, 584 F.3d 1147 (9th Cir. 2009) — furnisher must conduct "
+            "'fairly searching inquiry,' not superficial verification\n"
+            "- CFPB v. Equifax, Consent Order 2025-CFPB-0002 ($15M penalty) — CRA fined "
+            "for ignoring consumer documents and excessively deferring to furnishers\n\n"
+            "DNR TRAP — FURNISHER-DIRECTED DEMANDS:\n"
+            "Demand that {entity} FORWARD to the data furnisher a request to produce: "
+            "(a) the signed original credit agreement, (b) a complete payment ledger, "
+            "(c) chain of assignment if debt was sold. Do NOT demand {entity} produce "
+            "these directly — direct the demand THROUGH the CRA to the furnisher. "
+            "Non-production within 30 days mandates deletion per § 1681i(a)(5)(A).\n\n"
+            "METHOD OF VERIFICATION DEMAND (INCLUDE VERBATIM):\n"
+            "'Pursuant to 15 U.S.C. § 1681i(a)(7) and 12 C.F.R. § 1022.43, provide a "
+            "detailed description of the procedure used, the name/address/phone of every "
+            "furnisher contacted, and the specific documentary evidence relied upon, within "
+            "15 days of completing your reinvestigation.'\n\n"
+            "IDENTITY & DOCUMENTARY SUPPORT:\n"
+            "Instruct the consumer to enclose: (1) copy of driver's license (front & back), "
+            "(2) recent utility bill or bank statement confirming address, and reference "
+            "these as 'Enclosures' in the letter to pre-empt § 1681i(a)(3) frivolous claims.\n\n"
+            "CONSTRAINTS:\n"
+            "- Keep under 650 words\n"
+            "- Use Metro 2 segment/field references in every dispute point\n"
+            "- The arbitration demand must be grounded in the CRA's SPECIFIC failure to "
+            "investigate THIS dispute properly — not a generic threat"
         ),
         (
             "Compose a formal arbitration demand for {entity} concerning account "
-            "{account_name} (#{account_number}). Dispute: {issue}. Demanded resolution: "
-            "{action}. Cite the CRA's pattern of using automated e-OSCAR code verification "
-            "instead of conducting reasonable investigations as grounds for the arbitration "
-            "claim. Reference CFPB Circular 2022-07 and 15 U.S.C. § 1681i."
+            "{account_name} (#{account_number}).\n\n"
+            "Current Status: {marks}\n"
+            "Dispute: {issue}\n"
+            "Demanded Resolution: {action}\n\n"
+            "FORMAT: Structure as 4+ labeled DISPUTE POINTS targeting different Metro 2 "
+            "field categories (cite field numbers: Fld 17, Fld 21, Fld 25, Fld 26), PLUS "
+            "an arbitration demand section.\n\n"
+            "REQUIRED ELEMENTS:\n"
+            "1. Each dispute point cites a Metro 2 field by name AND segment/field number "
+            "(Account Status – Base Seg. Fld 17, Current Balance – Fld 21, etc.) "
+            "with the REPORTED value and WHY it is factually wrong — never generic\n"
+            "2. Cite CFPB v. Experian, Case No. 1:25-cv-00001 (C.D. Cal. filed Jan. 2025, "
+            "pending) — CRA found conducting 'sham investigations' by distorting consumer "
+            "disputes into e-OSCAR codes\n"
+            "3. Cite CFPB v. Equifax, Consent Order 2025-CFPB-0002 ($15M penalty) — CRA "
+            "fined for ignoring consumer documents and deferring to furnishers\n"
+            "4. Demand binding arbitration under § 1681n, quantifying potential statutory "
+            "damages: $100-$1,000 per violation for each Metro 2 field that cannot be "
+            "independently verified by the furnisher\n"
+            "5. Cite *Cushman v. Trans Union* — punitive damages for willful noncompliance\n"
+            "6. Include verbatim MOV request per § 1681i(a)(7) and 12 C.F.R. § 1022.43\n"
+            "7. Include anti-code-reduction warning: compressing this dispute into a single "
+            "code constitutes willful noncompliance under § 1681n\n"
+            "8. Direct furnisher document demands THROUGH the CRA, not at the CRA itself\n"
+            "9. Instruct consumer to enclose driver's license and utility bill as 'Enclosures'\n"
+            "10. Keep under 650 words"
         ),
     ],
     "consumer_law": [
@@ -351,7 +464,7 @@ PACKS = {
             "- Fair Credit Reporting Act (15 U.S.C. § 1681 et seq.) — accuracy and investigation duties\n"
             "- Fair Debt Collection Practices Act (15 U.S.C. § 1692g) — debt validation requirements\n"
             "- Fair Credit Billing Act (15 U.S.C. § 1666) — billing error resolution\n"
-            "- CFPB Circular 2022-07 — reasonable investigation standard\n\n"
+            "- CFPB v. Experian (2025) — CRA found conducting 'sham investigations' via e-OSCAR\n\n"
             "Demand that the furnisher produce original documentation proving the accuracy of "
             "every reported field. A code-only verification through e-OSCAR does not satisfy "
             "the statutory investigation requirement."
@@ -361,7 +474,7 @@ PACKS = {
             "(#{account_number}). Dispute: {issue}. Resolution demanded: {action}. "
             "Combine FCRA, FDCPA, and state consumer protection law arguments. Reference "
             "the e-OSCAR system's structural inability to handle complex disputes and "
-            "CFPB Circular 2022-07's requirement for genuine investigation."
+            "the requirement for genuine investigation under 15 U.S.C. § 1681i."
         ),
     ],
     "ACDV_response": [
@@ -374,13 +487,13 @@ PACKS = {
             "immediate production of the full ACDV record, including:\n"
             "- Method of Verification used by the furnisher\n"
             "- The specific e-OSCAR Response Code received (01/02/07/13)\n"
-            "- Whether consumer-provided documentation was forwarded per CFPB Circular 2022-07\n"
+            "- Whether consumer-provided documentation was forwarded to the furnisher\n"
             "- The furnisher's investigation file and contact logs\n"
             "- FCRA Compliance Policies governing reinvestigation procedures\n\n"
             "State that if the CRA's 'investigation' consisted solely of forwarding an "
             "e-OSCAR code and accepting a Response Code 01 without independent verification, "
             "this constitutes a failure to conduct a reasonable investigation under "
-            "15 U.S.C. § 1681i and CFPB Circular 2022-07."
+            "15 U.S.C. § 1681i, as held in Cushman v. Trans Union, 115 F.3d 220."
         ),
         (
             "Compose a formal demand to {entity} regarding flawed reinvestigation procedures "
@@ -389,7 +502,7 @@ PACKS = {
             "for unreasonable investigation processes. Demand documented proof of each step "
             "of the reinvestigation — including the e-OSCAR ACDV exchange, Response Code "
             "received, source contact logs, and verification methodologies — within {days} "
-            "business days. Reference CFPB Circular 2022-07 and the 2026 FCRA updates."
+            "business days."
         ),
         (
             "Write a formal demand to {entity} for immediate production of the complete "
@@ -397,6 +510,73 @@ PACKS = {
             "dispute filed on {dispute_date}. Demand disclosure of the e-OSCAR Response Code, "
             "the method of verification, and whether consumer documentation was forwarded to "
             "the furnisher. Set a {days} business day deadline."
+        ),
+    ],
+    "furnisher_direct": [
+        (
+            "Write a formal direct dispute letter to the data furnisher {entity} regarding "
+            "account {account_name} (#{account_number}).\n\n"
+            "Reported Status: {marks}\n"
+            "Issue: {issue}\n"
+            "Demanded Action: {action}\n\n"
+            "IMPORTANT: This letter is sent DIRECTLY to the data furnisher (creditor or "
+            "collector) — NOT to a credit bureau. It bypasses the e-OSCAR system entirely. "
+            "The furnisher is legally required to investigate under 12 C.F.R. § 1022.43 "
+            "(Regulation V — Direct Disputes) and 15 U.S.C. § 1681s-2(a)(8).\n\n"
+            "STRUCTURE — DIRECT FURNISHER DISPUTE:\n"
+            "1. IDENTIFY THE ACCOUNT with full detail: creditor name, account number, "
+            "reported status, balance, and dates as shown on the consumer's credit report.\n"
+            "2. ALLEGE SPECIFIC INACCURACIES using 3+ labeled DISPUTE POINTS, each "
+            "referencing the Metro 2 field being disputed (Account Status – Fld 17, "
+            "Current Balance – Fld 21, Payment History Profile – Fld 25, DOFD – Fld 26). "
+            "State the REPORTED value and WHY it is factually wrong.\n"
+            "3. CITE DIRECT DISPUTE AUTHORITY:\n"
+            "   - 12 C.F.R. § 1022.43(a) — Furnisher must investigate direct disputes\n"
+            "   - 12 C.F.R. § 1022.43(e) — Furnisher must report investigation results "
+            "to ALL CRAs to which it furnishes data\n"
+            "   - 15 U.S.C. § 1681s-2(a)(8)(E) — Furnisher must modify, delete, or "
+            "permanently block reporting of disputed information if found inaccurate\n"
+            "   - 15 U.S.C. § 1681s-2(a)(1)(A) — Duty not to report known inaccuracies\n"
+            "4. DEMAND DOCUMENTATION: Original signed credit agreement, complete payment "
+            "ledger, validation of the debt amount, and chain of assignment if sold.\n"
+            "5. SET 30-DAY DEADLINE with consequences: failure to investigate and correct "
+            "within 30 days constitutes willful noncompliance under § 1681n (statutory "
+            "damages $100-$1,000 per violation plus punitive damages).\n"
+            "6. STATE that this letter constitutes a 'direct dispute' under Regulation V "
+            "and that the furnisher is prohibited from ignoring it or treating it as a "
+            "frivolous complaint — unlike CRA disputes, direct disputes have no "
+            "frivolous exception.\n\n"
+            "CASE LAW:\n"
+            "- *Gorman v. Wolpoff & Abramson*, 584 F.3d 1147 (9th Cir. 2009) — furnisher "
+            "investigation must be a 'fairly searching inquiry'\n"
+            "- *Boggio v. USAA Federal Savings Bank*, 696 F.3d 611 (6th Cir. 2012) — "
+            "furnisher cannot rely solely on its own records; must consider consumer "
+            "evidence\n\n"
+            "CONSTRAINTS:\n"
+            "- Keep under 650 words\n"
+            "- Tone: firm, professional, legally precise\n"
+            "- DO NOT reference e-OSCAR or ACDV — this letter bypasses that system\n"
+            "- DO NOT cite CRA duties (§ 1681i) — cite FURNISHER duties (§ 1681s-2)"
+        ),
+        (
+            "Compose a direct dispute letter to the data furnisher {entity} for account "
+            "{account_name} (#{account_number}).\n\n"
+            "Current Status: {marks}\n"
+            "Dispute: {issue}\n"
+            "Demanded Resolution: {action}\n\n"
+            "This letter goes DIRECTLY to the furnisher, bypassing the e-OSCAR system.\n\n"
+            "REQUIRED ELEMENTS:\n"
+            "1. 3+ labeled DISPUTE POINTS with Metro 2 field references (Fld 17, 21, 25, 26) "
+            "— state REPORTED value and WHY it is factually wrong\n"
+            "2. Cite 12 C.F.R. § 1022.43 (Regulation V — Direct Disputes) as primary authority\n"
+            "3. Cite § 1022.43(e) — furnisher must report results to ALL CRAs\n"
+            "4. Cite 15 U.S.C. § 1681s-2(a)(8)(E) — duty to modify/delete/block if inaccurate\n"
+            "5. Demand original agreement, payment ledger, debt validation, chain of assignment\n"
+            "6. Cite *Gorman v. Wolpoff* — 'fairly searching inquiry' standard\n"
+            "7. 30-day deadline with § 1681n willful noncompliance consequences\n"
+            "8. State this is a direct dispute — no frivolous exception applies\n"
+            "9. DO NOT reference e-OSCAR, ACDV, or CRA investigation duties\n"
+            "10. Keep under 650 words"
         ),
     ],
 }
@@ -420,7 +600,8 @@ PACK_INFO = [
     {"key": "default", "name": "Default Pack", "description": "Your go-to dispute templates — clean, direct, and effective for first-round disputes."},
     {"key": "arbitration", "name": "Arbitration Pack", "description": "Heavy hitters. Arbitration demands under 15 U.S.C. §1681e(b) — for when bureaus won't budge."},
     {"key": "consumer_law", "name": "Consumer Law Pack", "description": "Cite the FCBA, FDCPA, and more — full statutory firepower for stubborn creditors."},
-    {"key": "ACDV_response", "name": "ACDV Enforcement Pack", "description": "Demand the full ACDV record — method of verification, submission procedure, and FCRA compliance docs. Make them prove it."}
+    {"key": "ACDV_response", "name": "ACDV Enforcement Pack", "description": "Demand the full ACDV record — method of verification, submission procedure, and FCRA compliance docs. Make them prove it."},
+    {"key": "dual_letter", "name": "Dual-Letter Strategy", "description": "Two letters per dispute — one to the CRA (preserving lawsuit rights) + one direct to the furnisher under Regulation V (bypassing e-OSCAR entirely)."},
 ]
 
 
@@ -431,47 +612,94 @@ PACK_INFO = [
 _E_OSCAR_INTELLIGENCE = (
     "CRITICAL CONTEXT — HOW DISPUTES ARE ACTUALLY PROCESSED:\n"
     "When a consumer mails a dispute letter to a credit bureau (CRA), the letter "
-    "does NOT go to the creditor. Instead, a CRA employee has approximately 4 minutes "
+    "does NOT go to the creditor. A CRA employee has approximately 4 minutes "
     "to reduce the entire dispute into a 2-3 digit code using the e-OSCAR system "
-    "(Automated Consumer Dispute Verification / ACDV). The same 4-5 codes are used "
-    "for over 90% of all disputes. The creditor (data furnisher) then receives ONLY "
-    "this code — not the consumer's letter, not their evidence, not their arguments.\n\n"
+    "(Automated Consumer Dispute Verification / ACDV). A 2007 Congressional report "
+    "found the same 4-5 codes are used for over 90% of all disputes. The creditor "
+    "(data furnisher) receives ONLY this code — not the consumer's letter, not their "
+    "evidence, not their arguments.\n\n"
     "The furnisher responds with one of these ACDV Response Codes:\n"
-    "• Code 01 — 'Verified as accurate' (most common — rubber stamp, no real investigation)\n"
+    "• Code 01 — 'Verified as accurate' (rubber stamp, no real investigation)\n"
     "• Code 02 — 'Modify account' (updates a field)\n"
-    "• Code 07 — 'DELETE' (removes the account entirely — THIS IS THE TARGET)\n"
+    "• Code 07 — 'DELETE' (THIS IS THE TARGET)\n"
     "• Code 13 — 'Deleted per furnisher policy'\n"
-    "• DNR (Did Not Respond) — Auto-delete after 30 days if furnisher fails to respond\n\n"
+    "• DNR (Did Not Respond) — Auto-delete after 30 days\n\n"
+    "ENFORCEMENT PRECEDENT:\n"
+    "• CFPB v. Experian, Case No. 1:25-cv-00001 (C.D. Cal. filed Jan. 2025, "
+    "pending) — CFPB sued Experian for conducting 'sham investigations' by "
+    "distorting, truncating, and mischaracterizing consumer disputes when "
+    "converting them to e-OSCAR codes, and failing to forward consumer-submitted "
+    "documentation to furnishers.\n"
+    "• CFPB v. Equifax, Consent Order 2025-CFPB-0002 (final, $15M penalty) — "
+    "Equifax fined for ignoring consumer-provided documents, using faulty "
+    "software, and excessively deferring to furnishers rather than conducting "
+    "independent review.\n"
+    "• Cushman v. Trans Union Corp., 115 F.3d 220 (3d Cir. 1997) — CRAs cannot "
+    "merely 'parrot back' furnisher responses. A reasonable reinvestigation may "
+    "require going BEYOND the original source of information.\n"
+    "• Gorman v. Wolpoff & Abramson, 584 F.3d 1147 (9th Cir. 2009) — Furnisher "
+    "investigation must be a 'fairly searching inquiry,' not superficial.\n\n"
     "YOUR OBJECTIVE: Write letters that CANNOT be reduced to a simple e-OSCAR code. "
-    "Force the CRA to conduct a genuine 'reasonable investigation' per CFPB Circular "
-    "2022-07, which affirms that CRAs must forward consumer-provided documents to "
-    "furnishers and cannot use automation alone to satisfy their investigation duty.\n\n"
+    "Force the CRA to conduct a genuine 'reasonable investigation' under "
+    "15 U.S.C. § 1681i(a). The CRA must forward all consumer-provided documentation "
+    "to the furnisher — automation alone does not satisfy this statutory duty.\n\n"
     "LETTER ENGINEERING RULES:\n"
-    "1. DEMAND FIELD-SPECIFIC VERIFICATION — Do not just say 'this account is inaccurate.' "
-    "Demand verification of 5+ specific data fields (date of first delinquency, charge-off "
-    "date, balance amount, payment history for specific months, original creditor name, "
-    "credit limit). Each field the furnisher cannot verify weakens their Response Code 01.\n"
-    "2. CITE CFPB CIRCULAR 2022-07 — State explicitly that under this circular, the CRA "
-    "has an independent duty to conduct a reasonable investigation and must forward ALL "
-    "consumer-provided documentation to the furnisher. Automation alone does not satisfy "
-    "this requirement.\n"
-    "3. REFERENCE 2026 FCRA UPDATES — Mismatched data between bureaus is now classified "
-    "as a 'high-risk reporting error' requiring a mandatory 10-day preliminary investigation. "
-    "Furnishers are prohibited from resetting the date of first delinquency after a dispute.\n"
-    "4. CREATE LEGAL LIABILITY — Make clear that if the CRA simply forwards a code through "
-    "e-OSCAR without investigation, the consumer will have grounds for an FCRA claim under "
-    "15 U.S.C. § 1681i (failure to conduct reasonable investigation) and § 1681s-2(b) "
-    "(furnisher duty to investigate after receiving notice).\n"
-    "5. NAME THE SYSTEM — Reference 'e-OSCAR' and 'ACDV' by name. This signals to the "
-    "CRA employee that the consumer understands the automated process and will pursue "
-    "legal remedies if it is used as a substitute for genuine investigation.\n"
-    "6. SET A TRAP FOR DNR — For collection accounts and charged-off debts, demand that "
-    "the furnisher produce specific documentation (signed credit application, complete "
-    "payment ledger, chain of assignment). If they cannot produce it within 30 days, "
-    "the account must be deleted per 15 U.S.C. § 1681i(a)(5)(A).\n"
+    "1. USE METRO 2 FIELD REFERENCES WITH SEGMENT/FIELD NUMBERS — Reference specific "
+    "Metro 2 data fields by name AND numeric identifier (e.g., 'Account Status – Base "
+    "Seg. Fld 17,' 'Current Balance – Base Seg. Fld 21,' 'Date of First Delinquency – "
+    "Base Seg. Fld 26,' 'Payment History Profile – Base Seg. Fld 25,' 'Credit Limit – "
+    "Base Seg. Fld 22,' 'Payment Rating – Base Seg. Fld 18'). This technical specificity "
+    "cannot be captured by any single e-OSCAR code and forces the CRA employee to "
+    "escalate beyond the standard 4-minute processing. A letter that says 'Current "
+    "Balance (Fld 21) reports $4,231 but Account Status (Fld 17) shows Closed/Paid' is "
+    "impossible to reduce to Code 103.\n"
+    "2. DISPUTE MULTIPLE DISTINCT FIELD CATEGORIES SIMULTANEOUSLY — Dispute the balance "
+    "AND the account status AND the payment history AND the dates in the SAME letter as "
+    "separately labeled dispute points. Each category maps to a different e-OSCAR code. "
+    "When a CRA employee must choose between Code 002 (balance), Code 103 (status), "
+    "Code 023 (account info), and Code 105 (payment history) for the same dispute, they "
+    "cannot select one — they must escalate or process each separately, which exceeds "
+    "the 4-minute window.\n"
+    "3. PRE-EMPTIVE METHOD OF VERIFICATION REQUEST — Include this in EVERY letter: "
+    "'Pursuant to 15 U.S.C. § 1681i(a)(7), I hereby request that upon completion of "
+    "your investigation, you provide me with a description of the procedure used to "
+    "determine the accuracy of the disputed information, including the name, address, "
+    "and telephone number of each furnisher contacted. You have 15 days to comply.' "
+    "This creates a SEPARATE legal obligation and exposes e-OSCAR rubber-stamping — if "
+    "the CRA's 'method of verification' was simply forwarding a code and accepting "
+    "Code 01 back, that admission is evidence of an unreasonable investigation.\n"
+    "4. CITE ENFORCEMENT ACTIONS BY NAME — Reference 'CFPB v. Experian (2025)' and "
+    "'CFPB v. Equifax (2025)' to signal that the consumer is aware the CFPB has already "
+    "found these exact practices unlawful. This is not a threat — it is a statement of "
+    "fact that raises the legal stakes for the CRA employee processing the dispute.\n"
+    "5. ALLEGE SPECIFIC FACTUAL ERRORS WITH CONCRETE DATA — Never say 'verify the "
+    "balance.' Say 'The Current Balance field reports $X, which is inaccurate because "
+    "[reason — account was paid, settled, or closed on DATE].' Never say 'verify the "
+    "date.' Say 'The Date of First Delinquency field shows MM/YYYY, which is incorrect "
+    "because [reason].' Generic verification requests are trivially coded 103. Specific "
+    "factual allegations with dollar amounts and dates require field-by-field review.\n"
+    "6. SET A TRAP FOR DNR — For collection and charged-off accounts, demand that the "
+    "CRA direct the data furnisher to produce: (1) the signed original credit agreement, "
+    "(2) a complete payment ledger showing every payment received, (3) the chain of "
+    "assignment if the debt was sold. Do NOT demand the CRA itself produce these — they "
+    "don't have them. If the furnisher fails to respond within 30 days, deletion is "
+    "mandatory per 15 U.S.C. § 1681i(a)(5)(A).\n"
     "7. DO NOT use generic language like 'I believe this account is not mine' or "
-    "'please investigate' — these are trivially reduced to e-OSCAR Code 001 or Code 103 "
-    "and verified with a rubber stamp.\n\n"
+    "'please investigate' — these are trivially reduced to e-OSCAR Code 001 or 103.\n"
+    "8. EXPLOIT CROSS-BUREAU DISCREPANCIES — If the account reports differently across "
+    "bureaus (different balances, DOFD, status), cite this as independent evidence of "
+    "inaccuracy under 15 U.S.C. § 1681s-2(a)(1)(A). At least one bureau's data must be "
+    "wrong.\n"
+    "9. KEEP LETTERS UNDER 650 WORDS — Excessive length and citation density can trigger "
+    "a frivolous determination under § 1681i(a)(3). Be precise, not verbose.\n"
+    "10. INCLUDE ANTI-COMPRESSION WARNING — Add this statement to every letter: 'Any "
+    "attempt to compress this multi-field dispute into a single e-OSCAR ACDV code will "
+    "constitute willful noncompliance under 15 U.S.C. § 1681n.' This makes it legally "
+    "dangerous for the clerk to reduce the dispute to one code.\n"
+    "11. INSTRUCT CONSUMER TO ENCLOSE ID — Direct the consumer to attach copies of "
+    "their driver's license (front & back) and a recent utility bill or bank statement. "
+    "Reference these as 'Enclosures' in the letter. This pre-empts any § 1681i(a)(3) "
+    "frivolous determination and forces the CRA to forward documentation.\n\n"
 )
 
 _EDUCATIONAL_NOTE = (
@@ -503,6 +731,15 @@ SYSTEM_PROMPT_WITH_INACCURACIES = (
     "are your PRIMARY ammunition — they prove the furnisher is reporting data that "
     "contradicts itself or is incomplete, which means a Response Code 01 ('verified') "
     "would itself be a violation.\n\n"
+    "CRITICAL: Each parser-detected inaccuracy represents a DEMONSTRABLE factual error — "
+    "not merely 'unverified' data. When citing each inaccuracy:\n"
+    "- Reference the Metro 2 field name (e.g., 'Current Balance field,' 'Account Status field')\n"
+    "- State the specific REPORTED value from the report\n"
+    "- Explain WHY that value is factually wrong\n"
+    "- Example: 'The Current Balance field reports $4,231 on an account where the Account "
+    "Status field shows Closed/Paid — a closed account must report $0.'\n"
+    "Structure these as labeled DISPUTE POINTS, each targeting a different Metro 2 field "
+    "category so no single e-OSCAR code can capture the entire dispute.\n\n"
     + _EDUCATIONAL_NOTE
 )
 
@@ -542,8 +779,8 @@ SYSTEM_PROMPT_NOTICE_OF_DISPUTE = (
     "2. State that the consumer formally disputes the accuracy of these accounts "
     "under 15 U.S.C. § 1681i\n"
     "3. Demand investigation within 30 days per FCRA requirements\n"
-    "4. Reference CFPB Circular 2022-07 — the CRA must conduct a reasonable "
-    "investigation, not simply forward a code through e-OSCAR\n"
+    "4. Reference CFPB v. Experian (2025) — the CFPB found CRAs conducting 'sham "
+    "investigations' via e-OSCAR, establishing that code-only processing is unlawful\n"
     "5. Do NOT include specific inaccuracies, detailed FCRA citations, or legal "
     "arguments — those come in the follow-up Bureau Assault letter\n"
     "6. Keep the tone professional, direct, and confident\n"
@@ -558,6 +795,35 @@ SYSTEM_PROMPT_NOTICE_OF_DISPUTE = (
 )
 
 
+# ─── Dual-Letter Strategy (CRA + Furnisher) ───
+
+SYSTEM_PROMPT_FURNISHER_DIRECT = (
+    "You are uDispute, a professional credit dispute letter generator. "
+    "You are generating a DIRECT FURNISHER DISPUTE LETTER — sent directly to the "
+    "data furnisher (creditor or debt collector), completely bypassing the CRA and "
+    "the e-OSCAR system.\n\n"
+    "LEGAL FRAMEWORK FOR DIRECT DISPUTES:\n"
+    "Under 12 C.F.R. § 1022.43 (Regulation V), consumers have the right to dispute "
+    "information directly with furnishers. When a furnisher receives a direct dispute, "
+    "it must:\n"
+    "1. Conduct an investigation (§ 1022.43(a))\n"
+    "2. Review all relevant information provided by the consumer (§ 1022.43(d))\n"
+    "3. Report the results to ALL CRAs to which it furnishes (§ 1022.43(e))\n"
+    "4. Modify, delete, or permanently block disputed information if inaccurate "
+    "(15 U.S.C. § 1681s-2(a)(8)(E))\n\n"
+    "KEY ADVANTAGE: Direct furnisher disputes bypass e-OSCAR entirely. The furnisher "
+    "receives the consumer's ACTUAL letter with ACTUAL evidence — not a 2-digit code. "
+    "There is no 'frivolous' exception for direct disputes as there is for CRA disputes "
+    "under § 1681i(a)(3).\n\n"
+    "IMPORTANT DISTINCTIONS:\n"
+    "- DO NOT cite CRA duties (§ 1681i) — cite FURNISHER duties (§ 1681s-2, § 1022.43)\n"
+    "- DO NOT reference e-OSCAR or ACDV codes — this letter bypasses that system\n"
+    "- DO reference Regulation V, the furnisher's duty under § 1681s-2(a)(1)(A), and "
+    "the consequences of willful noncompliance under § 1681n\n\n"
+    + _EDUCATIONAL_NOTE
+)
+
+
 # ─── Notice of Dispute (Tier 1) ───
 
 NOTICE_OF_DISPUTE_TEMPLATE = (
@@ -568,7 +834,7 @@ NOTICE_OF_DISPUTE_TEMPLATE = (
     "15 U.S.C. § 1681i. Demand a 30-day investigation of each account listed. "
     "State that the consumer is aware this dispute will be processed through the "
     "e-OSCAR system and that a code-only ACDV verification does not constitute "
-    "a 'reasonable investigation' per CFPB Circular 2022-07. The detailed "
+    "a 'reasonable investigation' under 15 U.S.C. § 1681i. The detailed "
     "Bureau Assault letter with specific inaccuracies and legal citations will follow."
 )
 
@@ -628,7 +894,7 @@ def build_notice_of_dispute_prompt(bureau, accounts, client_context):
     return preamble + body, False, False
 
 
-def generate_letter(prompt, model="gpt-4o", has_inaccuracies=False,
+def generate_letter(prompt, model="o3", has_inaccuracies=False,
                     has_legal_research=False, is_notice=False):
     """
     Generate a dispute letter using GPT.
@@ -758,6 +1024,94 @@ def build_prompt(template_pack, template_index, context, parsed_accounts=None,
         has_legal_research = True
 
     return preamble + body + inaccuracy_section + legal_section, has_inaccuracies, has_legal_research
+
+
+# ─── Dual-Letter Generation Functions ───
+
+def generate_dual_letters(cra_prompt, furnisher_prompt, model="o3",
+                          has_inaccuracies=False, has_legal_research=False):
+    """
+    Generate TWO dispute letters for the dual-letter strategy:
+    1. A CRA letter (through e-OSCAR, preserving § 1681s-2(b) rights)
+    2. A direct furnisher letter (bypassing e-OSCAR under 12 CFR § 1022.43)
+
+    Args:
+        cra_prompt: The filled prompt for the CRA letter.
+        furnisher_prompt: The filled prompt for the furnisher letter.
+        model: OpenAI model to use.
+        has_inaccuracies: If True, uses enhanced system prompt for CRA letter.
+        has_legal_research: If True, uses legal research system prompt for CRA letter.
+
+    Returns:
+        Tuple of (cra_letter_text, furnisher_letter_text).
+    """
+    # Determine CRA system prompt
+    if has_legal_research:
+        cra_system = SYSTEM_PROMPT_WITH_LEGAL_RESEARCH
+    elif has_inaccuracies:
+        cra_system = SYSTEM_PROMPT_WITH_INACCURACIES
+    else:
+        cra_system = SYSTEM_PROMPT_BASE
+
+    # Generate CRA letter
+    cra_response = openai_client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": cra_system},
+            {"role": "user", "content": cra_prompt}
+        ]
+    )
+    cra_letter = cra_response.choices[0].message.content
+
+    # Generate furnisher letter
+    furnisher_response = openai_client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT_FURNISHER_DIRECT},
+            {"role": "user", "content": furnisher_prompt}
+        ]
+    )
+    furnisher_letter = furnisher_response.choices[0].message.content
+
+    return cra_letter, furnisher_letter
+
+
+def build_dual_prompts(cra_pack, context, parsed_accounts=None,
+                       legal_research_context=None):
+    """
+    Build prompts for both CRA and furnisher letters in the dual-letter strategy.
+
+    Uses the specified CRA pack for the bureau letter, and the furnisher_direct
+    pack for the direct furnisher letter.
+
+    Args:
+        cra_pack: Pack key for the CRA letter (e.g., 'default', 'arbitration').
+        context: Dict with entity, account_name, account_number, marks, etc.
+        parsed_accounts: Optional list of parsed account dicts with inaccuracies.
+        legal_research_context: Optional legal research string.
+
+    Returns:
+        Tuple of (cra_prompt, furnisher_prompt, has_inaccuracies, has_legal_research).
+    """
+    # Build CRA letter prompt using the selected pack
+    cra_prompt, has_inaccuracies, has_legal = build_prompt(
+        cra_pack, 0, context,
+        parsed_accounts=parsed_accounts,
+        legal_research_context=legal_research_context
+    )
+
+    # Build furnisher letter prompt — swap entity to furnisher name
+    furnisher_ctx = dict(context)
+    # The entity for the furnisher letter is the account_name (creditor/collector)
+    furnisher_ctx['entity'] = context.get('account_name', context.get('entity', ''))
+
+    furnisher_prompt, _, _ = build_prompt(
+        'furnisher_direct', 0, furnisher_ctx,
+        parsed_accounts=parsed_accounts,
+        legal_research_context=legal_research_context
+    )
+
+    return cra_prompt, furnisher_prompt, has_inaccuracies, has_legal
 
 
 def letter_to_pdf(letter_text, output_path=None):
