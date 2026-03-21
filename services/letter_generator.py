@@ -429,8 +429,10 @@ PACKS = {
 # Preamble injected before every prompt so GPT uses real client data
 CLIENT_CONTEXT_PREAMBLE = (
     "Write this dispute letter on behalf of the client below. "
-    "Use their REAL name and address in the letter header, body, and signature. "
-    "Do NOT use placeholder text like [YOUR NAME], [ADDRESS], or {{CLIENT_NAME}}.\n\n"
+    "If client name/address are provided, use them. If any field is blank, "
+    "use a placeholder like [YOUR NAME], [YOUR ADDRESS], [CITY, STATE ZIP] "
+    "so the consumer can fill it in before mailing. Always write the full "
+    "letter regardless — never refuse or ask for more information.\n\n"
     "Client: {client_full_name}\n"
     "Address: {client_address}\n"
     "{client_address_line2_section}"
