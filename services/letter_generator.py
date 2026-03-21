@@ -478,7 +478,16 @@ _E_OSCAR_INTELLIGENCE = (
     "ledger, chain of assignment. Non-response = delete per § 1681i(a)(5)(A).\n"
     "6. Anti-compression warning: single-code reduction = willful noncompliance § 1681n.\n"
     "7. Instruct consumer to enclose ID + utility bill as 'Enclosures.'\n"
-    "8. Keep under 650 words. No generic language ('please investigate').\n\n"
+    "8. Keep under 650 words. No generic language ('please investigate').\n"
+    "9. EVIDENCE INTEGRITY — NEVER reference documents the consumer has not provided "
+    "(no 1099-C, chat logs, receipts, or statements unless explicitly listed in the "
+    "prompt data). The 'WHY it is wrong' must come ONLY from: (a) contradictions "
+    "WITHIN the credit report itself (e.g., Closed status but non-zero balance), "
+    "(b) Metro 2 compliance violations (e.g., DOFD older than 7 years), "
+    "(c) cross-bureau discrepancies if provided, or (d) parser-detected inaccuracies. "
+    "If no specific reason is available, frame as: 'I dispute the accuracy of this "
+    "value and demand field-level verification with documentary proof from the "
+    "furnisher.' NEVER fabricate evidence or claim enclosures that do not exist.\n\n"
 )
 
 _EDUCATIONAL_NOTE = (
