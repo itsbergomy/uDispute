@@ -1,0 +1,364 @@
+{% extends "base_header.html" %}
+{% import '_icons.html' as icons %}
+
+{% block title %}CFPB 7-Day Deletion Wizard{% endblock %}
+
+{% block content %}
+<main class="pt-20 pb-12 min-h-screen px-4 md:px-8 max-w-3xl mx-auto">
+
+  <a href="{{ url_for('disputes.tier2_issues') }}"
+     class="inline-block mb-4 glass-btn glass-btn--ghost p-3 rounded-full">&larr; Back to Bureau Assault</a>
+
+  {# ── Header ── #}
+  <div class="glass-card glass-card--heavy glass-p mb-6" style="text-align:center;">
+    <div style="font-size:2rem;margin-bottom:0.5rem;">🛡️</div>
+    <h1 style="font-size:1.5rem;font-weight:800;margin:0 0 0.25rem;">CFPB 7-Day Deletion Wizard</h1>
+    <p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">
+      <strong>{{ account_name }}</strong> &mdash; #{{ account_number }}
+      {% if account_status %}<br><span style="color:var(--text-tertiary);">Status: {{ account_status }}</span>{% endif %}
+    </p>
+  </div>
+
+  {# ── Step Indicator Bar ── #}
+  <div style="display:flex;align-items:center;justify-content:center;gap:0;margin-bottom:1.5rem;" id="step-bar">
+    {% for i in range(1, 7) %}
+    <div id="dot-{{ i }}" style="
+      width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:0.75rem;font-weight:700;flex-shrink:0;transition:all 0.3s;
+      {% if i == 1 %}background:linear-gradient(135deg,#6e5ce6,#af52de);color:#fff;box-shadow:0 2px 10px rgba(110,92,230,0.3);
+      {% else %}background:var(--glass-bg-tertiary);color:var(--text-tertiary);{% endif %}
+    ">{{ i }}</div>
+    {% if i < 6 %}
+    <div id="line-{{ i }}" style="width:24px;height:2px;background:var(--glass-bg-tertiary);flex-shrink:0;transition:background 0.3s;"></div>
+    {% endif %}
+    {% endfor %}
+  </div>
+
+  {# ══════════════════════════════════════════════════════════════════
+     PANEL 1 — Account Summary
+     ══════════════════════════════════════════════════════════════════ #}
+  <div id="panel-1" style="display:block;">
+    <div class="glass-card glass-card--heavy glass-p mb-4">
+      <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 1rem;">Step 1 — Confirm Your Account</h2>
+      <div style="background:var(--glass-bg-secondary);border-radius:12px;padding:1rem;margin-bottom:1rem;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:0.5rem;">
+          <span style="color:var(--text-tertiary);font-size:0.8rem;">Creditor / Agency</span>
+          <span style="font-weight:600;font-size:0.9rem;">{{ account_name }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:0.5rem;">
+          <span style="color:var(--text-tertiary);font-size:0.8rem;">Account Number</span>
+          <span style="font-weight:600;font-size:0.9rem;">{{ account_number }}</span>
+        </div>
+        {% if account_status %}
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--text-tertiary);font-size:0.8rem;">Status</span>
+          <span style="font-weight:600;font-size:0.9rem;">{{ account_status }}</span>
+        </div>
+        {% endif %}
+      </div>
+      <p style="color:var(--text-tertiary);font-size:0.78rem;line-height:1.5;">
+        Verify this is the account you want to file a CFPB complaint against.
+        The creditor name and account number will be auto-inserted into your complaint narrative.
+      </p>
+    </div>
+    <div style="display:flex;justify-content:flex-end;">
+      <button onclick="goToStep(2)" class="glass-btn glass-btn--primary"
+        style="padding:0.75rem 2rem;border-radius:12px;font-weight:600;">Confirm & Continue →</button>
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════════════════════
+     PANEL 2 — CFPB Category Selections
+     ══════════════════════════════════════════════════════════════════ #}
+  <div id="panel-2" style="display:none;">
+    <div class="glass-card glass-card--heavy glass-p mb-4">
+      <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 0.5rem;">Step 2 — CFPB Category Selections</h2>
+      <p style="color:var(--text-tertiary);font-size:0.8rem;margin:0 0 1rem;">
+        When you reach cfpb.gov, select these exact options:
+      </p>
+
+      {% set categories = [
+        ("Complaint about", "Debt Collection"),
+        ("Type of debt", "I do not know"),
+        ("Problem", "Took or threatened to take negative or legal action"),
+        ("Best describes problem", "Threatened or suggested your credit would be damaged"),
+        ("Already tried to fix?", "Yes"),
+        ("Requested info from company?", "Yes"),
+        ("Company provided info?", "No")
+      ] %}
+
+      {% for label, value in categories %}
+      <div style="display:flex;align-items:flex-start;gap:0.75rem;padding:0.65rem 0;
+        {% if not loop.last %}border-bottom:1px solid var(--glass-border);{% endif %}">
+        <div style="width:22px;height:22px;border-radius:6px;flex-shrink:0;margin-top:2px;
+          background:linear-gradient(135deg,#34c759,#30d158);display:flex;align-items:center;justify-content:center;">
+          <span style="color:#fff;font-size:0.7rem;font-weight:800;">✓</span>
+        </div>
+        <div>
+          <div style="font-size:0.78rem;color:var(--text-tertiary);">{{ label }}</div>
+          <div style="font-size:0.88rem;font-weight:600;">{{ value }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="display:flex;justify-content:space-between;">
+      <button onclick="goToStep(1)" class="glass-btn glass-btn--ghost"
+        style="padding:0.75rem 1.5rem;border-radius:12px;">← Back</button>
+      <button onclick="goToStep(3)" class="glass-btn glass-btn--primary"
+        style="padding:0.75rem 2rem;border-radius:12px;font-weight:600;">Next →</button>
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════════════════════
+     PANEL 3 — Narrative Builder
+     ══════════════════════════════════════════════════════════════════ #}
+  <div id="panel-3" style="display:none;">
+    <div class="glass-card glass-card--heavy glass-p mb-4">
+      <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 0.5rem;">Step 3 — "What Happened?" Narrative</h2>
+      <p style="color:var(--text-tertiary);font-size:0.8rem;margin:0 0 1rem;">
+        Copy one or more of these into the "What happened?" field on cfpb.gov.
+        Your creditor name and account number are already filled in.
+      </p>
+
+      {% for n in narratives %}
+      <div style="background:var(--glass-bg-secondary);border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+          <span style="font-weight:700;font-size:0.85rem;">{{ n.title }}</span>
+          <button id="copy-btn-{{ loop.index }}" onclick="copyText('narrative-{{ loop.index }}','copy-btn-{{ loop.index }}')"
+            style="background:linear-gradient(135deg,#6e5ce6,#af52de);color:#fff;border:none;
+              padding:0.35rem 1rem;border-radius:8px;font-size:0.75rem;font-weight:600;cursor:pointer;">
+            Copy
+          </button>
+        </div>
+        <p id="narrative-{{ loop.index }}" style="font-size:0.85rem;line-height:1.6;margin:0;color:var(--text-secondary);">
+          {{ n.body }}
+        </p>
+      </div>
+      {% endfor %}
+
+      <div style="background:var(--glass-bg-secondary);border-radius:12px;padding:0.75rem 1rem;margin-top:0.5rem;">
+        <p style="font-size:0.75rem;color:var(--text-tertiary);margin:0;">
+          💡 <strong>Pro tip:</strong> Combine narratives 1 or 2 with narrative 3 for maximum impact.
+          Paste them together in the "What happened?" field.
+        </p>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;">
+      <button onclick="goToStep(2)" class="glass-btn glass-btn--ghost"
+        style="padding:0.75rem 1.5rem;border-radius:12px;">← Back</button>
+      <button onclick="goToStep(4)" class="glass-btn glass-btn--primary"
+        style="padding:0.75rem 2rem;border-radius:12px;font-weight:600;">Next →</button>
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════════════════════
+     PANEL 4 — Fair Resolution
+     ══════════════════════════════════════════════════════════════════ #}
+  <div id="panel-4" style="display:none;">
+    <div class="glass-card glass-card--heavy glass-p mb-4">
+      <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 0.5rem;">Step 4 — Fair Resolution</h2>
+      <p style="color:var(--text-tertiary);font-size:0.8rem;margin:0 0 1rem;">
+        Paste this into the "What would be a fair resolution?" field. Edit the bracketed section
+        with your personal situation.
+      </p>
+
+      <div style="position:relative;">
+        <textarea id="fair-resolution-text" rows="5"
+          style="width:100%;background:var(--glass-bg-secondary);border:1px solid var(--glass-border);
+            border-radius:12px;padding:1rem;font-size:0.85rem;line-height:1.6;resize:vertical;
+            color:var(--text-primary);font-family:inherit;">{{ fair_resolution }}</textarea>
+        <button id="copy-btn-fair" onclick="copyTextarea('fair-resolution-text','copy-btn-fair')"
+          style="position:absolute;top:0.5rem;right:0.5rem;background:linear-gradient(135deg,#6e5ce6,#af52de);
+            color:#fff;border:none;padding:0.35rem 1rem;border-radius:8px;font-size:0.75rem;font-weight:600;cursor:pointer;">
+          Copy
+        </button>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;">
+      <button onclick="goToStep(3)" class="glass-btn glass-btn--ghost"
+        style="padding:0.75rem 1.5rem;border-radius:12px;">← Back</button>
+      <button onclick="goToStep(5)" class="glass-btn glass-btn--primary"
+        style="padding:0.75rem 2rem;border-radius:12px;font-weight:600;">Next →</button>
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════════════════════
+     PANEL 5 — Filing Checklist
+     ══════════════════════════════════════════════════════════════════ #}
+  <div id="panel-5" style="display:none;">
+    <div class="glass-card glass-card--heavy glass-p mb-4">
+      <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 0.5rem;">Step 5 — File Your Complaint</h2>
+      <p style="color:var(--text-tertiary);font-size:0.8rem;margin:0 0 1rem;">
+        Check off each item as you complete it on cfpb.gov:
+      </p>
+
+      {% set checklist = [
+        "Skip the document upload section",
+        "Enter company name exactly as: <strong>" ~ account_name ~ "</strong>",
+        "Enter account number: <strong>" ~ account_number ~ "</strong>",
+        "Select <strong>\"Myself\"</strong> when asked who is filing",
+        "Paste your narrative from Step 3 into \"What happened?\"",
+        "Paste your fair resolution from Step 4"
+      ] %}
+
+      {% for item in checklist %}
+      <label style="display:flex;align-items:flex-start;gap:0.75rem;padding:0.65rem 0;cursor:pointer;
+        {% if not loop.last %}border-bottom:1px solid var(--glass-border);{% endif %}"
+        onclick="this.querySelector('input').checked=!this.querySelector('input').checked;event.preventDefault();toggleCheck(this);">
+        <input type="checkbox" style="display:none;">
+        <div class="check-box" style="width:22px;height:22px;border-radius:6px;flex-shrink:0;margin-top:2px;
+          border:2px solid var(--glass-border);display:flex;align-items:center;justify-content:center;transition:all 0.2s;">
+        </div>
+        <span style="font-size:0.88rem;line-height:1.5;">{{ item|safe }}</span>
+      </label>
+      {% endfor %}
+
+      <div style="margin-top:1.25rem;text-align:center;">
+        <a href="https://www.consumerfinance.gov/complaint/" target="_blank" rel="noopener"
+          style="display:inline-block;background:linear-gradient(135deg,#34c759,#30d158);color:#fff;
+            padding:1rem 2.5rem;border-radius:14px;font-weight:700;font-size:1rem;text-decoration:none;
+            box-shadow:0 4px 20px rgba(52,199,89,0.3);transition:transform 0.2s,box-shadow 0.2s;"
+          onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 25px rgba(52,199,89,0.4)';"
+          onmouseleave="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 20px rgba(52,199,89,0.3)';">
+          Open CFPB Complaint Form →
+        </a>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;">
+      <button onclick="goToStep(4)" class="glass-btn glass-btn--ghost"
+        style="padding:0.75rem 1.5rem;border-radius:12px;">← Back</button>
+      <button onclick="goToStep(6)" class="glass-btn glass-btn--primary"
+        style="padding:0.75rem 2rem;border-radius:12px;font-weight:600;">Next →</button>
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════════════════════
+     PANEL 6 — After Filing
+     ══════════════════════════════════════════════════════════════════ #}
+  <div id="panel-6" style="display:none;">
+    <div class="glass-card glass-card--heavy glass-p mb-4">
+      <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 1rem;">Step 6 — What Happens Next</h2>
+
+      <div style="background:var(--glass-bg-secondary);border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+        <div style="font-weight:700;font-size:0.88rem;margin-bottom:0.25rem;">⏱️ Company Response Timeline</div>
+        <p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;margin:0;">
+          The company has <strong>15 days</strong> to respond to the CFPB. Most respond within
+          <strong>7 days</strong> to avoid regulatory action. You'll receive an email from the CFPB
+          with their response.
+        </p>
+      </div>
+
+      <div style="background:var(--glass-bg-secondary);border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+        <div style="font-weight:700;font-size:0.88rem;margin-bottom:0.25rem;">🔄 If Verified / Not Resolved</div>
+        <p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;margin:0;">
+          If the account comes back verified, <strong>repeat this process</strong>. Each CFPB complaint
+          creates a federal record. You can also escalate to:
+        </p>
+        <ul style="font-size:0.82rem;color:var(--text-secondary);line-height:1.8;margin:0.5rem 0 0;padding-left:1.25rem;">
+          <li>File another CFPB complaint (different narrative)</li>
+          <li>Send a Bureau Assault dispute letter</li>
+          <li>Escalate to arbitration demand</li>
+          <li>File a complaint with your State Attorney General</li>
+        </ul>
+      </div>
+
+      <div style="background:var(--glass-bg-secondary);border-radius:12px;padding:1rem;">
+        <div style="font-weight:700;font-size:0.88rem;margin-bottom:0.25rem;">📋 Save Your Complaint Number</div>
+        <p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;margin:0;">
+          The CFPB will assign a complaint number after submission. Save it — you'll need it
+          to track the response and reference in any follow-up complaints or dispute letters.
+        </p>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;">
+      <button onclick="goToStep(5)" class="glass-btn glass-btn--ghost"
+        style="padding:0.75rem 1.5rem;border-radius:12px;">← Back</button>
+      <a href="{{ url_for('disputes.tier2_issues') }}" class="glass-btn glass-btn--primary"
+        style="padding:0.75rem 2rem;border-radius:12px;font-weight:600;text-decoration:none;">
+        Return to Bureau Assault
+      </a>
+    </div>
+  </div>
+
+</main>
+
+<script>
+var currentStep = 1;
+var totalSteps = 6;
+
+function goToStep(n) {
+  for (var i = 1; i <= totalSteps; i++) {
+    document.getElementById('panel-' + i).style.display = 'none';
+  }
+  document.getElementById('panel-' + n).style.display = 'block';
+
+  for (var i = 1; i <= totalSteps; i++) {
+    var dot = document.getElementById('dot-' + i);
+    if (i < n) {
+      dot.style.background = 'linear-gradient(135deg, #34c759, #30d158)';
+      dot.style.color = '#fff';
+      dot.style.boxShadow = '0 2px 8px rgba(52,199,89,0.2)';
+    } else if (i === n) {
+      dot.style.background = 'linear-gradient(135deg, #6e5ce6, #af52de)';
+      dot.style.color = '#fff';
+      dot.style.boxShadow = '0 2px 10px rgba(110,92,230,0.3)';
+    } else {
+      dot.style.background = 'var(--glass-bg-tertiary)';
+      dot.style.color = 'var(--text-tertiary)';
+      dot.style.boxShadow = 'none';
+    }
+  }
+
+  for (var i = 1; i < totalSteps; i++) {
+    var line = document.getElementById('line-' + i);
+    if (line) {
+      line.style.background = (i < n) ? '#34c759' : 'var(--glass-bg-tertiary)';
+    }
+  }
+
+  currentStep = n;
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+function copyText(elId, btnId) {
+  var text = document.getElementById(elId).innerText;
+  navigator.clipboard.writeText(text).then(function(){
+    var btn = document.getElementById(btnId);
+    var orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.style.background = 'linear-gradient(135deg, #34c759, #30d158)';
+    setTimeout(function(){
+      btn.textContent = orig;
+      btn.style.background = 'linear-gradient(135deg, #6e5ce6, #af52de)';
+    }, 2000);
+  });
+}
+
+function copyTextarea(elId, btnId) {
+  var text = document.getElementById(elId).value;
+  navigator.clipboard.writeText(text).then(function(){
+    var btn = document.getElementById(btnId);
+    btn.textContent = 'Copied!';
+    btn.style.background = 'linear-gradient(135deg, #34c759, #30d158)';
+    setTimeout(function(){
+      btn.textContent = 'Copy';
+      btn.style.background = 'linear-gradient(135deg, #6e5ce6, #af52de)';
+    }, 2000);
+  });
+}
+
+function toggleCheck(label) {
+  var cb = label.querySelector('input[type=checkbox]');
+  var box = label.querySelector('.check-box');
+  if (cb.checked) {
+    box.style.background = 'linear-gradient(135deg, #34c759, #30d158)';
+    box.style.borderColor = '#34c759';
+    box.innerHTML = '<span style="color:#fff;font-size:0.7rem;font-weight:800;">✓</span>';
+  } else {
+    box.style.background = 'transparent';
+    box.style.borderColor = 'var(--glass-border)';
+    box.innerHTML = '';
+  }
+}
+</script>
+{% endblock %}

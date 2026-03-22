@@ -672,6 +672,65 @@ def save_tier2_issues():
     return redirect(url_for('disputes.choose_template'))
 
 
+@disputes_bp.route('/cfpb-wizard')
+@login_required
+@require_pro_or_business
+def cfpb_wizard():
+    """CFPB 7-Day Deletion Wizard — guided complaint filing on cfpb.gov."""
+    account_name = session.get('account_name', '')
+    account_number = session.get('account_number', '')
+
+    if not account_name:
+        flash("No account selected. Please select an account first.", "error")
+        return redirect(url_for('disputes.select_account'))
+
+    status = session.get('status', '')
+    creditor = account_name
+    acct_num = account_number or '[Account Number]'
+
+    narratives = [
+        {
+            'title': 'Validation Violation',
+            'body': (
+                f"This company, {creditor} (Account #{acct_num}), is violating my rights. "
+                "They have not provided validation information under 12 CFR 1006.34(b)(5) "
+                "yet they have placed a collection on my consumer report recently."
+            ),
+        },
+        {
+            'title': 'Deceptive Practices',
+            'body': (
+                f"This agency, {creditor} (Account #{acct_num}), is violating my consumer "
+                "rights by using false, misleading, misrepresentation, and deceptive means."
+            ),
+        },
+        {
+            'title': 'Demand / Closing Statement',
+            'body': (
+                f"I have made previous attempts to fix these issues directly with {creditor} "
+                f"(Account #{acct_num}) and they are violating my rights. I'm entitled to "
+                "$1,000 for every violation listed. They either pay me or delete these "
+                "accounts ASAP."
+            ),
+        },
+    ]
+
+    fair_resolution = (
+        "I demand for this to be removed from my credit report. It's damaging my ability "
+        "to obtain credit, housing, and employment opportunities. "
+        "[Describe your personal impact here — e.g., denied for a mortgage, higher "
+        "insurance rates, lost job opportunity, etc.]"
+    )
+
+    return render_template('cfpb_wizard.html',
+        account_name=creditor,
+        account_number=acct_num,
+        account_status=status,
+        narratives=narratives,
+        fair_resolution=fair_resolution,
+    )
+
+
 @disputes_bp.route('/confirm-account', methods=['GET'])
 def confirm_account():
     account_name = request.args.get('account_name')
