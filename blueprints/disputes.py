@@ -5,6 +5,7 @@ Extracted from dispute_ui.py.
 
 import os
 import json
+import uuid
 from datetime import datetime, timedelta
 from flask import (
     Blueprint, request, jsonify, render_template, flash,
@@ -29,6 +30,9 @@ from services.report_analyzer import run_report_analysis
 from services.cloud_storage import upload_file, upload_from_path, get_file_url, download_to_temp, delete_file, is_configured as cloud_configured
 
 disputes_bp = Blueprint('disputes', __name__)
+
+# ── Temp letter storage (avoids cookie 4KB limit for dual letters) ──
+_letter_store = {}
 
 # ── Bureau dispute mailing addresses (verified March 2026) ──
 BUREAU_ADDRESSES = {
@@ -849,9 +853,13 @@ def generate_process():
             cra_prompt, furnisher_prompt,
             has_inaccuracies=has_inaccuracies, has_legal_research=has_legal
         )
-        session['generated_letter'] = cra_letter
-        session['furnisher_letter'] = furnisher_letter
-        return redirect(url_for('disputes.dual_review'))
+        # Store in memory (too large for cookie session's 4KB limit)
+        store_id = str(uuid.uuid4())
+        _letter_store[store_id] = {
+            'cra_letter': cra_letter,
+            'furnisher_letter': furnisher_letter,
+        }
+        return redirect(url_for('disputes.dual_review', sid=store_id))
     elif relevant_accounts:
         # Use build_prompt to inject inaccuracy details with FCRA citations
         prompt, has_inaccuracies, has_legal = build_prompt(pack_key, 0, data, parsed_accounts=relevant_accounts)
@@ -861,20 +869,26 @@ def generate_process():
         prompt = template.format(**data)
         letter_text = generate_letter(prompt)
 
-    session['generated_letter'] = letter_text
-    return redirect(url_for('disputes.final_review'))
+    # Store in memory (avoids cookie 4KB limit)
+    store_id = str(uuid.uuid4())
+    _letter_store[store_id] = {'letter': letter_text}
+    return redirect(url_for('disputes.final_review', sid=store_id))
 
 
 @disputes_bp.route('/final-review')
 def final_review():
-    letter = session.get('generated_letter')
+    sid = request.args.get('sid')
+    data = _letter_store.pop(sid, {}) if sid else {}
+    letter = data.get('letter', session.get('generated_letter'))
     return render_template('final_review.html', letter=letter)
 
 
 @disputes_bp.route('/dual-review')
 def dual_review():
-    cra_letter = session.get('generated_letter')
-    furnisher_letter = session.get('furnisher_letter')
+    sid = request.args.get('sid')
+    letters = _letter_store.pop(sid, {}) if sid else {}
+    cra_letter = letters.get('cra_letter', session.get('generated_letter'))
+    furnisher_letter = letters.get('furnisher_letter', session.get('furnisher_letter'))
     return render_template('dual_review.html',
                            cra_letter=cra_letter,
                            furnisher_letter=furnisher_letter)
