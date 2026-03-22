@@ -25,27 +25,44 @@
   .cfpb-nav-row { display:flex; justify-content:space-between; margin-top:0.5rem; }
 </style>
 
-<main class="pt-20 pb-12 min-h-screen px-4 md:px-8">
+<main class="px-4 py-10" style="max-width:1200px;margin:0 auto;">
 
+  {# ── Back Button (matches tier2_issues) ── #}
   <a href="{{ url_for('disputes.tier2_issues') }}"
-     class="inline-block mb-4 glass-btn glass-btn--ghost p-3 rounded-full"
-     style="max-width:1200px;margin-left:auto;margin-right:auto;display:block;width:fit-content;">&larr; Back to Bureau Assault</a>
+     class="inline-flex items-center gap-2 mb-6 glass-btn glass-btn--ghost px-4 py-2 rounded-full text-sm"
+     style="color:var(--text-secondary);">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+    Back to Bureau Assault
+  </a>
 
   <div class="wizard-layout">
 
     <!-- ══ LEFT PANEL — Always Visible ══ -->
     <div class="wizard-left">
 
-      {# Header #}
-      <div class="glass-card glass-card--heavy glass-p mb-4" style="text-align:center;">
-        <div style="font-size:1.75rem;margin-bottom:0.3rem;">&#128737;&#65039;</div>
-        <h1 style="font-size:1.25rem;font-weight:800;margin:0 0 0.2rem;">CFPB 7-Day Deletion</h1>
-        <p style="color:var(--text-secondary);font-size:0.82rem;margin:0;">
-          <strong>{{ account_name }}</strong> &mdash; #{{ account_number }}
+      {# Header (matches tier2_issues pattern) #}
+      <div class="glass-card glass-card--heavy glass-p mb-4 glass-animate-in text-center">
+        <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
+          <span style="font-size:1.5rem;">&#128737;&#65039;</span>
+        </div>
+
+        <span style="
+          display:inline-block;font-size:0.65rem;font-weight:700;text-transform:uppercase;
+          letter-spacing:0.1em;padding:4px 12px;border-radius:100px;
+          background:linear-gradient(135deg, #34c759, #30d158);color:#fff;
+          margin-bottom:0.75rem;
+          box-shadow:0 3px 10px rgba(52,199,89,0.25), inset 0 1px 0 rgba(255,255,255,0.3);
+        ">CFPB Fast Track</span>
+
+        <h2 class="text-xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">
+          7-Day Deletion Wizard
+        </h2>
+        <p style="color:var(--text-tertiary);font-size:0.85rem;">
+          {{ account_name }} &bull; #{{ account_number }}
+          {% if account_status %} &bull; {{ account_status }}{% endif %}
         </p>
-        {% if account_status %}
-        <p style="color:var(--text-tertiary);font-size:0.75rem;margin:0.15rem 0 0;">Status: {{ account_status }}</p>
-        {% endif %}
       </div>
 
       {# Open CFPB Button — always visible #}
@@ -109,7 +126,7 @@
       {# ═══ STEP 1 — Category Selections ═══ #}
       <div id="panel-1" style="display:block;">
         <div class="glass-card glass-card--heavy glass-p mb-4">
-          <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 0.5rem;">Step 1 &mdash; Select These Categories</h2>
+          <h3 class="text-lg font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Step 1 &mdash; Select These Categories</h3>
           <p style="color:var(--text-tertiary);font-size:0.8rem;margin:0 0 1rem;">
             On cfpb.gov, select these exact options as you fill out the form:
           </p>
@@ -143,14 +160,14 @@
         <div class="cfpb-nav-row">
           <div></div>
           <button onclick="goToStep(2)" class="glass-btn glass-btn--primary"
-            style="padding:0.75rem 2rem;border-radius:12px;font-weight:600;">Next &rarr;</button>
+            style="padding:0.75rem 2rem;border-radius:14px;font-weight:600;">Next &rarr;</button>
         </div>
       </div>
 
       {# ═══ STEP 2 — "What Happened?" Narrative ═══ #}
       <div id="panel-2" style="display:none;">
         <div class="glass-card glass-card--heavy glass-p mb-4">
-          <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 0.5rem;">Step 2 &mdash; "What Happened?"</h2>
+          <h3 class="text-lg font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Step 2 &mdash; "What Happened?"</h3>
           <p style="color:var(--text-tertiary);font-size:0.8rem;margin:0 0 1rem;">
             Copy one or more of these and paste into the "What happened?" field on cfpb.gov.
             Your creditor name and account number are already filled in.
@@ -183,14 +200,14 @@
           <button onclick="goToStep(1)" class="glass-btn glass-btn--ghost"
             style="padding:0.75rem 1.5rem;border-radius:12px;">&larr; Back</button>
           <button onclick="goToStep(3)" class="glass-btn glass-btn--primary"
-            style="padding:0.75rem 2rem;border-radius:12px;font-weight:600;">Next &rarr;</button>
+            style="padding:0.75rem 2rem;border-radius:14px;font-weight:600;">Next &rarr;</button>
         </div>
       </div>
 
       {# ═══ STEP 3 — Fair Resolution ═══ #}
       <div id="panel-3" style="display:none;">
         <div class="glass-card glass-card--heavy glass-p mb-4">
-          <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 0.5rem;">Step 3 &mdash; Fair Resolution</h2>
+          <h3 class="text-lg font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Step 3 &mdash; Fair Resolution</h3>
           <p style="color:var(--text-tertiary);font-size:0.8rem;margin:0 0 1rem;">
             Paste this into the "What would be a fair resolution?" field. Edit the bracketed
             section with your personal situation.
@@ -212,14 +229,14 @@
           <button onclick="goToStep(2)" class="glass-btn glass-btn--ghost"
             style="padding:0.75rem 1.5rem;border-radius:12px;">&larr; Back</button>
           <button onclick="goToStep(4)" class="glass-btn glass-btn--primary"
-            style="padding:0.75rem 2rem;border-radius:12px;font-weight:600;">Next &rarr;</button>
+            style="padding:0.75rem 2rem;border-radius:14px;font-weight:600;">Next &rarr;</button>
         </div>
       </div>
 
       {# ═══ STEP 4 — Company Details & Submit ═══ #}
       <div id="panel-4" style="display:none;">
         <div class="glass-card glass-card--heavy glass-p mb-4">
-          <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 0.5rem;">Step 4 &mdash; Company Details & Submit</h2>
+          <h3 class="text-lg font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Step 4 &mdash; Company Details & Submit</h3>
           <p style="color:var(--text-tertiary);font-size:0.8rem;margin:0 0 1rem;">
             Check off each item as you complete it on cfpb.gov:
           </p>
@@ -248,14 +265,14 @@
           <button onclick="goToStep(3)" class="glass-btn glass-btn--ghost"
             style="padding:0.75rem 1.5rem;border-radius:12px;">&larr; Back</button>
           <button onclick="goToStep(5)" class="glass-btn glass-btn--primary"
-            style="padding:0.75rem 2rem;border-radius:12px;font-weight:600;">Next &rarr;</button>
+            style="padding:0.75rem 2rem;border-radius:14px;font-weight:600;">Next &rarr;</button>
         </div>
       </div>
 
       {# ═══ STEP 5 — What Happens Next ═══ #}
       <div id="panel-5" style="display:none;">
         <div class="glass-card glass-card--heavy glass-p mb-4">
-          <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 1rem;">Step 5 &mdash; What Happens Next</h2>
+          <h3 class="text-lg font-semibold mb-3 glass-text-emboss" style="color:var(--text-primary);">Step 5 &mdash; What Happens Next</h3>
 
           <div style="background:var(--glass-bg-secondary);border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
             <div style="font-weight:700;font-size:0.88rem;margin-bottom:0.25rem;">&#9201; Company Response Timeline</div>

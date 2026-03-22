@@ -195,35 +195,28 @@
     }
     </script>
 
-    {# ── Submit ── #}
-    <div class="text-center">
-      <button type="submit"
-              class="glass-btn glass-btn--primary glass-shimmer-edge px-8 py-3 text-lg"
-              style="position:relative;overflow:hidden;border-radius:14px;">
-        Next: Select Prompt Template
-      </button>
-    </div>
-  </form>
-
-  {# ── CFPB Fast Track (outside form — navigates away) ── #}
-  <div style="margin-top:1rem;">
+    {# ── CFPB Fast Track (inside strategy section, under dual-letter toggle) ── #}
     <a href="{{ url_for('disputes.cfpb_wizard') }}"
-       class="glass-card glass-p block"
+       class="glass-card glass-p mb-8 block"
        style="border:2px solid transparent;transition:border-color 0.2s,box-shadow 0.2s;text-decoration:none;display:block;"
        onmouseenter="this.style.borderColor='#34c759';this.style.boxShadow='0 0 20px rgba(52,199,89,0.15)';"
        onmouseleave="this.style.borderColor='transparent';this.style.boxShadow='none';">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
-        <div style="flex:1;">
-          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.25rem;">
-            <span style="font-size:1.1rem;">🛡️</span>
-            <span style="font-weight:700;font-size:0.95rem;color:var(--text-primary);">CFPB Fast Track</span>
-            <span style="font-size:0.55rem;font-weight:700;text-transform:uppercase;
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex-1">
+          <div class="flex items-center gap-2 mb-1">
+            <span style="font-size:1.1rem;">&#128737;&#65039;</span>
+            <span class="font-semibold" style="color:var(--text-primary);font-size:0.95rem;">
+              CFPB Fast Track
+            </span>
+            <span style="
+              font-size:0.55rem;font-weight:700;text-transform:uppercase;
               padding:2px 8px;border-radius:100px;
-              background:linear-gradient(135deg,#34c759,#30d158);
-              color:#fff;letter-spacing:0.05em;">7-Day Deletion</span>
+              background:linear-gradient(135deg, #34c759, #30d158);
+              color:#fff;letter-spacing:0.05em;
+            ">7-Day Deletion</span>
           </div>
           <p style="color:var(--text-tertiary);font-size:0.78rem;line-height:1.4;margin:0;">
-            Skip the letter — file directly with the CFPB. Companies must respond within 15 days
+            Skip the letter &mdash; file directly with the CFPB. Companies must respond within 15 days
             or face regulatory action. Guided step-by-step wizard with copy-ready text.
           </p>
         </div>
@@ -234,7 +227,16 @@
         </div>
       </div>
     </a>
-  </div>
+
+    {# ── Submit ── #}
+    <div class="text-center">
+      <button type="submit"
+              class="glass-btn glass-btn--primary glass-shimmer-edge px-8 py-3 text-lg"
+              style="position:relative;overflow:hidden;border-radius:14px;">
+        Next: Select Prompt Template
+      </button>
+    </div>
+  </form>
 
 </main>
 {% endblock %}
