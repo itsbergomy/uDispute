@@ -500,7 +500,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {% if client.id_filename %}
           <a href="{{ url_for('business.client_file', client_id=client.id, filetype='id') }}" target="_blank"
-             class="glass-card glass-card--light rounded-xl p-3 flex items-center gap-4 hover:scale-[1.01] transition-all duration-200"
+             class="glass-card glass-card--heavy rounded-xl p-3 flex items-center gap-4 hover:scale-[1.01] transition-all duration-200"
              onmouseenter="this.classList.add('glass-raised')" onmouseleave="this.classList.remove('glass-raised')">
             <div class="glass-icon-well flex items-center justify-center" style="width:40px;height:40px;border-radius:12px;flex-shrink:0;">
               {{ icons.icon_id(size=22, uid='doc1') }}
@@ -514,7 +514,7 @@
 
           {% if client.ssn_filename %}
           <a href="{{ url_for('business.client_file', client_id=client.id, filetype='ssn') }}" target="_blank"
-             class="glass-card glass-card--light rounded-xl p-3 flex items-center gap-4 hover:scale-[1.01] transition-all duration-200"
+             class="glass-card glass-card--heavy rounded-xl p-3 flex items-center gap-4 hover:scale-[1.01] transition-all duration-200"
              onmouseenter="this.classList.add('glass-raised')" onmouseleave="this.classList.remove('glass-raised')">
             <div class="glass-icon-well flex items-center justify-center" style="width:40px;height:40px;border-radius:12px;flex-shrink:0;">
               {{ icons.icon_ssn(size=22, uid='doc2') }}
@@ -884,10 +884,10 @@
     max-width: 92vw;
     max-height: 70vh;
     flex-direction: column;
-    background: rgba(255,255,255,0.13);
-    backdrop-filter: blur(32px) saturate(190%) brightness(1.06);
-    -webkit-backdrop-filter: blur(32px) saturate(190%) brightness(1.06);
-    border: 1px solid rgba(255,255,255,0.30);
+    background: rgba(255,255,255,0.35);
+    backdrop-filter: blur(40px) saturate(200%) brightness(1.08);
+    -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(1.08);
+    border: 1px solid rgba(255,255,255,0.45);
     border-radius: 16px;
     box-shadow:
       0 24px 80px rgba(0,0,0,0.18),
@@ -905,8 +905,8 @@
       align-items: center;
       gap: 10px;
       padding: 0.6rem 1rem 0.55rem 0.85rem;
-      background: rgba(255,255,255,0.08);
-      border-bottom: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.18);
+      border-bottom: 1px solid rgba(255,255,255,0.25);
       cursor: grab;
       user-select: none;
       -webkit-user-select: none;

@@ -128,11 +128,15 @@ def create_client():
         'ssn_file': 'ssn_filename',
         'utility_file': 'utility_filename',
     }
+    # Image fields use resource_type="image" so Cloudinary serves them
+    # inline; PDFs use "raw"
+    _image_fields = {'id_file', 'ssn_file', 'utility_file'}
     if cloud_configured():
         for form_key, model_attr in file_fields.items():
             f = request.files.get(form_key)
             if f and f.filename:
-                result = upload_file(f, folder=f"clients/{client.id}", resource_type="raw")
+                rtype = "image" if form_key in _image_fields else "raw"
+                result = upload_file(f, folder=f"clients/{client.id}", resource_type=rtype)
                 if result:
                     setattr(client, model_attr, result['secure_url'])
     else:
@@ -410,11 +414,13 @@ def edit_client(client_id):
             ('utility_file', 'utility_filename'),
             ('pdf_file', 'pdf_filename'),
         ]
+        _img_fields = {'id_file', 'ssn_file', 'utility_file'}
         for field_name, model_attr in uploads:
             f = request.files.get(field_name)
             if f and f.filename:
                 if cloud_configured():
-                    result = upload_file(f, folder=f"clients/{client.id}", resource_type="raw")
+                    rtype = "image" if field_name in _img_fields else "raw"
+                    result = upload_file(f, folder=f"clients/{client.id}", resource_type=rtype)
                     if result:
                         setattr(client, model_attr, result['secure_url'])
                 else:
@@ -454,9 +460,11 @@ def client_file(client_id, filetype):
         try:
             resp = http_req.get(fn, timeout=15)
             response = make_response(resp.content)
-            ext = fn.rsplit('.', 1)[-1].lower().split('?')[0] if '.' in fn.split('?')[0] else 'pdf'
-            content_types = {'pdf': 'application/pdf', 'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg'}
-            response.headers['Content-Type'] = content_types.get(ext, 'application/pdf')
+            # Detect content type from URL extension, then upstream header, then default
+            ext = fn.rsplit('.', 1)[-1].lower().split('?')[0] if '.' in fn.split('?')[0] else ''
+            content_types = {'pdf': 'application/pdf', 'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'gif': 'image/gif', 'webp': 'image/webp'}
+            ct = content_types.get(ext) or resp.headers.get('Content-Type', 'application/octet-stream')
+            response.headers['Content-Type'] = ct
             response.headers['Content-Disposition'] = 'inline'
             return response
         except Exception:
