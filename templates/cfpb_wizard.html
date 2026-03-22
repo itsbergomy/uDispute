@@ -17,11 +17,7 @@
     .wizard-layout { flex-direction:column; }
     .wizard-left { flex:none; position:static; max-height:none; width:100%; }
   }
-  .cfpb-open-card {
-    background:linear-gradient(135deg, rgba(52,199,89,0.1), rgba(48,209,88,0.06));
-    border:1px solid rgba(52,199,89,0.25); border-radius:16px; padding:1rem;
-    text-align:center; margin-bottom:1rem;
-  }
+  /* cfpb-open-card now uses glass-metric glass-raised */
   .cfpb-nav-row { display:flex; justify-content:space-between; margin-top:0.5rem; }
 </style>
 
@@ -66,7 +62,8 @@
       </div>
 
       {# Open CFPB Button — always visible #}
-      <div class="cfpb-open-card">
+      <div class="glass-metric glass-raised glass-p" style="text-align:center;margin-bottom:1rem;
+        border:1px solid rgba(52,199,89,0.25);transition:box-shadow 0.3s ease,transform 0.3s ease;">
         <p style="font-size:0.78rem;color:var(--text-secondary);margin:0 0 0.75rem;line-height:1.5;">
           Open the CFPB complaint form in a new window and follow along with each step.
         </p>
@@ -80,8 +77,8 @@
       </div>
 
       {# First Time Instructions #}
-      <div class="glass-card glass-p mb-4">
-        <div style="font-weight:700;font-size:0.82rem;margin-bottom:0.5rem;">&#128100; First Time on CFPB?</div>
+      <div class="glass-metric glass-raised glass-p" style="margin-bottom:1rem;transition:box-shadow 0.3s ease,transform 0.3s ease;">
+        <div class="glass-text-emboss" style="font-weight:700;font-size:0.82rem;margin-bottom:0.5rem;">&#128100; First Time on CFPB?</div>
         <ol style="font-size:0.78rem;color:var(--text-secondary);line-height:1.8;padding-left:1.1rem;margin:0;">
           <li>Go to <strong>consumerfinance.gov/complaint</strong></li>
           <li>Click <strong>"Start a new complaint"</strong></li>
@@ -95,8 +92,8 @@
       </div>
 
       {# How This Works #}
-      <div class="glass-card glass-p">
-        <div style="font-weight:700;font-size:0.82rem;margin-bottom:0.25rem;">&#128161; How This Works</div>
+      <div class="glass-metric glass-raised glass-p" style="transition:box-shadow 0.3s ease,transform 0.3s ease;">
+        <div class="glass-text-emboss" style="font-weight:700;font-size:0.82rem;margin-bottom:0.25rem;">&#128161; How This Works</div>
         <p style="font-size:0.78rem;color:var(--text-secondary);line-height:1.5;margin:0;">
           Follow the steps on the right. Each step tells you exactly what to enter on the CFPB form.
           Copy the pre-written text with one click and paste it directly.
@@ -141,21 +138,20 @@
             ("Company provided info?", "No")
           ] %}
 
-          <div style="background:var(--glass-bg-secondary);border-radius:12px;overflow:hidden;">
-            {% for label, value in categories %}
-            <div style="display:flex;align-items:flex-start;gap:0.75rem;padding:0.7rem 1rem;
-              {% if not loop.last %}border-bottom:1px solid var(--glass-border);{% endif %}">
+          {% for label, value in categories %}
+          <div class="glass-metric glass-raised glass-p" style="margin-bottom:0.5rem;transition:box-shadow 0.3s ease,transform 0.3s ease;">
+            <div style="display:flex;align-items:flex-start;gap:0.75rem;">
               <div style="width:22px;height:22px;border-radius:6px;flex-shrink:0;margin-top:2px;
                 background:linear-gradient(135deg,#34c759,#30d158);display:flex;align-items:center;justify-content:center;">
                 <span style="color:#fff;font-size:0.7rem;font-weight:800;">&#10003;</span>
               </div>
               <div>
-                <div style="font-size:0.72rem;color:var(--text-tertiary);">{{ label }}</div>
-                <div style="font-size:0.85rem;font-weight:600;">{{ value }}</div>
+                <h3 class="glass-metric__label" style="margin-bottom:0.1rem;">{{ label }}</h3>
+                <p class="glass-metric__value glass-text-emboss" style="font-size:0.9rem;">{{ value }}</p>
               </div>
             </div>
-            {% endfor %}
           </div>
+          {% endfor %}
         </div>
         <div class="cfpb-nav-row">
           <div></div>
@@ -174,9 +170,9 @@
           </p>
 
           {% for n in narratives %}
-          <div style="background:var(--glass-bg-secondary);border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+          <div class="glass-metric glass-raised glass-p" style="margin-bottom:0.75rem;transition:box-shadow 0.3s ease,transform 0.3s ease;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-              <span style="font-weight:700;font-size:0.85rem;">{{ n.title }}</span>
+              <span class="glass-text-emboss" style="font-weight:700;font-size:0.85rem;">{{ n.title }}</span>
               <button id="copy-btn-{{ loop.index }}" onclick="copyText('narrative-{{ loop.index }}','copy-btn-{{ loop.index }}')"
                 style="background:linear-gradient(135deg,#6e5ce6,#af52de);color:#fff;border:none;
                   padding:0.3rem 0.85rem;border-radius:8px;font-size:0.72rem;font-weight:600;cursor:pointer;flex-shrink:0;">
@@ -213,12 +209,13 @@
             section with your personal situation.
           </p>
 
-          <div style="margin-bottom:0.5rem;">
-            <button id="copy-btn-fair" onclick="copyTextarea('fair-ta','copy-btn-fair')"
-              style="background:linear-gradient(135deg,#6e5ce6,#af52de);color:#fff;border:none;
-                padding:0.3rem 0.85rem;border-radius:8px;font-size:0.72rem;font-weight:600;cursor:pointer;
-                float:right;margin-bottom:0.5rem;">Copy</button>
-            <div style="clear:both;"></div>
+          <div class="glass-metric glass-raised glass-p" style="margin-bottom:0.5rem;transition:box-shadow 0.3s ease,transform 0.3s ease;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+              <span class="glass-text-emboss" style="font-weight:700;font-size:0.85rem;">Your Demand</span>
+              <button id="copy-btn-fair" onclick="copyTextarea('fair-ta','copy-btn-fair')"
+                style="background:linear-gradient(135deg,#6e5ce6,#af52de);color:#fff;border:none;
+                  padding:0.3rem 0.85rem;border-radius:8px;font-size:0.72rem;font-weight:600;cursor:pointer;flex-shrink:0;">Copy</button>
+            </div>
             <textarea id="fair-ta" rows="5"
               style="width:100%;background:var(--glass-bg-secondary);border:1px solid var(--glass-border);
                 border-radius:12px;padding:1rem;font-size:0.84rem;line-height:1.6;resize:vertical;
@@ -250,14 +247,14 @@
           ] %}
 
           {% for item in checklist %}
-          <div class="cfpb-check-row" onclick="toggleCheck(this)" style="
-            display:flex;align-items:flex-start;gap:0.75rem;padding:0.6rem 0;cursor:pointer;
-            {% if not loop.last %}border-bottom:1px solid var(--glass-border);{% endif %}">
+          <div class="cfpb-check-row glass-metric glass-raised" onclick="toggleCheck(this)" style="
+            display:flex;align-items:flex-start;gap:0.75rem;padding:0.75rem 1rem;cursor:pointer;
+            margin-bottom:0.5rem;border-radius:12px;transition:box-shadow 0.3s ease,transform 0.3s ease;">
             <input type="checkbox" style="display:none;">
             <div class="check-box" style="width:22px;height:22px;border-radius:6px;flex-shrink:0;margin-top:2px;
               border:2px solid var(--glass-border);display:flex;align-items:center;justify-content:center;transition:all 0.2s;">
             </div>
-            <span style="font-size:0.88rem;line-height:1.5;">{{ item|safe }}</span>
+            <span class="glass-text-emboss" style="font-size:0.88rem;line-height:1.5;">{{ item|safe }}</span>
           </div>
           {% endfor %}
         </div>
@@ -274,8 +271,8 @@
         <div class="glass-card glass-card--heavy glass-p mb-4">
           <h3 class="text-lg font-semibold mb-3 glass-text-emboss" style="color:var(--text-primary);">Step 5 &mdash; What Happens Next</h3>
 
-          <div style="background:var(--glass-bg-secondary);border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
-            <div style="font-weight:700;font-size:0.88rem;margin-bottom:0.25rem;">&#9201; Company Response Timeline</div>
+          <div class="glass-metric glass-raised glass-p" style="margin-bottom:0.75rem;transition:box-shadow 0.3s ease,transform 0.3s ease;">
+            <div class="glass-text-emboss" style="font-weight:700;font-size:0.88rem;margin-bottom:0.25rem;">&#9201; Company Response Timeline</div>
             <p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;margin:0;">
               The company has <strong>15 days</strong> to respond to the CFPB. Most respond within
               <strong>7 days</strong> to avoid regulatory action. You'll receive an email from the CFPB
@@ -283,8 +280,8 @@
             </p>
           </div>
 
-          <div style="background:var(--glass-bg-secondary);border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
-            <div style="font-weight:700;font-size:0.88rem;margin-bottom:0.25rem;">&#128260; If Verified / Not Resolved</div>
+          <div class="glass-metric glass-raised glass-p" style="margin-bottom:0.75rem;transition:box-shadow 0.3s ease,transform 0.3s ease;">
+            <div class="glass-text-emboss" style="font-weight:700;font-size:0.88rem;margin-bottom:0.25rem;">&#128260; If Verified / Not Resolved</div>
             <p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;margin:0;">
               If the account comes back verified, <strong>repeat this process</strong>. Each CFPB complaint
               creates a federal record. You can also:
@@ -297,8 +294,8 @@
             </ul>
           </div>
 
-          <div style="background:var(--glass-bg-secondary);border-radius:12px;padding:1rem;">
-            <div style="font-weight:700;font-size:0.88rem;margin-bottom:0.25rem;">&#128203; Save Your Complaint Number</div>
+          <div class="glass-metric glass-raised glass-p" style="transition:box-shadow 0.3s ease,transform 0.3s ease;">
+            <div class="glass-text-emboss" style="font-weight:700;font-size:0.88rem;margin-bottom:0.25rem;">&#128203; Save Your Complaint Number</div>
             <p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;margin:0;">
               The CFPB will assign a complaint number after submission. Save it &mdash; you'll need it
               to track the response and reference in any follow-up complaints or dispute letters.
