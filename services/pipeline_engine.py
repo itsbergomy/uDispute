@@ -511,6 +511,11 @@ def handle_generation(pipeline):
     send_to = agent_config.get('send_to', 'bureaus')
     creditor_addresses = agent_config.get('creditor_addresses', [])
 
+    # Pull parsed accounts (with inaccuracies) from strategy_json
+    # so build_prompt can map inaccuracies → FCRA violations for case-specific letters
+    strategy_data = json.loads(pipeline.strategy_json or '{}')
+    parsed_accounts = strategy_data.get('negative_items', [])
+
     for account in accounts:
         # Skip CFPB escalation (handled differently)
         if account.bureau == 'cfpb':
@@ -527,6 +532,13 @@ def handle_generation(pipeline):
 
         # Build full context with client + account + recipient details
         context = _get_client_context(client, account, recipient)
+
+        # Filter parsed_accounts to the current account for targeted inaccuracy injection
+        relevant_accounts = [
+            a for a in parsed_accounts
+            if a.get('account_number') == account.account_number
+            or a.get('account_name', '').lower() == (account.account_name or '').lower()
+        ]
 
         # For Round 2+, run Legal Research Agent to strengthen the letter
         legal_context = None
@@ -557,10 +569,10 @@ def handle_generation(pipeline):
                 # Pure template passthrough — inject bureau/account/client data, skip GPT
                 letter_text = _sanitize_letter(custom.body, context)
             else:
-                prompt, has_inaccuracies, has_legal = build_prompt(account.template_pack, 0, context, legal_research_context=legal_context)
+                prompt, has_inaccuracies, has_legal = build_prompt(account.template_pack, 0, context, parsed_accounts=relevant_accounts, legal_research_context=legal_context)
                 letter_text = _sanitize_letter(generate_letter(prompt, has_inaccuracies=has_inaccuracies, has_legal_research=has_legal), context)
         else:
-            prompt, has_inaccuracies, has_legal = build_prompt(account.template_pack, 0, context, legal_research_context=legal_context)
+            prompt, has_inaccuracies, has_legal = build_prompt(account.template_pack, 0, context, parsed_accounts=relevant_accounts, legal_research_context=legal_context)
             letter_text = _sanitize_letter(generate_letter(prompt, has_inaccuracies=has_inaccuracies, has_legal_research=has_legal), context)
 
         # Save to database (stamp round_number for round-scoped tracking)
