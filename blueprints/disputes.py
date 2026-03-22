@@ -656,6 +656,7 @@ def save_tier2_issues():
     session['action'] = '; '.join(action_parts) if action_parts else 'Remove this account from my credit report'
     session['selected_issues'] = selected_issues
     session['selected_solutions'] = selected_solutions
+    session['dual_letter_enabled'] = request.form.get('dual_letter') == '1'
 
     return redirect(url_for('disputes.choose_template'))
 
@@ -832,10 +833,10 @@ def generate_process():
 
     pack_key = session.get('prompt_pack', 'default')
 
-    if pack_key == 'dual_letter':
+    if session.get('dual_letter_enabled'):
         # Dual-Letter Strategy: generate CRA + furnisher letters
         cra_prompt, furnisher_prompt, has_inaccuracies, has_legal = build_dual_prompts(
-            'default', data, parsed_accounts=relevant_accounts
+            pack_key, data, parsed_accounts=relevant_accounts
         )
         cra_letter, furnisher_letter = generate_dual_letters(
             cra_prompt, furnisher_prompt,

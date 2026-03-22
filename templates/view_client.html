@@ -440,7 +440,6 @@
                 <option value="arbitration">Arbitration</option>
                 <option value="consumer_law">Consumer Law</option>
                 <option value="ACDV_response">ACDV Response</option>
-                <option value="dual_letter">⚡ Dual-Letter Strategy</option>
               </select>
             </div>
             <div>
@@ -453,6 +452,22 @@
               </select>
             </div>
           </div>
+
+          {# ── Dual-Letter Toggle ── #}
+          <label class="flex items-center gap-3 mb-4 cursor-pointer glass-card glass-p"
+                 style="padding:10px 14px;border-radius:10px;" for="biz-dual-toggle">
+            <input type="hidden" name="dual_letter" value="0">
+            <input type="checkbox" id="biz-dual-toggle" name="dual_letter" value="1"
+                   style="width:16px;height:16px;accent-color:#6e5ce6;">
+            <div>
+              <span style="font-size:0.85rem;font-weight:600;color:var(--text-primary);">
+                &#9889; Dual-Letter Strategy
+              </span>
+              <span style="font-size:0.7rem;color:var(--text-tertiary);display:block;">
+                Also send direct to furnisher (bypasses e-OSCAR)
+              </span>
+            </div>
+          </label>
 
           <button type="submit" class="glass-btn glass-btn--primary w-full glass-shimmer-edge" style="position:relative;overflow:hidden;">
             Generate Letter

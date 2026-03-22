@@ -449,7 +449,6 @@ PACK_INFO = [
     {"key": "arbitration", "name": "Arbitration Pack", "description": "Heavy hitters. Arbitration demands under 15 U.S.C. §1681e(b) — for when bureaus won't budge."},
     {"key": "consumer_law", "name": "Consumer Law Pack", "description": "Cite the FCBA, FDCPA, and more — full statutory firepower for stubborn creditors."},
     {"key": "ACDV_response", "name": "ACDV Enforcement Pack", "description": "Demand the full ACDV record — method of verification, submission procedure, and FCRA compliance docs. Make them prove it."},
-    {"key": "dual_letter", "name": "Dual-Letter Strategy", "description": "Two letters per dispute — one to the CRA (preserving lawsuit rights) + one direct to the furnisher under Regulation V (bypassing e-OSCAR entirely)."},
 ]
 
 

@@ -656,11 +656,11 @@ def run_udispute_flow(client_id):
             return redirect(url_for("business.view_client", client_id=client.id))
         prompt = tpl.body
         letter = generate_letter(prompt)
-    elif prompt_pack == "dual_letter":
+    elif request.form.get('dual_letter') == '1':
         # Dual-Letter Strategy: generate CRA + furnisher letters
         relevant_accounts = [selected] if selected.get('inaccuracies') else []
         cra_prompt, furnisher_prompt, has_inaccuracies, has_legal = build_dual_prompts(
-            'default', ctx, parsed_accounts=relevant_accounts
+            prompt_pack, ctx, parsed_accounts=relevant_accounts
         )
         cra_letter, furnisher_letter = generate_dual_letters(
             cra_prompt, furnisher_prompt,

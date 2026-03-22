@@ -126,6 +126,80 @@
       {% endfor %}
     </div>
 
+    {# ── Dual-Letter Strategy Toggle ── #}
+    <h3 class="text-lg font-semibold mb-3 glass-text-emboss" style="color:var(--text-primary);">
+      Dispute Strategy
+    </h3>
+    <p style="color:var(--text-tertiary);font-size:0.8rem;margin-bottom:1rem;">
+      Choose how your dispute is delivered.
+    </p>
+
+    <input type="hidden" name="dual_letter" value="0">
+    <label class="glass-card glass-p mb-8 cursor-pointer block"
+           for="dual-letter-toggle"
+           style="border:2px solid transparent;transition:border-color 0.2s, box-shadow 0.2s;"
+           id="dual-letter-card">
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex-1">
+          <div class="flex items-center gap-2 mb-1">
+            <span style="font-size:1.1rem;">&#9889;</span>
+            <span class="font-semibold" style="color:var(--text-primary);font-size:0.95rem;">
+              Dual-Letter Strategy
+            </span>
+            <span style="
+              font-size:0.55rem;font-weight:700;text-transform:uppercase;
+              padding:2px 8px;border-radius:100px;
+              background:linear-gradient(135deg, #ff9f0a, #ff6723);
+              color:#fff;letter-spacing:0.05em;
+            ">Pro</span>
+          </div>
+          <p style="color:var(--text-tertiary);font-size:0.78rem;line-height:1.4;margin:0;">
+            Generates <strong>two letters</strong> &mdash; one to the CRA (preserving lawsuit rights)
+            + one directly to the creditor under Regulation V, bypassing e-OSCAR entirely.
+          </p>
+        </div>
+        <div style="flex-shrink:0;">
+          <input type="checkbox"
+                 id="dual-letter-toggle"
+                 name="dual_letter"
+                 value="1"
+                 class="sr-only peer">
+          <div style="
+            width:48px;height:26px;border-radius:13px;position:relative;cursor:pointer;
+            background:var(--glass-bg-tertiary);transition:background 0.2s;
+          " id="dual-toggle-track">
+            <div style="
+              width:22px;height:22px;border-radius:11px;position:absolute;top:2px;left:2px;
+              background:#fff;transition:transform 0.2s;
+              box-shadow:0 1px 3px rgba(0,0,0,0.2);
+            " id="dual-toggle-knob"></div>
+          </div>
+        </div>
+      </div>
+    </label>
+
+    <script>
+    (function(){
+      var cb = document.getElementById('dual-letter-toggle');
+      var track = document.getElementById('dual-toggle-track');
+      var knob = document.getElementById('dual-toggle-knob');
+      var card = document.getElementById('dual-letter-card');
+      cb.addEventListener('change', function(){
+        if(cb.checked){
+          track.style.background = 'linear-gradient(135deg, #6e5ce6, #af52de)';
+          knob.style.transform = 'translateX(22px)';
+          card.style.borderColor = '#6e5ce6';
+          card.style.boxShadow = '0 0 20px rgba(110,92,230,0.15)';
+        } else {
+          track.style.background = 'var(--glass-bg-tertiary)';
+          knob.style.transform = 'translateX(0)';
+          card.style.borderColor = 'transparent';
+          card.style.boxShadow = 'none';
+        }
+      });
+    })();
+    </script>
+
     {# ── Submit ── #}
     <div class="text-center">
       <button type="submit"
