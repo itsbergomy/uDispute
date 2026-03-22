@@ -460,10 +460,9 @@ def client_file(client_id, filetype):
         try:
             resp = http_req.get(fn, timeout=15)
             response = make_response(resp.content)
-            # Detect content type from URL extension, then upstream header, then default
-            ext = fn.rsplit('.', 1)[-1].lower().split('?')[0] if '.' in fn.split('?')[0] else ''
-            content_types = {'pdf': 'application/pdf', 'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'gif': 'image/gif', 'webp': 'image/webp'}
-            ct = content_types.get(ext) or resp.headers.get('Content-Type', 'application/octet-stream')
+            # Use the route's filetype param to determine content type
+            type_map = {'pdf': 'application/pdf', 'id': 'image/jpeg', 'ssn': 'image/jpeg', 'util': 'image/jpeg'}
+            ct = type_map.get(filetype) or resp.headers.get('Content-Type', 'application/pdf')
             response.headers['Content-Type'] = ct
             response.headers['Content-Disposition'] = 'inline'
             return response
