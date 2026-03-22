@@ -454,11 +454,17 @@
           </div>
 
           {# ── Dual-Letter Toggle ── #}
-          <label class="flex items-center gap-3 mb-4 cursor-pointer glass-card glass-p"
-                 style="padding:10px 14px;border-radius:10px;" for="biz-dual-toggle">
-            <input type="hidden" name="dual_letter" value="0">
-            <input type="checkbox" id="biz-dual-toggle" name="dual_letter" value="1"
-                   style="width:16px;height:16px;accent-color:#6e5ce6;">
+          <input type="hidden" name="dual_letter" id="biz-dual-value" value="0">
+          <div class="flex items-center gap-3 mb-4 cursor-pointer glass-card glass-p"
+               style="padding:10px 14px;border-radius:10px;"
+               id="biz-dual-card"
+               onclick="toggleBizDual()">
+            <div style="flex-shrink:0;width:36px;height:20px;border-radius:10px;position:relative;
+                        background:var(--glass-bg-tertiary);transition:background 0.2s;" id="biz-dual-track">
+              <div style="width:16px;height:16px;border-radius:8px;position:absolute;top:2px;left:2px;
+                          background:#fff;transition:transform 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"
+                   id="biz-dual-knob"></div>
+            </div>
             <div>
               <span style="font-size:0.85rem;font-weight:600;color:var(--text-primary);">
                 &#9889; Dual-Letter Strategy
@@ -467,7 +473,20 @@
                 Also send direct to furnisher (bypasses e-OSCAR)
               </span>
             </div>
-          </label>
+          </div>
+          <script>
+          var bizDualOn = false;
+          function toggleBizDual(){
+            bizDualOn = !bizDualOn;
+            document.getElementById('biz-dual-value').value = bizDualOn ? '1' : '0';
+            var t = document.getElementById('biz-dual-track');
+            var k = document.getElementById('biz-dual-knob');
+            var c = document.getElementById('biz-dual-card');
+            t.style.background = bizDualOn ? 'linear-gradient(135deg,#6e5ce6,#af52de)' : 'var(--glass-bg-tertiary)';
+            k.style.transform = bizDualOn ? 'translateX(16px)' : 'translateX(0)';
+            c.style.borderColor = bizDualOn ? '#6e5ce6' : 'transparent';
+          }
+          </script>
 
           <button type="submit" class="glass-btn glass-btn--primary w-full glass-shimmer-edge" style="position:relative;overflow:hidden;">
             Generate Letter

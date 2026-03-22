@@ -4,117 +4,167 @@
 {% block title %}Dual-Letter Strategy Review{% endblock %}
 
 {% block content %}
-<main class="pt-20 pb-12 min-h-screen px-4 md:px-8">
+<main class="pt-20 pb-12 min-h-screen px-4 md:px-8 max-w-4xl mx-auto">
 
   <a href="{% if current_user.is_authenticated and current_user.plan == 'business' %}{{ url_for('business.business_dashboard') }}{% else %}{{ url_for('disputes.index') }}{% endif %}"
      class="inline-block mb-4 glass-btn glass-btn--ghost p-3 rounded-full">&larr; Back</a>
 
-  <!-- Strategy Header -->
+  {# ── Strategy Header ── #}
   <div class="glass-card glass-card--heavy glass-p glass-animate-in mb-6 text-center">
     <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
       {{ icons.icon_document(size=28, uid='dl1') }}
     </div>
     <h2 class="text-3xl font-bold glass-text-3d mb-2" style="color:var(--text-primary);">Dual-Letter Strategy</h2>
     <p class="text-sm max-w-2xl mx-auto" style="color:var(--text-secondary);">
-      Two letters, one target. <strong>Letter 1</strong> goes to the credit bureau to start the 30-day clock.
-      <strong>Letter 2</strong> goes directly to the creditor, bypassing e-OSCAR entirely.
+      Two letters, one target. Review and edit each letter, then convert to PDF.
     </p>
   </div>
 
-  <!-- Two-Column Layout -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-    <!-- CRA Letter -->
-    <div class="glass-card glass-card--heavy glass-p glass-animate-in">
-      <div class="flex items-center gap-2 mb-3">
-        <span style="font-size:1.3rem;">🏛️</span>
-        <h3 class="text-lg font-bold" style="color:var(--text-primary);">Letter 1 — To Credit Bureau</h3>
-      </div>
-      <p class="text-xs mb-3" style="color:var(--text-tertiary);">
-        Preserves &sect; 1681s-2(b) private right of action. Triggers 30-day investigation under &sect; 1681i.
-      </p>
-      <form action="/convert-pdf" method="POST" enctype="multipart/form-data" class="space-y-4">
-        <div class="glass-inset rounded-xl p-3">
-          <textarea name="letter" rows="16" class="glass-input glass-textarea w-full text-sm" style="background:transparent;border:none;box-shadow:none;">{{ cra_letter }}</textarea>
-        </div>
-
-        <div class="grid gap-3 md:grid-cols-2">
-          <div>
-            <label class="glass-label mb-1 text-xs">Upload ID:</label>
-            <input type="file" name="id_file" class="glass-input w-full text-xs">
-          </div>
-          <div>
-            <label class="glass-label mb-1 text-xs">Upload SSN Card:</label>
-            <input type="file" name="ssn_file" class="glass-input w-full text-xs">
-          </div>
-        </div>
-
-        <div class="flex space-x-3">
-          <button type="submit" class="glass-btn glass-btn--primary glass-shimmer-edge text-xs" style="position:relative;overflow:hidden;">
-            Convert CRA Letter to PDF
-          </button>
-        </div>
-      </form>
-    </div>
-
-    <!-- Furnisher Letter -->
-    <div class="glass-card glass-card--heavy glass-p glass-animate-in">
-      <div class="flex items-center gap-2 mb-3">
-        <span style="font-size:1.3rem;">🏦</span>
-        <h3 class="text-lg font-bold" style="color:var(--text-primary);">Letter 2 — Direct to Furnisher</h3>
-      </div>
-      <p class="text-xs mb-3" style="color:var(--text-tertiary);">
-        Bypasses e-OSCAR under 12 C.F.R. &sect; 1022.43 (Regulation V). Furnisher must investigate and report to ALL CRAs.
-      </p>
-      <form action="/convert-pdf" method="POST" enctype="multipart/form-data" class="space-y-4">
-        <div class="glass-inset rounded-xl p-3">
-          <textarea name="letter" rows="16" class="glass-input glass-textarea w-full text-sm" style="background:transparent;border:none;box-shadow:none;">{{ furnisher_letter }}</textarea>
-        </div>
-
-        <div class="grid gap-3 md:grid-cols-2">
-          <div>
-            <label class="glass-label mb-1 text-xs">Upload ID:</label>
-            <input type="file" name="id_file" class="glass-input w-full text-xs">
-          </div>
-          <div>
-            <label class="glass-label mb-1 text-xs">Upload Utility Bill:</label>
-            <input type="file" name="utility_file" class="glass-input w-full text-xs">
-          </div>
-        </div>
-
-        <div class="flex space-x-3">
-          <button type="submit" class="glass-btn glass-btn--primary glass-shimmer-edge text-xs" style="position:relative;overflow:hidden;">
-            Convert Furnisher Letter to PDF
-          </button>
-        </div>
-      </form>
-    </div>
-
+  {# ── Carousel Tabs ── #}
+  <div class="flex gap-2 mb-4">
+    <button id="tab-cra" onclick="showTab('cra')"
+            class="flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all"
+            style="background:linear-gradient(135deg, #6e5ce6, #af52de);color:#fff;
+                   box-shadow:0 4px 15px rgba(110,92,230,0.3);">
+      <span style="margin-right:6px;">&#127963;&#65039;</span> Letter 1 — To Credit Bureau
+    </button>
+    <button id="tab-furnisher" onclick="showTab('furnisher')"
+            class="flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all"
+            style="background:var(--glass-bg-secondary);color:var(--text-secondary);">
+      <span style="margin-right:6px;">&#127974;</span> Letter 2 — Direct to Furnisher
+    </button>
   </div>
 
-  <!-- Strategy Tips -->
+  {# ── CRA Letter Panel ── #}
+  <div id="panel-cra" class="glass-card glass-card--heavy glass-p glass-animate-in">
+    <div class="flex items-center gap-2 mb-2">
+      <span style="font-size:1.3rem;">&#127963;&#65039;</span>
+      <h3 class="text-lg font-bold" style="color:var(--text-primary);">Letter 1 — To Credit Bureau</h3>
+    </div>
+    <p class="text-xs mb-3" style="color:var(--text-tertiary);">
+      Preserves &sect; 1681s-2(b) private right of action. Triggers 30-day investigation under &sect; 1681i.
+    </p>
+    <form action="/convert-pdf" method="POST" enctype="multipart/form-data" class="space-y-4">
+      <div class="glass-inset rounded-xl p-3">
+        <textarea name="letter" rows="18" class="glass-input glass-textarea w-full text-sm"
+                  style="background:transparent;border:none;box-shadow:none;">{{ cra_letter }}</textarea>
+      </div>
+
+      <div class="grid gap-3 md:grid-cols-3">
+        <div>
+          <label class="glass-label mb-1 text-xs">Upload ID:</label>
+          <input type="file" name="id_file" class="glass-input w-full text-xs">
+        </div>
+        <div>
+          <label class="glass-label mb-1 text-xs">Upload SSN Card:</label>
+          <input type="file" name="ssn_file" class="glass-input w-full text-xs">
+        </div>
+        <div>
+          <label class="glass-label mb-1 text-xs">Upload Utility Bill:</label>
+          <input type="file" name="utility_file" class="glass-input w-full text-xs">
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <button type="submit" class="glass-btn glass-btn--primary glass-shimmer-edge text-sm"
+                style="position:relative;overflow:hidden;">
+          Convert to PDF
+        </button>
+        <button type="button" onclick="showTab('furnisher')"
+                class="glass-btn glass-btn--secondary text-sm">
+          Next: Furnisher Letter &rarr;
+        </button>
+      </div>
+    </form>
+  </div>
+
+  {# ── Furnisher Letter Panel ── #}
+  <div id="panel-furnisher" class="glass-card glass-card--heavy glass-p glass-animate-in" style="display:none;">
+    <div class="flex items-center gap-2 mb-2">
+      <span style="font-size:1.3rem;">&#127974;</span>
+      <h3 class="text-lg font-bold" style="color:var(--text-primary);">Letter 2 — Direct to Furnisher</h3>
+    </div>
+    <p class="text-xs mb-3" style="color:var(--text-tertiary);">
+      Bypasses e-OSCAR under 12 C.F.R. &sect; 1022.43 (Regulation V). Furnisher must investigate and report to ALL CRAs.
+    </p>
+    <form action="/convert-pdf" method="POST" enctype="multipart/form-data" class="space-y-4">
+      <div class="glass-inset rounded-xl p-3">
+        <textarea name="letter" rows="18" class="glass-input glass-textarea w-full text-sm"
+                  style="background:transparent;border:none;box-shadow:none;">{{ furnisher_letter }}</textarea>
+      </div>
+
+      <div class="grid gap-3 md:grid-cols-3">
+        <div>
+          <label class="glass-label mb-1 text-xs">Upload ID:</label>
+          <input type="file" name="id_file" class="glass-input w-full text-xs">
+        </div>
+        <div>
+          <label class="glass-label mb-1 text-xs">Upload SSN Card:</label>
+          <input type="file" name="ssn_file" class="glass-input w-full text-xs">
+        </div>
+        <div>
+          <label class="glass-label mb-1 text-xs">Upload Utility Bill:</label>
+          <input type="file" name="utility_file" class="glass-input w-full text-xs">
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <button type="button" onclick="showTab('cra')"
+                class="glass-btn glass-btn--secondary text-sm">
+          &larr; Back: CRA Letter
+        </button>
+        <button type="submit" class="glass-btn glass-btn--primary glass-shimmer-edge text-sm"
+                style="position:relative;overflow:hidden;">
+          Convert to PDF
+        </button>
+      </div>
+    </form>
+  </div>
+
+  {# ── Strategy Tips ── #}
   <div class="glass-card glass-card--heavy glass-p glass-animate-in mt-6">
-    <h3 class="text-sm font-bold mb-2" style="color:var(--text-primary);">How to Use the Dual-Letter Strategy</h3>
+    <h3 class="text-sm font-bold mb-2" style="color:var(--text-primary);">&#128161; How to Use the Dual-Letter Strategy</h3>
     <ul class="text-xs space-y-1" style="color:var(--text-secondary);">
-      <li>&#x2022; <strong>Send both letters on the same day</strong> via certified mail with return receipt requested (USPS Form 3811).</li>
-      <li>&#x2022; The <strong>CRA letter</strong> triggers the 30-day FCRA investigation clock and preserves your right to sue the furnisher under &sect; 1681s-2(b) if they fail to investigate.</li>
-      <li>&#x2022; The <strong>furnisher letter</strong> bypasses e-OSCAR entirely — the creditor reads your ACTUAL dispute with specific Metro 2 field references, not a 2-digit code.</li>
-      <li>&#x2022; Under Regulation V (&sect; 1022.43(e)), the furnisher must report investigation results to <strong>ALL bureaus</strong> — one letter can fix all three reports.</li>
-      <li>&#x2022; If the furnisher ignores the direct dispute, you have evidence of willful noncompliance: <strong>$100-$1,000 per violation + punitive damages</strong> under &sect; 1681n.</li>
-      <li>&#x2022; Keep copies of both letters and certified mail receipts — these are your evidence if you need to escalate to a CFPB complaint or lawsuit.</li>
+      <li>&#x2022; <strong>Send both letters on the same day</strong> via certified mail with return receipt requested.</li>
+      <li>&#x2022; The <strong>CRA letter</strong> triggers the 30-day FCRA investigation clock and preserves your right to sue.</li>
+      <li>&#x2022; The <strong>furnisher letter</strong> bypasses e-OSCAR &mdash; the creditor reads your ACTUAL dispute, not a 2-digit code.</li>
+      <li>&#x2022; Under Regulation V (&sect; 1022.43(e)), the furnisher must report results to <strong>ALL bureaus</strong>.</li>
+      <li>&#x2022; Keep copies + certified mail receipts &mdash; evidence for CFPB complaints or lawsuits.</li>
     </ul>
   </div>
 
-  <!-- Navigation -->
+  {# ── Navigation ── #}
   <div class="flex flex-wrap justify-center gap-4 mt-6">
     {% if session.get('manual_mode') %}
       <a href="/define-details-manual" class="glass-btn glass-btn--secondary text-sm">&larr; Return to Define Details</a>
     {% else %}
-      <a href="{{ url_for('select_account') }}" class="glass-btn glass-btn--secondary text-sm">&larr; Return to Negative Accounts</a>
+      <a href="{{ url_for('disputes.select_account') }}" class="glass-btn glass-btn--secondary text-sm">&larr; Return to Negative Accounts</a>
     {% endif %}
     <a href="/" class="glass-btn glass-btn--ghost text-sm">Return to Home</a>
     <a href="/mail-letter" class="glass-btn glass-btn--secondary text-sm">Go to Mail</a>
   </div>
 
 </main>
+
+<script>
+function showTab(which){
+  var panelCra = document.getElementById('panel-cra');
+  var panelFurn = document.getElementById('panel-furnisher');
+  var tabCra = document.getElementById('tab-cra');
+  var tabFurn = document.getElementById('tab-furnisher');
+  var active = 'background:linear-gradient(135deg, #6e5ce6, #af52de);color:#fff;box-shadow:0 4px 15px rgba(110,92,230,0.3);';
+  var inactive = 'background:var(--glass-bg-secondary);color:var(--text-secondary);box-shadow:none;';
+  if(which === 'cra'){
+    panelCra.style.display = 'block';
+    panelFurn.style.display = 'none';
+    tabCra.style.cssText = active;
+    tabFurn.style.cssText = inactive;
+  } else {
+    panelCra.style.display = 'none';
+    panelFurn.style.display = 'block';
+    tabCra.style.cssText = inactive;
+    tabFurn.style.cssText = active;
+  }
+}
+</script>
 {% endblock %}

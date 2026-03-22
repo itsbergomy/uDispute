@@ -134,11 +134,11 @@
       Choose how your dispute is delivered.
     </p>
 
-    <input type="hidden" name="dual_letter" value="0">
+    <input type="hidden" name="dual_letter" id="dual-letter-value" value="0">
     <label class="glass-card glass-p mb-8 cursor-pointer block"
-           for="dual-letter-toggle"
            style="border:2px solid transparent;transition:border-color 0.2s, box-shadow 0.2s;"
-           id="dual-letter-card">
+           id="dual-letter-card"
+           onclick="toggleDualLetter()">
       <div class="flex items-center justify-between gap-4">
         <div class="flex-1">
           <div class="flex items-center gap-2 mb-1">
@@ -159,11 +159,6 @@
           </p>
         </div>
         <div style="flex-shrink:0;">
-          <input type="checkbox"
-                 id="dual-letter-toggle"
-                 name="dual_letter"
-                 value="1"
-                 class="sr-only peer">
           <div style="
             width:48px;height:26px;border-radius:13px;position:relative;cursor:pointer;
             background:var(--glass-bg-tertiary);transition:background 0.2s;
@@ -179,25 +174,25 @@
     </label>
 
     <script>
-    (function(){
-      var cb = document.getElementById('dual-letter-toggle');
+    var dualOn = false;
+    function toggleDualLetter(){
+      dualOn = !dualOn;
+      document.getElementById('dual-letter-value').value = dualOn ? '1' : '0';
       var track = document.getElementById('dual-toggle-track');
       var knob = document.getElementById('dual-toggle-knob');
       var card = document.getElementById('dual-letter-card');
-      cb.addEventListener('change', function(){
-        if(cb.checked){
-          track.style.background = 'linear-gradient(135deg, #6e5ce6, #af52de)';
-          knob.style.transform = 'translateX(22px)';
-          card.style.borderColor = '#6e5ce6';
-          card.style.boxShadow = '0 0 20px rgba(110,92,230,0.15)';
-        } else {
-          track.style.background = 'var(--glass-bg-tertiary)';
-          knob.style.transform = 'translateX(0)';
-          card.style.borderColor = 'transparent';
-          card.style.boxShadow = 'none';
-        }
-      });
-    })();
+      if(dualOn){
+        track.style.background = 'linear-gradient(135deg, #6e5ce6, #af52de)';
+        knob.style.transform = 'translateX(22px)';
+        card.style.borderColor = '#6e5ce6';
+        card.style.boxShadow = '0 0 20px rgba(110,92,230,0.15)';
+      } else {
+        track.style.background = 'var(--glass-bg-tertiary)';
+        knob.style.transform = 'translateX(0)';
+        card.style.borderColor = 'transparent';
+        card.style.boxShadow = 'none';
+      }
+    }
     </script>
 
     {# ── Submit ── #}
