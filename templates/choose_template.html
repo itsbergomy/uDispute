@@ -4,51 +4,113 @@
 {% block title %}Choose Dispute Letter Template{% endblock %}
 
 {% block content %}
-<main class="flex justify-center items-center min-h-[75vh] px-4 py-10">
-  <div class="glass-card glass-card--heavy glass-p max-w-2xl w-full text-center relative glass-animate-in">
+<main class="px-4 py-10 max-w-3xl mx-auto">
 
-    <!-- Back Button -->
-    <a href="{{ url_for('disputes.tier2_issues') }}" class="absolute top-4 left-4 glass-btn glass-btn--ghost p-3 rounded-full">
-      <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" style="color:var(--text-secondary);" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-      </svg>
-    </a>
+  {# ── Back Button ── #}
+  <a href="{{ url_for('disputes.tier2_issues') }}"
+     class="inline-flex items-center gap-2 mb-6 glass-btn glass-btn--ghost px-4 py-2 rounded-full text-sm"
+     style="color:var(--text-secondary);">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+    Back to Issues
+  </a>
 
-    <!-- Icon -->
+  {# ── Header Card ── #}
+  <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in text-center">
     <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
       {{ icons.icon_package(size=28, uid='ct1') }}
     </div>
 
     <h2 class="text-2xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">Choose Dispute Letter Template</h2>
-    <p class="mb-8 text-base" style="color:var(--text-secondary);">Cycle through templates then select the one you prefer.</p>
-
-    <form method="POST" action="/generate-letter-screen">
-      <div class="relative glass-inset rounded-xl p-6 mb-6 min-h-[120px] font-medium italic">
-        <div class="absolute left-4 top-1/2 transform -translate-y-1/2">
-          <button type="button" onclick="prevTemplate()" class="glass-btn glass-btn--secondary w-10 h-10 rounded-full text-lg flex items-center justify-center">&#8249;</button>
-        </div>
-        <div class="absolute right-4 top-1/2 transform -translate-y-1/2">
-          <button type="button" onclick="nextTemplate()" class="glass-btn glass-btn--secondary w-10 h-10 rounded-full text-lg flex items-center justify-center">&#8250;</button>
-        </div>
-        <div id="templateDisplay" class="mx-12 text-left" style="color:var(--text-secondary);"></div>
-      </div>
-      <input type="hidden" name="template_text" id="templateInput" />
-      <button type="submit" class="w-full glass-btn glass-btn--primary glass-shimmer-edge" style="position:relative;overflow:hidden;">
-        Use This Template
-      </button>
-    </form>
+    <p style="color:var(--text-tertiary);font-size:0.85rem;">
+      {{ account_name }}{% if account_number %} &bull; {{ account_number }}{% endif %}
+    </p>
   </div>
+
+  {# ── Template Carousel ── #}
+  <h3 class="text-lg font-semibold mb-3 glass-text-emboss" style="color:var(--text-primary);">Select a Template</h3>
+  <p style="color:var(--text-tertiary);font-size:0.8rem;margin-bottom:1rem;">
+    Cycle through available templates and choose the one that best fits your dispute strategy.
+  </p>
+
+  <form method="POST" action="/generate-letter-screen">
+    <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in" style="animation-delay:.1s">
+
+      {# Template counter #}
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs font-semibold" style="color:var(--text-secondary);">
+          Template <span id="templateCounter">1</span> of <span id="templateTotal">1</span>
+        </span>
+        <span class="glass-badge glass-badge--info text-xs">{{ pack_key|replace('_', ' ')|title }}</span>
+      </div>
+
+      {# Template text display #}
+      <div class="glass-inset rounded-xl p-5 mb-4 min-h-[140px]">
+        <div id="templateDisplay" class="text-sm" style="color:var(--text-primary);line-height:1.7;"></div>
+      </div>
+
+      {# Navigation arrows #}
+      <div class="flex items-center justify-center gap-3">
+        <button type="button" onclick="prevTemplate()"
+                class="glass-btn glass-btn--secondary w-10 h-10 rounded-full text-lg flex items-center justify-center">
+          &#8249;
+        </button>
+        <div id="templateDots" class="flex items-center gap-1.5"></div>
+        <button type="button" onclick="nextTemplate()"
+                class="glass-btn glass-btn--secondary w-10 h-10 rounded-full text-lg flex items-center justify-center">
+          &#8250;
+        </button>
+      </div>
+    </div>
+
+    <input type="hidden" name="template_text" id="templateInput" />
+    <button type="submit" class="w-full glass-btn glass-btn--primary glass-shimmer-edge" style="position:relative;overflow:hidden;">
+      Use This Template
+    </button>
+  </form>
 </main>
 
 <script>
   const templates = {{ templates|tojson }};
   let currentIndex = 0;
 
+  function buildDots() {
+    const container = document.getElementById('templateDots');
+    container.innerHTML = '';
+    for (let i = 0; i < templates.length; i++) {
+      const dot = document.createElement('div');
+      dot.style.cssText = 'width:8px;height:8px;border-radius:50%;transition:all 0.2s;cursor:pointer;';
+      dot.dataset.index = i;
+      dot.onclick = function() { currentIndex = parseInt(this.dataset.index); updateTemplate(); };
+      container.appendChild(dot);
+    }
+  }
+
   function updateTemplate() {
     const display = document.getElementById('templateDisplay');
     const input = document.getElementById('templateInput');
+    const counter = document.getElementById('templateCounter');
+    const total = document.getElementById('templateTotal');
+
     display.textContent = templates[currentIndex];
     input.value = templates[currentIndex];
+    counter.textContent = currentIndex + 1;
+    total.textContent = templates.length;
+
+    // Update dots
+    const dots = document.getElementById('templateDots').children;
+    for (let i = 0; i < dots.length; i++) {
+      if (i === currentIndex) {
+        dots[i].style.background = 'var(--accent)';
+        dots[i].style.transform = 'scale(1.3)';
+        dots[i].style.boxShadow = '0 0 6px rgba(0,113,227,0.4)';
+      } else {
+        dots[i].style.background = 'var(--glass-bg-tertiary, rgba(255,255,255,0.15))';
+        dots[i].style.transform = 'scale(1)';
+        dots[i].style.boxShadow = 'none';
+      }
+    }
   }
 
   function prevTemplate() {
@@ -61,6 +123,9 @@
     updateTemplate();
   }
 
-  window.onload = updateTemplate;
+  window.onload = function() {
+    buildDots();
+    updateTemplate();
+  };
 </script>
 {% endblock %}

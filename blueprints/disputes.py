@@ -847,7 +847,11 @@ def choose_template():
         session['selected_template'] = request.form['template_text']
         return redirect(url_for('disputes.generate_letter_screen'))
 
-    return render_template('choose_template.html', templates=filled, pack_key=pack_key)
+    return render_template('choose_template.html',
+                           templates=filled,
+                           pack_key=pack_key,
+                           account_name=session.get('account_name', ''),
+                           account_number=session.get('account_number', ''))
 
 
 @disputes_bp.route('/prompt-packs', methods=['GET', 'POST'])
