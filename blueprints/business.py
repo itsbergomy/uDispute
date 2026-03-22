@@ -21,7 +21,7 @@ from models import (
 )
 from services.pdf_parser import extract_negative_items_from_pdf
 from services.report_analyzer import run_report_analysis
-from services.letter_generator import PACKS, generate_letter, build_prompt, letter_to_pdf, image_to_pdf, merge_dispute_package, generate_dual_letters, build_dual_prompts
+from services.letter_generator import PACKS, generate_letter, build_prompt, build_notice_of_dispute_prompt, letter_to_pdf, image_to_pdf, merge_dispute_package, generate_dual_letters, build_dual_prompts
 from services.cloud_storage import upload_file, get_file_url, download_to_temp, delete_file, is_configured as cloud_configured
 from config import mail
 
@@ -197,6 +197,16 @@ def view_client(client_id):
         client_id=client.id
     ).order_by(SupportingDoc.uploaded_at.desc()).all()
 
+    # Client letters (Notices of Dispute, generated letters)
+    letters = ClientDisputeLetter.query.filter_by(
+        client_id=client.id
+    ).order_by(ClientDisputeLetter.created_at.desc()).all()
+
+    # Correspondence files
+    docs = Correspondence.query.filter_by(
+        client_id=client.id
+    ).order_by(Correspondence.uploaded_at.desc()).all()
+
     return render_template("view_client.html",
                            client=client,
                            client_parsed_accounts=client_parsed_accounts,
@@ -204,7 +214,9 @@ def view_client(client_id):
                            active_pipeline=active_pipeline,
                            pipeline_status=pipeline_status,
                            portal_token=portal_token,
-                           supporting_docs=supporting_docs)
+                           supporting_docs=supporting_docs,
+                           letters=letters,
+                           docs=docs)
 
 
 @business_bp.route('/clients/<int:client_id>/notes', methods=['GET', 'POST'])
@@ -626,18 +638,23 @@ def run_udispute_flow(client_id):
     issue = request.form["issue"]
     prompt_pack = request.form.get("prompt_pack", "default")
 
-    if client.pdf_filename and client.pdf_filename.startswith('http'):
-        _temp_pdf = download_to_temp(client.pdf_filename)
-        if not _temp_pdf:
-            flash("Failed to download PDF from cloud storage.", "error")
-            return redirect(url_for("business.view_client", client_id=client.id))
-        _pdf_for_parse = _temp_pdf
-    else:
-        _pdf_for_parse = os.path.join(current_app.config["UPLOAD_FOLDER"], str(client.id), client.pdf_filename)
-        if not os.path.exists(_pdf_for_parse):
-            _pdf_for_parse = os.path.join(current_app.config["UPLOAD_FOLDER"], client.pdf_filename)
+    # Use cached parsed accounts from session if available (avoids re-downloading + re-parsing PDF)
+    parsed_accounts = session.get("client_parsed_accounts") if session.get("parsed_accounts_client_id") == client_id else None
 
-    parsed_accounts = extract_negative_items_from_pdf(_pdf_for_parse)
+    if not parsed_accounts:
+        # Fallback: parse from PDF if session cache is empty
+        if client.pdf_filename and client.pdf_filename.startswith('http'):
+            _temp_pdf = download_to_temp(client.pdf_filename)
+            if not _temp_pdf:
+                flash("Failed to download PDF from cloud storage.", "error")
+                return redirect(url_for("business.view_client", client_id=client.id))
+            _pdf_for_parse = _temp_pdf
+        else:
+            _pdf_for_parse = os.path.join(current_app.config["UPLOAD_FOLDER"], str(client.id), client.pdf_filename)
+            if not os.path.exists(_pdf_for_parse):
+                _pdf_for_parse = os.path.join(current_app.config["UPLOAD_FOLDER"], client.pdf_filename)
+        parsed_accounts = extract_negative_items_from_pdf(_pdf_for_parse)
+
     selected = next((acc for acc in parsed_accounts if acc["account_number"] == account_number), None)
 
     if not selected:
@@ -754,6 +771,135 @@ def extract_for_udispute(client_id):
     session["parsed_accounts_client_id"] = client.id
 
     flash(f"Found {len(parsed_accounts)} negative account(s) from the PDF.", "success")
+    return redirect(url_for("business.view_client", client_id=client.id))
+
+
+# ─── Notice of Dispute ───
+
+BUREAU_ADDRESSES = {
+    'Equifax': {
+        'name': 'Equifax Information Services LLC',
+        'address1': 'P.O. Box 740256',
+        'city': 'Atlanta', 'state': 'GA', 'zip': '30374',
+    },
+    'TransUnion': {
+        'name': 'TransUnion LLC',
+        'address1': 'P.O. Box 2000',
+        'city': 'Chester', 'state': 'PA', 'zip': '19016',
+    },
+    'Experian': {
+        'name': 'Experian',
+        'address1': 'P.O. Box 4500',
+        'city': 'Allen', 'state': 'TX', 'zip': '75013',
+    },
+}
+
+
+@business_bp.route('/client/<int:client_id>/notice-of-dispute', methods=['POST'])
+@login_required
+def generate_notice_of_dispute(client_id):
+    """Generate Notice of Dispute letters for a business client — one per bureau."""
+    import traceback
+
+    client = Client.query.get_or_404(client_id)
+    if client.business_user_id != current_user.id:
+        abort(403)
+
+    # Get parsed accounts from session
+    parsed_accounts = session.get("client_parsed_accounts") if session.get("parsed_accounts_client_id") == client_id else None
+    if not parsed_accounts:
+        flash("No accounts extracted. Click 'Extract Accounts' first.", "error")
+        return redirect(url_for("business.view_client", client_id=client.id))
+
+    # Group accounts by bureau
+    BUREAU_NAME_MAP = {
+        'experian': 'Experian', 'transunion': 'TransUnion', 'equifax': 'Equifax',
+    }
+    accounts_by_bureau = {}
+    for item in parsed_accounts:
+        raw = (item.get('bureau') or 'Unknown').lower().strip()
+        bureau = BUREAU_NAME_MAP.get(raw, raw.title())
+        if bureau not in accounts_by_bureau:
+            accounts_by_bureau[bureau] = []
+        accounts_by_bureau[bureau].append(item)
+
+    # Build client context
+    base_context = {
+        'client_full_name': f"{client.first_name} {client.last_name}",
+        'client_address': client.address_line1 or '',
+        'client_address_line2': client.address_line2 or '',
+        'client_city_state_zip': f"{client.city or ''}, {client.state or ''} {client.zip_code or ''}".strip(', '),
+        'today_date': datetime.utcnow().strftime('%B %d, %Y'),
+    }
+
+    generated_ids = []
+    errors = []
+
+    for bureau, accounts in accounts_by_bureau.items():
+        client_context = dict(base_context)
+
+        # Bureau mailing address
+        bureau_info = BUREAU_ADDRESSES.get(bureau, {})
+        if bureau_info:
+            client_context['bureau_address'] = (
+                f"{bureau_info.get('address1', '')}, "
+                f"{bureau_info.get('city', '')} {bureau_info.get('state', '')} {bureau_info.get('zip', '')}"
+            )
+
+        try:
+            prompt, _, _ = build_notice_of_dispute_prompt(bureau, accounts, client_context)
+            letter_text = generate_letter(prompt, is_notice=True)
+        except Exception as e:
+            traceback.print_exc()
+            errors.append(f"{bureau}: {str(e)}")
+            continue
+
+        if not letter_text or not letter_text.strip():
+            errors.append(f"{bureau}: GPT returned an empty letter.")
+            continue
+
+        # Convert to PDF and upload
+        pdf_url = None
+        try:
+            upload_folder = current_app.config['UPLOAD_FOLDER']
+            os.makedirs(upload_folder, exist_ok=True)
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            pdf_filename = f'Notice_{bureau}_{timestamp}.pdf'
+            pdf_path = letter_to_pdf(letter_text, os.path.join(upload_folder, pdf_filename))
+
+            if cloud_configured():
+                from services.cloud_storage import upload_from_path
+                cloud_result = upload_from_path(
+                    pdf_path,
+                    folder=f"clients/{client.id}/notices",
+                    filename=pdf_filename.rsplit('.', 1)[0]
+                )
+                if cloud_result:
+                    pdf_url = cloud_result['secure_url']
+        except Exception as e:
+            traceback.print_exc()
+            pdf_url = None
+
+        # Save as ClientDisputeLetter
+        letter_record = ClientDisputeLetter(
+            client_id=client.id,
+            letter_text=letter_text,
+            template_name=f'Notice of Dispute — {bureau}',
+            pdf_url=pdf_url,
+        )
+        db.session.add(letter_record)
+        db.session.flush()
+        generated_ids.append(letter_record.id)
+
+    db.session.commit()
+
+    if errors and not generated_ids:
+        flash(f"Failed to generate notices: {'; '.join(errors)}", "error")
+    elif errors:
+        flash(f"Generated {len(generated_ids)} notice(s), but had errors: {'; '.join(errors)}", "warning")
+    else:
+        flash(f"Generated {len(generated_ids)} Notice of Dispute letter(s)!", "success")
+
     return redirect(url_for("business.view_client", client_id=client.id))
 
 

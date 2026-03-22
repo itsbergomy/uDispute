@@ -46,12 +46,16 @@
           </button>
         </form>
 
-        <form method="POST" action="{{ url_for('business.extract_for_udispute', client_id=client.id) }}" style="display:inline;">
+        <form id="extractAccountsForm" method="POST" action="{{ url_for('business.extract_for_udispute', client_id=client.id) }}" style="display:inline;">
           <button id="extractAccountsBtn" type="submit"
                   class="glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge px-4 py-1.5 text-xs font-semibold inline-flex items-center gap-1.5"
                   style="position:relative;overflow:hidden;">
+            <svg class="h-3.5 w-3.5 hidden animate-spin" id="extractAccountsSpin" viewBox="0 0 24 24" fill="none">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4A4 4 0 008 12H4z"/>
+            </svg>
             {{ icons.icon_document(14, 'ea1') }}
-            Extract Accounts
+            <span id="extractAccountsText">Extract Accounts</span>
           </button>
         </form>
 
@@ -495,6 +499,30 @@
       {% endif %}
     </div>
     {% endif %}
+
+    <!-- ── Notice of Dispute ── -->
+    <div class="glass-card glass-card--heavy rounded-3xl p-6 glass-animate-in" style="animation-delay:.12s">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-bold glass-text-3d">📋 Notice of Dispute</h2>
+          <p class="text-xs mt-1" style="color:var(--text-tertiary);">
+            Generate formal Notice of Dispute letters for each bureau — required under FDCPA § 1692g.
+          </p>
+        </div>
+        <form method="POST" action="{{ url_for('business.generate_notice_of_dispute', client_id=client.id) }}" style="display:inline;">
+          <button type="submit" id="noticeBtn"
+                  class="glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge px-5 py-2 text-sm font-semibold inline-flex items-center gap-2"
+                  style="position:relative;overflow:hidden;"
+                  {% if not client_parsed_accounts %}disabled title="Extract accounts first" style="opacity:0.5;cursor:not-allowed;"{% endif %}>
+            <svg class="h-3.5 w-3.5 hidden animate-spin" id="noticeSpin" viewBox="0 0 24 24" fill="none">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4A4 4 0 008 12H4z"/>
+            </svg>
+            <span id="noticeText">Generate Notices</span>
+          </button>
+        </form>
+      </div>
+    </div>
 
     <!-- ── uDispute Form ── -->
     <div id="uDisputeSection" class="glass-card glass-card--heavy rounded-3xl p-6 glass-animate-in" style="animation-delay:.15s">
@@ -1019,11 +1047,30 @@
     document.querySelector('[data-tab="' + tabName + '"]').style.color = '#fff';
   }
 
-  // Run Report Analyzer with loading state
+  // ── Loading animation helper ──
+  function startButtonLoading(btn, spin, icon, text, loadingText) {
+    btn.disabled = true;
+    btn.style.pointerEvents = 'none';
+    btn.classList.add('glass-pulse');
+    if (spin) spin.classList.remove('hidden');
+    if (icon) icon.style.display = 'none';
+    if (text) text.textContent = loadingText;
+  }
+  function stopButtonLoading(btn, spin, icon, text, originalText) {
+    btn.disabled = false;
+    btn.style.pointerEvents = 'auto';
+    btn.classList.remove('glass-pulse');
+    if (spin) spin.classList.add('hidden');
+    if (icon) icon.style.display = '';
+    if (text) text.textContent = originalText;
+  }
+
+  // Run Analyzer with loading animation
   (function () {
     const form = document.getElementById('runAnalyzerForm');
     const btn  = document.getElementById('runAnalyzerBtn');
     const spin = document.getElementById('runAnalyzerSpin');
+    const icon = btn ? btn.querySelector('[id^="ra1"]') || btn.querySelector('svg:not(#runAnalyzerSpin)') : null;
     const text = document.getElementById('runAnalyzerText');
     const status = document.getElementById('analyzerStatus');
 
@@ -1031,11 +1078,8 @@
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      btn.style.opacity = '0.6';
-      btn.style.pointerEvents = 'none';
-      if (spin) spin.classList.remove('hidden');
-      if (text) text.textContent = 'Analyzing...';
-      if (status) status.textContent = 'Starting analysis...';
+      startButtonLoading(btn, spin, icon, text, 'Analyzing...');
+      if (status) status.textContent = 'Running credit analysis — this may take a moment...';
 
       try {
         const res = await fetch(form.action, {
@@ -1050,7 +1094,7 @@
         if (ct.includes('application/json')) {
           const data = await res.json();
           if (data.redirect) { window.location.href = data.redirect; return; }
-          if (status) status.textContent = data.message || 'Analysis started.';
+          if (status) status.textContent = data.message || 'Analysis complete!';
           setTimeout(() => window.location.reload(), 2000);
         } else if (res.ok) {
           window.location.reload();
@@ -1059,13 +1103,66 @@
         }
       } catch (err) {
         console.error(err);
-        if (status) status.textContent = 'Failed: ' + (err?.message || '');
-      } finally {
-        btn.style.opacity = '1';
-        btn.style.pointerEvents = 'auto';
-        if (spin) spin.classList.add('hidden');
-        if (text) text.textContent = 'Run Analyzer';
+        if (status) { status.textContent = 'Failed: ' + (err?.message || ''); status.style.color = '#ff453a'; }
+        stopButtonLoading(btn, spin, icon, text, 'Run Analyzer');
       }
+    });
+  })();
+
+  // Extract Accounts with loading animation
+  (function () {
+    const form = document.getElementById('extractAccountsForm');
+    const btn  = document.getElementById('extractAccountsBtn');
+    const spin = document.getElementById('extractAccountsSpin');
+    const icon = btn ? btn.querySelector('[id^="ea1"]') || btn.querySelector('svg:not(#extractAccountsSpin)') : null;
+    const text = document.getElementById('extractAccountsText');
+
+    if (!form || !btn) return;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      startButtonLoading(btn, spin, icon, text, 'Extracting...');
+
+      try {
+        const res = await fetch(form.action, {
+          method: 'POST',
+          body: new FormData(form),
+          headers: { 'X-Requested-With': 'fetch' }
+        });
+
+        if (res.redirected) { window.location.href = res.url; return; }
+
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const data = await res.json();
+          if (data.redirect) { window.location.href = data.redirect; return; }
+          setTimeout(() => window.location.reload(), 1500);
+        } else if (res.ok) {
+          window.location.reload();
+        } else {
+          throw new Error(await res.text());
+        }
+      } catch (err) {
+        console.error(err);
+        stopButtonLoading(btn, spin, icon, text, 'Extract Accounts');
+        alert('Error extracting accounts: ' + (err?.message || ''));
+      }
+    });
+  })();
+
+  // Notice of Dispute with loading animation
+  (function () {
+    const btn = document.getElementById('noticeBtn');
+    if (!btn || btn.disabled) return;
+    const form = btn.closest('form');
+    const spin = document.getElementById('noticeSpin');
+    const text = document.getElementById('noticeText');
+
+    form.addEventListener('submit', function () {
+      btn.disabled = true;
+      btn.classList.add('glass-pulse');
+      if (spin) spin.classList.remove('hidden');
+      if (text) text.textContent = 'Generating...';
     });
   })();
 
