@@ -112,6 +112,13 @@ def upload_pdf():
                     flash("Free plan: You must wait 48 hours between dispute rounds.", "error")
                     return redirect(url_for('disputes.index'))
 
+        # Clear stale dispute data from previous session
+        for key in ['negative_items', 'generated_letter', 'furnisher_letter',
+                     'selected_template', 'account_name', 'account_number',
+                     'status', 'issue', 'action', 'selected_entity',
+                     'dual_letter_enabled', 'selected_issues', 'selected_solutions']:
+            session.pop(key, None)
+
         if 'pdfFile' not in request.files:
             return jsonify({"error": 'No file selected'}), 400
 
