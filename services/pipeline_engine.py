@@ -433,7 +433,9 @@ def handle_strategy(pipeline):
     agent_config = strategy_data.get('agent_config', {})
 
     if not negative_items:
-        raise ValueError("No negative items found to dispute")
+        raise ValueError("No negative items found to dispute — run Extract Accounts first")
+
+    logger.info(f"Strategy: {len(negative_items)} negative items found for pipeline {pipeline.id}")
 
     if pipeline.round_number > 1:
         # Re-dispute: only accounts that came back verified or no_response
@@ -454,11 +456,15 @@ def handle_strategy(pipeline):
     else:
         # Round 1: dispute EVERY negative item — no AI filtering
         # Use AI only to enrich with legal basis / dispute reason
-        decisions = select_accounts_for_dispute(
-            negative_items=negative_items,
-            analysis_data=analysis,
-            round_number=pipeline.round_number,
-        )
+        try:
+            decisions = select_accounts_for_dispute(
+                negative_items=negative_items,
+                analysis_data=analysis,
+                round_number=pipeline.round_number,
+            )
+        except Exception as e:
+            logger.warning(f"AI strategy selection failed, using all accounts: {e}")
+            decisions = []
         # Make sure every negative item is included even if AI skipped it
         ai_keys = {(d.get('account_name',''), d.get('account_number','')) for d in decisions}
         for item in negative_items:
@@ -492,6 +498,8 @@ def handle_strategy(pipeline):
     else:
         # All 3 bureaus for all rounds
         targets = ['experian', 'transunion', 'equifax']
+
+    logger.info(f"Strategy: creating {len(decisions)} x {len(targets)} = {len(decisions)*len(targets)} dispute accounts")
 
     # Create DisputeAccount records for each account x target
     for decision in decisions:
