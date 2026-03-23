@@ -142,35 +142,44 @@
     </div>
   </div>
 
-  {# ── Letter Cards ── #}
-  {% for L in letters %}
-  <div class="glass-card glass-p mb-5 glass-animate-in" style="animation-delay:{{ (loop.index * 0.1 + 0.1) }}s;">
+  {# ── Letter Carousel Tabs ── #}
+  <div class="flex gap-2 mb-4 glass-animate-in" style="animation-delay:0.12s;">
+    {% for L in letters %}
+    <button id="tab-{{ loop.index0 }}" onclick="showNoticeTab({{ loop.index0 }})"
+            class="notice-tab flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all"
+            style="{% if loop.first %}background:linear-gradient(135deg,
+              {% if L.bureau == 'Experian' %}#0077ed, #005bb5
+              {% elif L.bureau == 'TransUnion' %}#34c759, #28a745
+              {% elif L.bureau == 'Equifax' %}#ff3b30, #d63031
+              {% else %}#6e5ce6, #af52de{% endif %});color:#fff;box-shadow:0 4px 15px rgba(0,0,0,0.15);
+            {% else %}background:var(--glass-bg-secondary);color:var(--text-secondary);{% endif %}">
+      <span style="margin-right:4px;">
+        {% if L.bureau == 'Experian' %}&#x1F535;{% elif L.bureau == 'TransUnion' %}&#x1F7E2;{% elif L.bureau == 'Equifax' %}&#x1F534;{% else %}&#x26AA;{% endif %}
+      </span>
+      {{ L.bureau }}
+      {% if L.mailed_at %}
+        <span class="text-xs ml-1" style="opacity:0.7;">✓</span>
+      {% endif %}
+    </button>
+    {% endfor %}
+  </div>
 
-    {# ── Card Header: Bureau badge + status ── #}
+  {# ── Letter Panels ── #}
+  {% for L in letters %}
+  <div id="panel-{{ loop.index0 }}" class="notice-panel glass-card glass-card--heavy glass-p glass-animate-in"
+       style="{% if not loop.first %}display:none;{% endif %}">
+
+    {# ── Panel Header: Bureau + Status ── #}
     <div class="flex items-center justify-between mb-3">
       <div class="flex items-center gap-2">
-        <span style="
-          display:inline-block;
-          font-size:0.6rem;
-          font-weight:700;
-          text-transform:uppercase;
-          letter-spacing:0.08em;
-          padding:2px 8px;
-          border-radius:100px;
-          background:linear-gradient(135deg,
-            {% if L.bureau == 'Experian' %}#0077ed, #005bb5
-            {% elif L.bureau == 'TransUnion' %}#34c759, #28a745
-            {% elif L.bureau == 'Equifax' %}#ff3b30, #d63031
-            {% else %}#8e8e93, #636e72{% endif %}
-          );
-          color:#fff;
-        ">{{ L.bureau }}</span>
+        <span style="font-size:1.1rem;">
+          {% if L.bureau == 'Experian' %}&#x1F535;{% elif L.bureau == 'TransUnion' %}&#x1F7E2;{% elif L.bureau == 'Equifax' %}&#x1F534;{% else %}&#x26AA;{% endif %}
+        </span>
+        <h3 class="text-lg font-bold" style="color:var(--text-primary);">{{ L.bureau }}</h3>
         {% if L.account_name %}
           <span style="color:var(--text-tertiary);font-size:0.75rem;">{{ L.account_name[:60] }}{% if L.account_name|length > 60 %}…{% endif %}</span>
         {% endif %}
       </div>
-
-      {# ── Status Badges ── #}
       <div class="flex items-center gap-2">
         {% if L.mailed_at %}
           <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
@@ -191,14 +200,26 @@
       </div>
     </div>
 
-    {# ── Letter Preview ── #}
-    <div class="glass-inset rounded-xl p-4 mb-4" style="max-height:280px;overflow-y:auto;">
-      <pre style="white-space:pre-wrap;font-size:0.82rem;line-height:1.6;color:var(--text-secondary);font-family:inherit;">{{ L.letter_text }}</pre>
+    {# ── Recipient (pre-filled, read-only) ── #}
+    {% set bureau_addr = bureau_addresses.get(L.bureau, {}) %}
+    {% if bureau_addr %}
+    <div class="glass-inset rounded-xl p-3 mb-3" style="font-size:0.75rem;color:var(--text-tertiary);">
+      <span class="font-semibold" style="color:var(--text-secondary);">Mailing to:</span>
+      {{ bureau_addr.get('name', L.bureau) }} &mdash;
+      {{ bureau_addr.get('address1', '') }}{% if bureau_addr.get('address2') %}, {{ bureau_addr['address2'] }}{% endif %},
+      {{ bureau_addr.get('city', '') }}, {{ bureau_addr.get('state', '') }} {{ bureau_addr.get('zip', '') }}
+    </div>
+    {% endif %}
+
+    {# ── Editable Letter ── #}
+    <div class="glass-inset rounded-xl p-3 mb-4">
+      <textarea rows="16" class="glass-input glass-textarea w-full text-sm"
+                style="background:transparent;border:none;box-shadow:none;resize:vertical;line-height:1.6;"
+                data-letter-id="{{ L.id }}">{{ L.letter_text }}</textarea>
     </div>
 
     {# ── Action Buttons ── #}
     <div class="flex flex-wrap items-center gap-3">
-      {# Download PDF #}
       {% if L.pdf_url %}
         <a href="{{ L.pdf_url }}" target="_blank"
            class="glass-btn glass-btn--ghost glass-btn--pill text-xs px-4 py-2 flex items-center gap-1.5"
@@ -210,7 +231,6 @@
         </a>
       {% endif %}
 
-      {# Mail via DocuPost — only show if not already mailed #}
       {% if not L.mailed_at %}
         <form method="POST" action="{{ url_for('disputes.tier1_mail', letter_id=L.id) }}"
               class="tier1-mail-form inline-flex" data-bureau="{{ L.bureau }}">
@@ -219,7 +239,6 @@
           <input type="hidden" name="color" class="js-color" />
           <input type="hidden" name="doublesided" class="js-doublesided" />
           <input type="hidden" name="return_envelope" class="js-return-envelope" />
-          {# Sender fields populated by JS from shared sender section #}
           <input type="hidden" name="from_name" class="js-from-name" />
           <input type="hidden" name="from_address1" class="js-from-address1" />
           <input type="hidden" name="from_address2" class="js-from-address2" />
@@ -237,20 +256,15 @@
           </button>
         </form>
       {% endif %}
-    </div>
 
-    {# ── Recipient Info (collapsed, for transparency) ── #}
-    {% set bureau_addr = bureau_addresses.get(L.bureau, {}) %}
-    {% if bureau_addr %}
-    <details class="mt-3" style="color:var(--text-tertiary);font-size:0.75rem;">
-      <summary style="cursor:pointer;user-select:none;">Mailing to: {{ bureau_addr.get('name', L.bureau) }}</summary>
-      <div class="mt-1 pl-4" style="line-height:1.6;">
-        {{ bureau_addr.get('address1', '') }}<br/>
-        {% if bureau_addr.get('address2') %}{{ bureau_addr['address2'] }}<br/>{% endif %}
-        {{ bureau_addr.get('city', '') }}, {{ bureau_addr.get('state', '') }} {{ bureau_addr.get('zip', '') }}
-      </div>
-    </details>
-    {% endif %}
+      {# Nav to next letter #}
+      {% if not loop.last %}
+        <button type="button" onclick="showNoticeTab({{ loop.index }})"
+                class="glass-btn glass-btn--secondary glass-btn--pill text-xs px-4 py-2">
+          Next: {{ letters[loop.index].bureau }} &rarr;
+        </button>
+      {% endif %}
+    </div>
   </div>
   {% endfor %}
 
@@ -289,6 +303,30 @@
 </main>
 
 <script>
+// ─── Carousel tab switching ───
+function showNoticeTab(idx) {
+  // Hide all panels
+  document.querySelectorAll('.notice-panel').forEach(function(p) { p.style.display = 'none'; });
+  // Show selected
+  var panel = document.getElementById('panel-' + idx);
+  if (panel) panel.style.display = 'block';
+  // Update tab styles
+  var bureauColors = {{ letters | map(attribute='bureau') | list | tojson }};
+  var colorMap = {
+    'Experian':   'background:linear-gradient(135deg,#0077ed,#005bb5);color:#fff;box-shadow:0 4px 15px rgba(0,119,237,0.3);',
+    'TransUnion':  'background:linear-gradient(135deg,#34c759,#28a745);color:#fff;box-shadow:0 4px 15px rgba(52,199,89,0.3);',
+    'Equifax':    'background:linear-gradient(135deg,#ff3b30,#d63031);color:#fff;box-shadow:0 4px 15px rgba(255,59,48,0.3);'
+  };
+  var inactive = 'background:var(--glass-bg-secondary);color:var(--text-secondary);box-shadow:none;';
+  document.querySelectorAll('.notice-tab').forEach(function(tab, i) {
+    if (i === idx) {
+      tab.style.cssText = colorMap[bureauColors[i]] || inactive;
+    } else {
+      tab.style.cssText = inactive;
+    }
+  });
+}
+
 // ─── Populate state dropdown ───
 (function(){
   var states = [
