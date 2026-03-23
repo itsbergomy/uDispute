@@ -75,6 +75,14 @@ def _validate_config(config):
     if mode not in ('supervised', 'full_auto'):
         return None, 'mode must be "supervised" or "full_auto"'
 
+    strategy = config.get('strategy', 'standard')
+    if strategy not in ('standard', 'notice', 'dual'):
+        return None, 'strategy must be "standard", "notice", or "dual"'
+
+    batch_size = config.get('batch_size', {})
+    if batch_size and not isinstance(batch_size, dict):
+        return None, 'batch_size must be a dict'
+
     max_rounds = config.get('max_rounds', 3)
     if not isinstance(max_rounds, int) or max_rounds < 1 or max_rounds > 5:
         return None, 'max_rounds must be 1-5'
@@ -127,10 +135,12 @@ def _validate_config(config):
 
     cleaned = {
         'mode': mode,
+        'strategy': strategy,
         'max_rounds': max_rounds,
         'round_packs': round_packs,
         'send_to': send_to,
         'creditor_addresses': creditor_addresses if send_to == 'creditors' else [],
+        'batch_size': batch_size if batch_size else {},
         'mail_options': mail_options if mail_options else {},
     }
     if custom_letter_id is not None:

@@ -383,15 +383,106 @@
       </div>
       {% endif %}
 
-      <!-- Review Action -->
+      <!-- Review Action — Batch Review Carousel -->
       {% if pipeline_status.state == 'review' and pipeline_status.mode == 'supervised' %}
+      {% set review_accounts = pipeline_status.accounts | selectattr('letter_id') | list %}
+      {% if review_accounts %}
+      <div class="mb-4">
+        <p class="text-xs font-semibold mb-2 glass-text-emboss" style="color:var(--text-secondary);">Review Letters</p>
+
+        <!-- Carousel Tabs -->
+        <div class="flex gap-1.5 mb-3 overflow-x-auto pb-1">
+          {% for a in review_accounts %}
+          <button class="review-carousel-tab flex-shrink-0 py-2 px-3 rounded-xl text-xs font-semibold transition-all duration-200"
+                  onclick="showReviewCarousel({{ loop.index0 }}, this)"
+                  style="{% if loop.first %}background:linear-gradient(135deg,
+                    {% if a.bureau == 'Experian' %}#0077ed,#005bb5
+                    {% elif a.bureau == 'TransUnion' %}#34c759,#28a745
+                    {% elif a.bureau == 'Equifax' %}#ff3b30,#d63031
+                    {% else %}#6e5ce6,#af52de{% endif %});color:#fff;box-shadow:0 4px 15px rgba(0,0,0,0.15);
+                  {% else %}background:var(--glass-bg-secondary);color:var(--text-secondary);{% endif %}">
+            {{ a.account_name[:20] }}{% if a.account_name|length > 20 %}…{% endif %}<br>
+            <span style="font-weight:400;opacity:0.7;">{{ a.bureau }}</span>
+          </button>
+          {% endfor %}
+        </div>
+
+        <!-- Letter Panels -->
+        {% for a in review_accounts %}
+        <div id="review-carousel-{{ loop.index0 }}" class="review-carousel-panel"
+             style="{% if not loop.first %}display:none;{% endif %}">
+
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:linear-gradient(135deg,
+                {% if a.bureau == 'Experian' %}#0077ed,#005bb5
+                {% elif a.bureau == 'TransUnion' %}#34c759,#28a745
+                {% elif a.bureau == 'Equifax' %}#ff3b30,#d63031
+                {% else %}#6e5ce6,#af52de{% endif %});color:#fff;">{{ a.bureau }}</span>
+              <span class="text-sm font-semibold" style="color:var(--text-primary);">{{ a.account_name }}</span>
+            </div>
+            <span class="text-xs" style="color:var(--text-tertiary);">{{ a.account_number }}</span>
+          </div>
+
+          <div class="glass-inset rounded-xl p-3 mb-3">
+            <textarea id="review-letter-{{ a.letter_id }}" rows="14"
+                      class="glass-input glass-textarea w-full text-sm"
+                      style="background:transparent;border:none;box-shadow:none;resize:vertical;line-height:1.6;"
+                      data-letter-id="{{ a.letter_id }}"></textarea>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <button onclick="regenerateLetter({{ a.letter_id }})"
+                      class="glass-btn glass-btn--ghost glass-btn--pill text-xs px-3 py-1.5"
+                      style="border:1px solid rgba(255,255,255,0.12);">
+                Regenerate
+              </button>
+            </div>
+            {% if not loop.last %}
+            <button class="glass-btn glass-btn--primary glass-btn--pill text-xs px-4 py-1.5"
+                    onclick="showReviewCarousel({{ loop.index }}, document.querySelectorAll('.review-carousel-tab')[{{ loop.index }}])">
+              Next: {{ review_accounts[loop.index].account_name[:15] }}{% if review_accounts[loop.index].account_name|length > 15 %}…{% endif %} &rarr;
+            </button>
+            {% else %}
+            <span class="text-xs font-medium" style="color:var(--text-tertiary);">Last letter in batch</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+
+        <!-- Batch Summary + Approve -->
+        <div class="glass-inset rounded-xl p-4 mt-4 mb-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold" style="color:var(--text-secondary);">Batch Summary</span>
+            <span class="text-sm font-bold" style="color:var(--text-primary);">{{ review_accounts|length }} letter{{ 's' if review_accounts|length != 1 else '' }}</span>
+          </div>
+          <div class="flex items-center gap-3 text-xs" style="color:var(--text-tertiary);">
+            {% set exp_count = review_accounts | selectattr('bureau', 'equalto', 'Experian') | list | length %}
+            {% set tu_count = review_accounts | selectattr('bureau', 'equalto', 'TransUnion') | list | length %}
+            {% set eq_count = review_accounts | selectattr('bureau', 'equalto', 'Equifax') | list | length %}
+            {% if exp_count %}<span style="color:#0077ed;">&#x25CF; Experian: {{ exp_count }}</span>{% endif %}
+            {% if tu_count %}<span style="color:#34c759;">&#x25CF; TransUnion: {{ tu_count }}</span>{% endif %}
+            {% if eq_count %}<span style="color:#ff3b30;">&#x25CF; Equifax: {{ eq_count }}</span>{% endif %}
+          </div>
+        </div>
+
+        <button onclick="approveAllLetters({{ pipeline_status.id }})" id="approveAllBtn"
+                class="glass-btn glass-btn--primary glass-btn--full rounded-2xl glass-shimmer-edge"
+                style="position:relative;overflow:hidden;">
+          Approve &amp; Send All {{ review_accounts|length }} Letters
+        </button>
+      </div>
+      {% else %}
+      <!-- No letters generated yet — fallback -->
       <div class="flex gap-3">
         <button onclick="fetch('/api/pipeline/{{ pipeline_status.id }}/approve',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.message)location.reload();else alert(d.error||'Error')})"
                 class="glass-btn glass-btn--primary glass-btn--pill text-sm px-6 py-2 glass-shimmer-edge"
                 style="position:relative;overflow:hidden;">
-          ✅ Approve Letters &amp; Send
+          Approve Letters &amp; Send
         </button>
       </div>
+      {% endif %}
       {% endif %}
 
       <!-- Awaiting Response Action -->
@@ -1165,6 +1256,85 @@
       if (text) text.textContent = 'Generating...';
     });
   })();
+
+  // ── Review carousel ──
+  var reviewBureauColors = {};
+  document.querySelectorAll('.review-carousel-tab').forEach(function(tab, i) {
+    var panel = document.getElementById('review-carousel-' + i);
+    if (panel) {
+      var badge = panel.querySelector('[style*="background:linear-gradient"]');
+      if (badge) reviewBureauColors[i] = badge.style.background;
+    }
+  });
+
+  function showReviewCarousel(idx, tab) {
+    document.querySelectorAll('.review-carousel-panel').forEach(function(p) { p.style.display = 'none'; });
+    document.querySelectorAll('.review-carousel-tab').forEach(function(t) {
+      t.style.background = 'var(--glass-bg-secondary)';
+      t.style.color = 'var(--text-secondary)';
+      t.style.boxShadow = 'none';
+    });
+    var panel = document.getElementById('review-carousel-' + idx);
+    if (panel) panel.style.display = 'block';
+    if (tab) {
+      tab.style.background = reviewBureauColors[idx] || 'var(--accent)';
+      tab.style.color = '#fff';
+      tab.style.boxShadow = '0 4px 15px rgba(0,0,0,0.15)';
+    }
+  }
+
+  // Load letter text into review textareas on page load
+  document.querySelectorAll('.review-carousel-panel textarea[data-letter-id]').forEach(function(ta) {
+    var letterId = ta.dataset.letterId;
+    if (letterId) {
+      fetch('/api/pipeline/letter/' + letterId)
+        .then(function(r) { return r.json(); })
+        .then(function(data) { ta.value = data.letter_text || 'No letter text found.'; })
+        .catch(function() { ta.value = 'Error loading letter.'; });
+    }
+  });
+
+  function regenerateLetter(letterId) {
+    // TODO: Call regenerate endpoint and reload letter text
+    alert('Regenerate is not yet implemented for pipeline letters.');
+  }
+
+  function approveAllLetters(pipelineId) {
+    var btn = document.getElementById('approveAllBtn');
+    btn.disabled = true;
+    btn.textContent = 'Approving...';
+    btn.style.opacity = '0.6';
+
+    // Save any edited letters first
+    var savePromises = [];
+    document.querySelectorAll('.review-carousel-panel textarea[data-letter-id]').forEach(function(ta) {
+      var letterId = ta.dataset.letterId;
+      if (letterId) {
+        savePromises.push(
+          fetch('/api/pipeline/letter/' + letterId, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({letter_text: ta.value})
+          })
+        );
+      }
+    });
+
+    Promise.all(savePromises).then(function() {
+      return fetch('/api/pipeline/' + pipelineId + '/approve', {method: 'POST'});
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.message) { location.reload(); }
+      else { alert(d.error || 'Error'); btn.disabled = false; btn.textContent = 'Approve & Send'; btn.style.opacity = '1'; }
+    })
+    .catch(function(err) {
+      alert('Error: ' + err.message);
+      btn.disabled = false;
+      btn.textContent = 'Approve & Send';
+      btn.style.opacity = '1';
+    });
+  }
 
   // ── Letter editor modal ──
   function openLetterEditor(letterId, title) {
