@@ -93,6 +93,25 @@
     </div>
   </div>
 
+  {# ── ID Upload (shared across all letters) ── #}
+  <div class="glass-card glass-p mb-6 glass-animate-in" style="animation-delay:0.06s;">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="glass-icon-well" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
+        {{ icons.icon_id(size=18, uid='t1id') }}
+      </div>
+      <div>
+        <h3 class="text-base font-semibold" style="color:var(--text-primary);">Attach Your ID</h3>
+        <p class="text-xs" style="color:var(--text-tertiary);">Included with all letters. Photo ID required by bureaus.</p>
+      </div>
+    </div>
+
+    <div class="glass-inset rounded-xl p-4">
+      <input type="file" id="idFileUpload" accept="image/*,.pdf"
+             class="glass-input w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-[var(--accent)]" />
+      <p class="text-xs mt-2" style="color:var(--text-tertiary);">JPG, PNG, or PDF accepted.</p>
+    </div>
+  </div>
+
   {# ── Mail Options (shared across all letters) ── #}
   <div class="glass-card glass-p mb-6 glass-animate-in" style="animation-delay:0.08s;">
     <div class="flex items-center gap-3 mb-4">
@@ -233,7 +252,8 @@
 
       {% if not L.mailed_at %}
         <form method="POST" action="{{ url_for('disputes.tier1_mail', letter_id=L.id) }}"
-              class="tier1-mail-form inline-flex" data-bureau="{{ L.bureau }}">
+              class="tier1-mail-form inline-flex" data-bureau="{{ L.bureau }}"
+              enctype="multipart/form-data">
           <input type="hidden" name="mail_class" class="js-mail-class" />
           <input type="hidden" name="servicelevel" class="js-servicelevel" />
           <input type="hidden" name="color" class="js-color" />
@@ -245,6 +265,7 @@
           <input type="hidden" name="from_city" class="js-from-city" />
           <input type="hidden" name="from_state" class="js-from-state" />
           <input type="hidden" name="from_zip" class="js-from-zip" />
+          <input type="file" name="id_file" class="js-id-file" style="display:none;" />
 
           <button type="submit"
                   class="glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge text-xs px-4 py-2 flex items-center gap-1.5"
@@ -399,6 +420,14 @@ function showNoticeTab(idx) {
     form.querySelector('.js-color').value            = opts.color;
     form.querySelector('.js-doublesided').value       = opts.doublesided;
     form.querySelector('.js-return-envelope').value   = opts.return_envelope;
+    // Copy ID file into form
+    var idUpload = document.getElementById('idFileUpload');
+    var formFileInput = form.querySelector('.js-id-file');
+    if (idUpload && idUpload.files.length > 0 && formFileInput) {
+      var dt = new DataTransfer();
+      dt.items.add(idUpload.files[0]);
+      formFileInput.files = dt.files;
+    }
   }
 
   // Individual mail buttons

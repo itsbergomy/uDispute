@@ -158,6 +158,22 @@ def upload_pdf():
                 return redirect(url_for('disputes.upload_pdf'))
             session['negative_items'] = negative_items
 
+            # Auto-detect which bureau's report was uploaded
+            try:
+                import pdfplumber
+                with pdfplumber.open(filepath) as _pdf:
+                    _header = "\n".join(p.extract_text() or "" for p in _pdf.pages[:2])[:1500].lower()
+                if 'experian' in _header:
+                    session['detected_bureau'] = 'Experian'
+                elif 'transunion' in _header:
+                    session['detected_bureau'] = 'TransUnion'
+                elif 'equifax' in _header:
+                    session['detected_bureau'] = 'Equifax'
+                else:
+                    session['detected_bureau'] = None
+            except Exception:
+                session['detected_bureau'] = None
+
             existing_round = DisputeRound.query.filter_by(
                 user_id=current_user.id,
                 pdf_hash=pdf_hash
@@ -282,7 +298,8 @@ def tier1_notice():
         flash("No accounts found. Please upload a credit report first.", "error")
         return redirect(url_for('disputes.upload_pdf'))
 
-    # Normalize bureau names to match BUREAU_ADDRESSES keys
+    # Normalize bureau names — fall back to auto-detected bureau
+    detected = session.get('detected_bureau')
     BUREAU_NAME_MAP = {
         'experian': 'Experian',
         'transunion': 'TransUnion',
@@ -291,8 +308,10 @@ def tier1_notice():
 
     accounts_by_bureau = {}
     for item in items:
-        raw = (item.get('bureau') or 'Unknown').lower().strip()
-        bureau = BUREAU_NAME_MAP.get(raw, raw.title())
+        raw = (item.get('bureau') or '').lower().strip()
+        bureau = BUREAU_NAME_MAP.get(raw)
+        if not bureau:
+            bureau = detected or 'Unknown'
         if bureau not in accounts_by_bureau:
             accounts_by_bureau[bureau] = []
         accounts_by_bureau[bureau].append(item)
@@ -313,7 +332,8 @@ def generate_tier1_notices():
         flash("No accounts found. Please upload a credit report first.", "error")
         return redirect(url_for('disputes.upload_pdf'))
 
-    # Normalize bureau names
+    # Normalize bureau names — fall back to auto-detected bureau
+    detected = session.get('detected_bureau')
     BUREAU_NAME_MAP = {
         'experian': 'Experian',
         'transunion': 'TransUnion',
@@ -321,8 +341,10 @@ def generate_tier1_notices():
     }
     accounts_by_bureau = {}
     for item in items:
-        raw = (item.get('bureau') or 'Unknown').lower().strip()
-        bureau = BUREAU_NAME_MAP.get(raw, raw.title())
+        raw = (item.get('bureau') or '').lower().strip()
+        bureau = BUREAU_NAME_MAP.get(raw)
+        if not bureau:
+            bureau = detected or 'Unknown'
         if bureau not in accounts_by_bureau:
             accounts_by_bureau[bureau] = []
         accounts_by_bureau[bureau].append(item)
