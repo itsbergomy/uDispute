@@ -239,7 +239,7 @@
       </div>
 
       <!-- State Stepper -->
-      <div class="flex items-center gap-1.5 mb-4 overflow-x-auto pb-1" id="stateStepper">
+      <div class="flex items-center gap-1.5 mb-4 overflow-x-auto py-2 px-1" id="stateStepper">
         {% set states = ['intake', 'strategy', 'generation', 'review', 'delivery', 'awaiting_response', 'round_review', 'completed'] %}
         {% set state_labels = {'intake':'Intake', 'strategy':'Strategy', 'generation':'Letters', 'review':'Review', 'delivery':'Delivery', 'awaiting_response':'Awaiting', 'round_review':'Round Review', 'completed':'Done'} %}
         {% set current = pipeline_status.state %}

@@ -343,7 +343,10 @@ def handle_intake(pipeline):
 
     # Extract negative items here since we skip the analysis step
     # (user runs the full analyzer manually before starting the agent)
-    negative_items = extract_negative_items_from_pdf(pdf_path)
+    try:
+        negative_items = extract_negative_items_from_pdf(pdf_path)
+    except Exception as exc:
+        raise ValueError(f"Failed to extract accounts from PDF: {exc}")
 
     # Pull existing analysis from DB if available (user ran analyzer earlier)
     analysis = {}

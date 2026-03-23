@@ -44,18 +44,19 @@ def _run_pipeline_bg(pipeline_id):
                 logger.info(f"[BG Thread] Advancing pipeline {pipeline_id}")
                 advance_pipeline(pipeline_id)
                 logger.info(f"[BG Thread] Pipeline {pipeline_id} advanced OK")
-        except Exception:
+        except Exception as exc:
             logger.exception(f"[BG Thread] Pipeline {pipeline_id} failed")
             # Mark pipeline as failed so the UI shows an error
             try:
                 with app.app_context():
+                    db.session.rollback()
                     pipe = DisputePipeline.query.get(pipeline_id)
                     if pipe and pipe.state not in ('completed', 'failed'):
                         pipe.state = 'failed'
-                        pipe.error_message = 'Background processing error — check server logs'
+                        pipe.error_message = f'Pipeline error: {str(exc)[:200]}'
                         db.session.commit()
-            except Exception:
-                pass
+            except Exception as inner_exc:
+                logger.error(f"[BG Thread] Could not mark pipeline {pipeline_id} as failed: {inner_exc}")
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()
