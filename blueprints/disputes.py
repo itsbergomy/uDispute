@@ -539,9 +539,9 @@ def tier1_mail(letter_id):
     mail_options = {
         'mail_class': request.form.get('mail_class', 'usps_first_class'),
         'servicelevel': request.form.get('servicelevel', ''),
-        'color': 'false',
-        'doublesided': 'false',
-        'return_envelope': 'false',
+        'color': 'true' if request.form.get('color') == 'true' else 'false',
+        'doublesided': 'true' if request.form.get('doublesided') == 'true' else 'false',
+        'return_envelope': 'true' if request.form.get('return_envelope') == 'true' else 'false',
     }
 
     byok_token = get_docupost_token(current_user.id)
