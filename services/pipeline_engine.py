@@ -380,6 +380,12 @@ def handle_intake(pipeline):
     strategy_data['analysis'] = analysis
     pipeline.strategy_json = json.dumps(strategy_data)
 
+    # Keep DB connection alive after potentially long PDF extraction
+    try:
+        db.session.execute(db.text('SELECT 1'))
+    except Exception:
+        db.session.rollback()
+
     db.session.commit()
 
     return 'strategy'  # Skip analysis — user runs analyzer manually before starting agent
@@ -519,6 +525,12 @@ def handle_strategy(pipeline):
                 round_number=pipeline.round_number,
             )
             db.session.add(account)
+
+    # Keep DB connection alive after long OpenAI API call
+    try:
+        db.session.execute(db.text('SELECT 1'))
+    except Exception:
+        db.session.rollback()
 
     db.session.commit()
     return 'generation'
