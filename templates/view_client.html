@@ -1126,6 +1126,75 @@
 {% block scripts %}
 {{ super() }}
 <script>
+  // ── Pipeline status polling — real-time stepper updates ──
+  (function() {
+    const stepper = document.getElementById('stateStepper');
+    const pipelineCard = document.getElementById('pipelineCard');
+    if (!stepper || !pipelineCard) return;
+
+    const pipelineId = {{ pipeline_status.id if pipeline_status else 0 }};
+    if (!pipelineId) return;
+
+    const states = ['intake', 'strategy', 'generation', 'review', 'delivery', 'awaiting_response', 'round_review', 'completed'];
+    const labels = {intake:'Intake', strategy:'Strategy', generation:'Letters', review:'Review', delivery:'Delivery', awaiting_response:'Awaiting', round_review:'Round Review', completed:'Done'};
+    const waitStates = ['review', 'awaiting_response', 'round_review', 'completed', 'failed'];
+
+    let lastState = '{{ pipeline_status.state if pipeline_status else "" }}';
+
+    function updateStepper(currentState) {
+      const idx = states.indexOf(currentState);
+      const chips = stepper.querySelectorAll('.glass-step-chip');
+      let chipIdx = 0;
+      states.forEach((s, i) => {
+        if (chipIdx >= chips.length) return;
+        const chip = chips[chipIdx];
+        chip.className = 'glass-step-chip';
+        if (s === currentState && currentState !== 'failed') {
+          chip.classList.add('glass-step-chip--active', 'glass-breathe-fast');
+          chip.textContent = labels[s];
+        } else if (idx >= 0 && i < idx) {
+          chip.classList.add('glass-step-chip--done');
+          chip.textContent = '✓ ' + labels[s];
+        } else {
+          chip.textContent = labels[s];
+        }
+        chipIdx++;
+        // Skip connector divs
+        if (chipIdx < chips.length && !chips[chipIdx].classList.contains('glass-step-chip')) chipIdx++;
+      });
+    }
+
+    function pollStatus() {
+      fetch('/api/pipeline/' + pipelineId + '/status')
+        .then(r => r.json())
+        .then(data => {
+          if (data.state && data.state !== lastState) {
+            lastState = data.state;
+            updateStepper(data.state);
+
+            // If moved to a wait state or terminal, reload for full UI update
+            if (waitStates.includes(data.state)) {
+              window.location.reload();
+              return;
+            }
+          }
+          // Keep polling if pipeline is still running
+          if (!waitStates.includes(lastState)) {
+            setTimeout(pollStatus, 5000);
+          }
+        })
+        .catch(() => {
+          // Retry on network errors
+          setTimeout(pollStatus, 10000);
+        });
+    }
+
+    // Start polling if pipeline is in an active (non-wait) state
+    if (!waitStates.includes(lastState)) {
+      setTimeout(pollStatus, 3000);
+    }
+  })();
+
   // ── Tab switching ──
   function switchTab(tabName) {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));

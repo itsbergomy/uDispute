@@ -238,25 +238,30 @@ def advance_pipeline(pipeline_id):
             advance_pipeline(pipeline_id)
 
     except Exception as e:
-        logger.exception(f"Pipeline {pipeline_id} failed at {pipeline.state}")
+        failed_state = pipeline.state if pipeline else 'unknown'
+        logger.exception(f"Pipeline {pipeline_id} failed at {failed_state}: {e}")
         try:
             db.session.rollback()
         except Exception:
             pass
-        # Re-fetch pipeline and task after rollback to avoid stale references
-        pipeline = DisputePipeline.query.get(pipeline_id)
-        task = PipelineTask.query.filter_by(
-            pipeline_id=pipeline_id, task_type=pipeline.state if not pipeline else 'unknown'
-        ).order_by(PipelineTask.created_at.desc()).first()
-        if pipeline:
-            pipeline.state = 'failed'
-            pipeline.error_message = str(e)[:500]
-            pipeline.updated_at = datetime.utcnow()
-        if task:
-            task.state = 'failed'
-            task.error_message = str(e)[:500]
-            task.completed_at = datetime.utcnow()
-        db.session.commit()
+        # Re-fetch after rollback to get clean references
+        try:
+            pipeline = DisputePipeline.query.get(pipeline_id)
+            if pipeline:
+                pipeline.state = 'failed'
+                pipeline.error_message = str(e)[:500]
+                pipeline.updated_at = datetime.utcnow()
+            # Find the most recent task for this pipeline
+            task = PipelineTask.query.filter_by(
+                pipeline_id=pipeline_id
+            ).order_by(PipelineTask.created_at.desc()).first()
+            if task and task.state == 'running':
+                task.state = 'failed'
+                task.error_message = str(e)[:500]
+                task.completed_at = datetime.utcnow()
+            db.session.commit()
+        except Exception as inner:
+            logger.error(f"Could not mark pipeline {pipeline_id} as failed: {inner}")
 
 
 def get_pipeline_status(pipeline_id):
