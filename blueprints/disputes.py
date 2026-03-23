@@ -57,11 +57,11 @@ BUREAU_ADDRESSES = {
     'Experian': {
         'name': 'Experian',
         'company': 'Experian Disputes',
-        'address1': 'P.O. Box 4500',
+        'address1': '475 Anton Boulevard',
         'address2': '',
-        'city': 'Allen',
-        'state': 'TX',
-        'zip': '75013',
+        'city': 'Costa Mesa',
+        'state': 'CA',
+        'zip': '92626',
     },
 }
 
@@ -329,40 +329,55 @@ def generate_tier1_notices():
 
     # Build client context from current user
     user = current_user
-    base_context = {
-        'client_full_name': f"{user.first_name} {user.last_name}",
-        'client_address': '',
-        'client_city_state_zip': '',
-        'today_date': datetime.utcnow().strftime('%B %d, %Y'),
-    }
+    client_name = f"{user.first_name} {user.last_name}"
+    client_email = user.email or '[Your Email]'
+    today_date = datetime.utcnow().strftime('%B %d, %Y')
 
     generated_ids = []
     errors = []
 
     for bureau, accounts in accounts_by_bureau.items():
-        # Fresh copy per bureau so address doesn't bleed across iterations
-        client_context = dict(base_context)
-
-        # Get bureau mailing address
         bureau_info = BUREAU_ADDRESSES.get(bureau, {})
-        if bureau_info:
-            client_context['bureau_address'] = (
-                f"{bureau_info.get('address1', '')}, "
-                f"{bureau_info.get('city', '')} {bureau_info.get('state', '')} {bureau_info.get('zip', '')}"
-            )
+        bureau_block = f"{bureau}\n{bureau_info.get('address1', '')}"
+        if bureau_info.get('address2'):
+            bureau_block += f"\n{bureau_info['address2']}"
+        bureau_block += f"\n{bureau_info.get('city', '')}, {bureau_info.get('state', '')} {bureau_info.get('zip', '')}"
 
-        # ── Generate letter via GPT with error handling ──
-        try:
-            prompt, _, _ = build_notice_of_dispute_prompt(bureau, accounts, client_context)
-            letter_text = generate_letter(prompt, is_notice=True)
-        except Exception as e:
-            traceback.print_exc()
-            errors.append(f"{bureau}: {str(e)}")
-            continue
+        # Build account list
+        account_lines = []
+        for a in accounts:
+            acct_name = a.get('account_name', 'Unknown')
+            acct_num = a.get('account_number', 'XXXX')
+            account_lines.append(f"{acct_name}, Account # {acct_num}")
+        account_block = '\n'.join(account_lines)
 
-        if not letter_text or not letter_text.strip():
-            errors.append(f"{bureau}: GPT returned an empty letter.")
-            continue
+        # ── Hardcoded Notice of Dispute template ──
+        letter_text = f"""{client_name}
+[Your Address]
+[City, State ZIP]
+
+SSN: ***-**-[Last 4]
+
+{today_date}
+
+{bureau_block}
+
+Notice of Dispute
+
+Dear {bureau},
+
+I am writing to formally dispute the inclusion of the following account(s) associated with my credit file:
+
+{account_block}
+
+Please be advised that at no point was permission or consent provided to {bureau} for adding these account(s) to my credit history. These unauthorized entries have negatively impacted my credit score. I request a thorough investigation into this matter and the subsequent removal of the aforementioned account(s) from my credit report.
+
+Below is my ID.
+
+Sincerely,
+
+{client_name}
+{client_email}"""
 
         # ── Convert letter to PDF and upload ──
         pdf_url = None
