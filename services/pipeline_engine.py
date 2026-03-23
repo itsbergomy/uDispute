@@ -239,13 +239,23 @@ def advance_pipeline(pipeline_id):
 
     except Exception as e:
         logger.exception(f"Pipeline {pipeline_id} failed at {pipeline.state}")
-        task.state = 'failed'
-        task.error_message = str(e)
-        task.completed_at = datetime.utcnow()
-
-        pipeline.state = 'failed'
-        pipeline.error_message = str(e)
-        pipeline.updated_at = datetime.utcnow()
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        # Re-fetch pipeline and task after rollback to avoid stale references
+        pipeline = DisputePipeline.query.get(pipeline_id)
+        task = PipelineTask.query.filter_by(
+            pipeline_id=pipeline_id, task_type=pipeline.state if not pipeline else 'unknown'
+        ).order_by(PipelineTask.created_at.desc()).first()
+        if pipeline:
+            pipeline.state = 'failed'
+            pipeline.error_message = str(e)[:500]
+            pipeline.updated_at = datetime.utcnow()
+        if task:
+            task.state = 'failed'
+            task.error_message = str(e)[:500]
+            task.completed_at = datetime.utcnow()
         db.session.commit()
 
 
@@ -519,10 +529,19 @@ def handle_generation(pipeline):
     strategy_data = json.loads(pipeline.strategy_json or '{}')
     parsed_accounts = strategy_data.get('negative_items', [])
 
+    generated_count = 0
     for account in accounts:
         # Skip CFPB escalation (handled differently)
         if account.bureau == 'cfpb':
             continue
+
+        # Keep DB connection alive between long API calls
+        try:
+            db.session.execute(db.text('SELECT 1'))
+        except Exception:
+            db.session.rollback()
+
+        logger.info(f"Generating letter for {account.account_name} / {account.bureau}")
 
         # Determine recipient for context
         if send_to == 'creditors':
@@ -565,32 +584,46 @@ def handle_generation(pipeline):
                 logger.warning(f"Legal research failed for {account.account_name}: {e}")
 
         # Build the letter — custom letter = pure template fill (no GPT), prompt packs = GPT
-        custom_letter_id = agent_config.get('custom_letter_id')
-        if custom_letter_id:
-            custom = CustomLetter.query.get(custom_letter_id)
-            if custom:
-                # Pure template passthrough — inject bureau/account/client data, skip GPT
-                letter_text = _sanitize_letter(custom.body, context)
+        try:
+            custom_letter_id = agent_config.get('custom_letter_id')
+            if custom_letter_id:
+                custom = CustomLetter.query.get(custom_letter_id)
+                if custom:
+                    # Pure template passthrough — inject bureau/account/client data, skip GPT
+                    letter_text = _sanitize_letter(custom.body, context)
+                else:
+                    prompt, has_inaccuracies, has_legal = build_prompt(account.template_pack, 0, context, parsed_accounts=relevant_accounts, legal_research_context=legal_context)
+                    letter_text = _sanitize_letter(generate_letter(prompt, has_inaccuracies=has_inaccuracies, has_legal_research=has_legal), context)
             else:
                 prompt, has_inaccuracies, has_legal = build_prompt(account.template_pack, 0, context, parsed_accounts=relevant_accounts, legal_research_context=legal_context)
                 letter_text = _sanitize_letter(generate_letter(prompt, has_inaccuracies=has_inaccuracies, has_legal_research=has_legal), context)
-        else:
-            prompt, has_inaccuracies, has_legal = build_prompt(account.template_pack, 0, context, parsed_accounts=relevant_accounts, legal_research_context=legal_context)
-            letter_text = _sanitize_letter(generate_letter(prompt, has_inaccuracies=has_inaccuracies, has_legal_research=has_legal), context)
 
-        # Save to database (stamp round_number for round-scoped tracking)
-        letter_record = ClientDisputeLetter(
-            client_id=client.id,
-            letter_text=letter_text,
-            status='Draft',
-            template_name=f"{account.template_pack} - {account.bureau}",
-            round_number=pipeline.round_number,
-        )
-        db.session.add(letter_record)
-        db.session.flush()  # Get the ID
+            # Save to database (stamp round_number for round-scoped tracking)
+            letter_record = ClientDisputeLetter(
+                client_id=client.id,
+                letter_text=letter_text,
+                status='Draft',
+                template_name=f"{account.template_pack} - {account.bureau}",
+                round_number=pipeline.round_number,
+            )
+            db.session.add(letter_record)
+            db.session.flush()  # Get the ID
 
-        account.letter_id = letter_record.id
-        db.session.commit()
+            account.letter_id = letter_record.id
+            db.session.commit()
+            generated_count += 1
+            logger.info(f"Generated letter {generated_count} for {account.account_name} / {account.bureau}")
+
+        except Exception as e:
+            logger.error(f"Failed to generate letter for {account.account_name} / {account.bureau}: {e}")
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            continue  # Skip this letter, try the next one
+
+    if generated_count == 0:
+        raise ValueError("Failed to generate any letters — all API calls failed")
 
     return 'review'
 
