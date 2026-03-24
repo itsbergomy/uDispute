@@ -1666,7 +1666,7 @@
     const status = document.getElementById('portalStatus');
     btn.textContent = 'Generating...';
     btn.disabled = true;
-    fetch('/clients/' + clientId + '/portal-token', { method: 'POST' })
+    fetch('/clients/' + clientId + '/portal/generate', { method: 'POST' })
       .then(r => r.json())
       .then(data => {
         if (data.token) { location.reload(); }
@@ -1677,7 +1677,7 @@
 
   function revokePortalLink(clientId) {
     if (!confirm('Revoke this portal link?')) return;
-    fetch('/clients/' + clientId + '/portal-token', { method: 'DELETE' })
+    fetch('/clients/' + clientId + '/portal/revoke', { method: 'POST' })
       .then(r => r.json())
       .then(data => { location.reload(); })
       .catch(() => { alert('Error revoking link'); });
