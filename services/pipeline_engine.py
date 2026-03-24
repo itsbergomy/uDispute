@@ -446,6 +446,10 @@ def handle_analysis(pipeline):
 
 def handle_strategy(pipeline):
     """Dispute ALL extracted accounts — every negative item gets a letter."""
+    # Cache scalar values so we can survive session detach/reconnect
+    pipeline_id = pipeline.id
+    round_number = pipeline.round_number
+
     strategy_data = json.loads(pipeline.strategy_json or '{}')
     negative_items = strategy_data.get('negative_items', [])
     analysis = strategy_data.get('analysis', {})
@@ -498,13 +502,13 @@ def handle_strategy(pipeline):
     round_packs = agent_config.get('round_packs', [])
     send_to = agent_config.get('send_to', 'bureaus')
 
-    if round_packs and pipeline.round_number <= len(round_packs):
+    if round_packs and round_number <= len(round_packs):
         # User-configured pack for this round
-        pack = round_packs[pipeline.round_number - 1]
-        level = pipeline.round_number
+        pack = round_packs[round_number - 1]
+        level = round_number
     else:
         # Fallback to escalation map
-        escalation = get_escalation_config(pipeline.round_number)
+        escalation = get_escalation_config(round_number)
         pack = escalation['pack']
         level = escalation['level']
 
@@ -520,10 +524,10 @@ def handle_strategy(pipeline):
     # Create DisputeAccount records for each account x target
     for decision in decisions:
         for target in targets:
-            action, issue = build_dispute_reason(decision, pipeline.round_number)
+            action, issue = build_dispute_reason(decision, round_number)
 
             account = DisputeAccount(
-                pipeline_id=pipeline.id,
+                pipeline_id=pipeline_id,
                 account_name=decision.get('account_name', ''),
                 account_number=decision.get('account_number', ''),
                 bureau=target,
@@ -532,7 +536,7 @@ def handle_strategy(pipeline):
                 template_pack=pack,
                 dispute_reason=decision.get('legal_basis', ''),
                 escalation_level=level,
-                round_number=pipeline.round_number,
+                round_number=round_number,
             )
             db.session.add(account)
 
@@ -555,16 +559,16 @@ def handle_strategy(pipeline):
         except Exception as commit_err:
             db.session.rollback()
             if attempt < 2:
-                # Re-read the pipeline and re-create accounts
+                # Re-read the pipeline and re-create accounts using cached IDs
                 db.session.remove()
-                pipeline = DisputePipeline.query.get(pipeline.id)
+                pipeline = DisputePipeline.query.get(pipeline_id)
                 pipeline.strategy_json = json.dumps(strategy_data)
 
                 for decision in decisions:
                     for target in targets:
-                        action, issue = build_dispute_reason(decision, pipeline.round_number)
+                        action, issue = build_dispute_reason(decision, round_number)
                         account = DisputeAccount(
-                            pipeline_id=pipeline.id,
+                            pipeline_id=pipeline_id,
                             account_name=decision.get('account_name', ''),
                             account_number=decision.get('account_number', ''),
                             bureau=target,
@@ -573,7 +577,7 @@ def handle_strategy(pipeline):
                             template_pack=pack,
                             dispute_reason=decision.get('legal_basis', ''),
                             escalation_level=level,
-                            round_number=pipeline.round_number,
+                            round_number=round_number,
                         )
                         db.session.add(account)
             else:
