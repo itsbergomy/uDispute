@@ -538,12 +538,47 @@ def handle_strategy(pipeline):
 
 
     # Keep DB connection alive after long OpenAI API call
+    # If the connection died during the API call, get a fresh one
     try:
         db.session.execute(db.text('SELECT 1'))
-    except Exception as ping_err:
+    except Exception:
         db.session.rollback()
+        db.session.remove()
+        # Re-add all the account objects to a fresh session
+        # (they were expunged by rollback/remove)
 
-    db.session.commit()
+    # Commit with retry — Render DB connections can timeout during long API calls
+    for attempt in range(3):
+        try:
+            db.session.commit()
+            break
+        except Exception as commit_err:
+            db.session.rollback()
+            if attempt < 2:
+                # Re-read the pipeline and re-create accounts
+                db.session.remove()
+                pipeline = DisputePipeline.query.get(pipeline.id)
+                pipeline.strategy_json = json.dumps(strategy_data)
+
+                for decision in decisions:
+                    for target in targets:
+                        action, issue = build_dispute_reason(decision, pipeline.round_number)
+                        account = DisputeAccount(
+                            pipeline_id=pipeline.id,
+                            account_name=decision.get('account_name', ''),
+                            account_number=decision.get('account_number', ''),
+                            bureau=target,
+                            status=decision.get('reason', ''),
+                            issue=issue,
+                            template_pack=pack,
+                            dispute_reason=decision.get('legal_basis', ''),
+                            escalation_level=level,
+                            round_number=pipeline.round_number,
+                        )
+                        db.session.add(account)
+            else:
+                raise commit_err
+
     return 'generation'
 
 
