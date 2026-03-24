@@ -129,6 +129,26 @@ def create_app():
                 conn.execute(text("UPDATE mailed_letter SET outcome = 'pending' WHERE outcome IS NULL"))
                 conn.commit()
 
+            # ── dispute_accounts: widen status/issue columns ──
+            if 'dispute_accounts' in inspector.get_table_names():
+                da_cols = {c['name']: c for c in inspector.get_columns('dispute_accounts')}
+                if 'status' in da_cols:
+                    col_type = str(da_cols['status'].get('type', ''))
+                    if 'VARCHAR' in col_type.upper() or 'CHAR' in col_type.upper():
+                        try:
+                            conn.execute(text('ALTER TABLE dispute_accounts ALTER COLUMN status TYPE TEXT'))
+                            conn.commit()
+                        except Exception:
+                            conn.rollback()
+                if 'issue' in da_cols:
+                    col_type = str(da_cols['issue'].get('type', ''))
+                    if 'VARCHAR' in col_type.upper() or 'CHAR' in col_type.upper():
+                        try:
+                            conn.execute(text('ALTER TABLE dispute_accounts ALTER COLUMN issue TYPE TEXT'))
+                            conn.commit()
+                        except Exception:
+                            conn.rollback()
+
             # ── correspondence ──
             if 'correspondence' in inspector.get_table_names():
                 existing = [c['name'] for c in inspector.get_columns('correspondence')]

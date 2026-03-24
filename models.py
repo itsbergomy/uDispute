@@ -249,8 +249,8 @@ class DisputeAccount(db.Model):
     account_number = db.Column(db.String(100), nullable=False)
     bureau = db.Column(db.String(20), nullable=False)  # experian, transunion, equifax
 
-    status = db.Column(db.String(50), nullable=True)
-    issue = db.Column(db.String(200), nullable=True)
+    status = db.Column(db.Text, nullable=True)
+    issue = db.Column(db.Text, nullable=True)
     balance = db.Column(db.String(50), nullable=True)
 
     # Strategy fields
