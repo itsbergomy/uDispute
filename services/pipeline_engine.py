@@ -568,6 +568,7 @@ def handle_generation(pipeline):
             'id': a.id, 'account_name': a.account_name,
             'account_number': a.account_number, 'bureau': a.bureau,
             'template_pack': a.template_pack,
+            'status': a.status or '', 'issue': a.issue or '',
         })
 
     client = Client.query.get(client_id)
