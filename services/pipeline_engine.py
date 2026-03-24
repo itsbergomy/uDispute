@@ -446,45 +446,54 @@ def handle_analysis(pipeline):
 
 def handle_strategy(pipeline):
     """Dispute ALL extracted accounts — every negative item gets a letter."""
-    # Cache scalar values so we can survive session detach/reconnect
+    # ── PHASE 1: Read everything from DB into plain Python variables ──
     pipeline_id = pipeline.id
     round_number = pipeline.round_number
-
     strategy_data = json.loads(pipeline.strategy_json or '{}')
     negative_items = strategy_data.get('negative_items', [])
     analysis = strategy_data.get('analysis', {})
     agent_config = strategy_data.get('agent_config', {})
 
-
     if not negative_items:
         raise ValueError("No negative items found to dispute — run Extract Accounts first")
 
-    if pipeline.round_number > 1:
-        # Re-dispute: only accounts that came back verified or no_response
+    # For round > 1, read unresolved accounts into plain dicts
+    unresolved_dicts = []
+    if round_number > 1:
         unresolved = DisputeAccount.query.filter(
-            DisputeAccount.pipeline_id == pipeline.id,
+            DisputeAccount.pipeline_id == pipeline_id,
             DisputeAccount.outcome.in_(['verified', 'no_response']),
-            DisputeAccount.round_number == pipeline.round_number - 1,
+            DisputeAccount.round_number == round_number - 1,
         ).all()
+        unresolved_dicts = [
+            {'account_name': a.account_name, 'account_number': a.account_number}
+            for a in unresolved
+        ]
+
+    # ── PHASE 2: Release DB connection before any API calls ──
+    db.session.expunge_all()
+    db.session.remove()
+
+    # ── PHASE 3: Do all the thinking (API calls) with NO db connection ──
+    if round_number > 1:
         decisions = [
             {
-                'account_name': a.account_name,
-                'account_number': a.account_number,
-                'reason': f'Previous dispute was verified/no response. Escalating to round {pipeline.round_number}.',
+                'account_name': d['account_name'],
+                'account_number': d['account_number'],
+                'reason': f'Previous dispute was verified/no response. Escalating to round {round_number}.',
                 'legal_basis': '',
             }
-            for a in unresolved
+            for d in unresolved_dicts
         ]
     else:
         # Round 1: dispute EVERY negative item — no AI filtering
-        # Use AI only to enrich with legal basis / dispute reason
         try:
             decisions = select_accounts_for_dispute(
                 negative_items=negative_items,
                 analysis_data=analysis,
-                round_number=pipeline.round_number,
+                round_number=round_number,
             )
-        except Exception as e:
+        except Exception:
             decisions = []
         # Make sure every negative item is included even if AI skipped it
         ai_keys = {(d.get('account_name',''), d.get('account_number','')) for d in decisions}
@@ -503,29 +512,26 @@ def handle_strategy(pipeline):
     send_to = agent_config.get('send_to', 'bureaus')
 
     if round_packs and round_number <= len(round_packs):
-        # User-configured pack for this round
         pack = round_packs[round_number - 1]
         level = round_number
     else:
-        # Fallback to escalation map
         escalation = get_escalation_config(round_number)
         pack = escalation['pack']
         level = escalation['level']
 
-    # Determine targets (bureaus or creditors)
     if send_to == 'creditors':
         creditor_addresses = agent_config.get('creditor_addresses', [])
         targets = [c['name'] for c in creditor_addresses] if creditor_addresses else ['experian', 'transunion', 'equifax']
     else:
-        # All 3 bureaus for all rounds
         targets = ['experian', 'transunion', 'equifax']
 
+    # ── PHASE 4: Fresh DB connection — write everything at once ──
+    pipeline = DisputePipeline.query.get(pipeline_id)
+    pipeline.strategy_json = json.dumps(strategy_data)
 
-    # Create DisputeAccount records for each account x target
     for decision in decisions:
         for target in targets:
             action, issue = build_dispute_reason(decision, round_number)
-
             account = DisputeAccount(
                 pipeline_id=pipeline_id,
                 account_name=decision.get('account_name', ''),
@@ -540,49 +546,7 @@ def handle_strategy(pipeline):
             )
             db.session.add(account)
 
-
-    # Keep DB connection alive after long OpenAI API call
-    # If the connection died during the API call, get a fresh one
-    try:
-        db.session.execute(db.text('SELECT 1'))
-    except Exception:
-        db.session.rollback()
-        db.session.remove()
-        # Re-add all the account objects to a fresh session
-        # (they were expunged by rollback/remove)
-
-    # Commit with retry — Render DB connections can timeout during long API calls
-    for attempt in range(3):
-        try:
-            db.session.commit()
-            break
-        except Exception as commit_err:
-            db.session.rollback()
-            if attempt < 2:
-                # Re-read the pipeline and re-create accounts using cached IDs
-                db.session.remove()
-                pipeline = DisputePipeline.query.get(pipeline_id)
-                pipeline.strategy_json = json.dumps(strategy_data)
-
-                for decision in decisions:
-                    for target in targets:
-                        action, issue = build_dispute_reason(decision, round_number)
-                        account = DisputeAccount(
-                            pipeline_id=pipeline_id,
-                            account_name=decision.get('account_name', ''),
-                            account_number=decision.get('account_number', ''),
-                            bureau=target,
-                            status=decision.get('reason', ''),
-                            issue=issue,
-                            template_pack=pack,
-                            dispute_reason=decision.get('legal_basis', ''),
-                            escalation_level=level,
-                            round_number=round_number,
-                        )
-                        db.session.add(account)
-            else:
-                raise commit_err
-
+    db.session.commit()
     return 'generation'
 
 
