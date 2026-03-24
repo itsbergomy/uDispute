@@ -5,23 +5,9 @@ Each state has a handler that does one thing and returns the next state.
 
 import os
 import re
-import sys
 import json
 import logging
 from datetime import datetime
-
-# Force logging to stderr so gunicorn captures it
-logging.basicConfig(
-    stream=sys.stderr,
-    level=logging.INFO,
-    format='[%(levelname)s] %(name)s: %(message)s',
-    force=True,
-)
-
-def plog(msg):
-    """Print to stderr so gunicorn/Render captures it."""
-    sys.stderr.write(msg + '\n')
-    sys.stderr.flush()
 
 from models import (
     db, DisputePipeline, PipelineTask, DisputeAccount,
@@ -221,19 +207,15 @@ def advance_pipeline(pipeline_id):
 
         pipeline = DisputePipeline.query.get(pipeline_id)
         if not pipeline:
-            plog(f"[PIPELINE] Pipeline {pipeline_id} not found", flush=True)
             return
 
         current_state = pipeline.state
-        plog(f"[PIPELINE] Pipeline {pipeline_id} — current state: {current_state}", flush=True)
 
         if current_state in ('completed', 'failed'):
-            plog(f"[PIPELINE] Pipeline {pipeline_id} in terminal state: {current_state}", flush=True)
             return
 
         handler = STATE_HANDLERS.get(current_state)
         if not handler:
-            plog(f"[PIPELINE] No handler for state: {current_state}", flush=True)
             return
 
         # Create a task record for tracking
@@ -244,12 +226,9 @@ def advance_pipeline(pipeline_id):
         )
         db.session.add(task)
         db.session.commit()
-        plog(f"[PIPELINE] Created task for state: {current_state}", flush=True)
 
         try:
-            plog(f"[PIPELINE] Running handler: {handler.__name__}", flush=True)
             next_state = handler(pipeline)
-            plog(f"[PIPELINE] Handler returned: {next_state}", flush=True)
 
             # Keep DB alive before committing
             try:
@@ -265,16 +244,13 @@ def advance_pipeline(pipeline_id):
             pipeline.updated_at = datetime.utcnow()
             db.session.commit()
 
-            plog(f"[PIPELINE] Pipeline {pipeline_id}: {current_state} -> {next_state} ✓", flush=True)
 
             # If next state is a wait state, stop advancing
             if next_state in WAIT_STATES:
-                plog(f"[PIPELINE] Reached wait state: {next_state} — stopping", flush=True)
                 return
             # Otherwise, loop continues to next state
 
         except Exception as e:
-            plog(f"[PIPELINE] FAILED at {current_state}: {type(e).__name__}: {e}", flush=True)
             logger.exception(f"Pipeline {pipeline_id} failed at {current_state}: {e}")
             try:
                 db.session.rollback()
@@ -296,9 +272,7 @@ def advance_pipeline(pipeline_id):
                     task.error_message = str(e)[:500]
                     task.completed_at = datetime.utcnow()
                 db.session.commit()
-                plog(f"[PIPELINE] Marked pipeline as failed in DB ✓", flush=True)
             except Exception as inner:
-                plog(f"[PIPELINE] Could not mark as failed: {inner}", flush=True)
                 logger.error(f"Could not mark pipeline {pipeline_id} as failed: {inner}")
             return
 
@@ -397,12 +371,9 @@ def handle_intake(pipeline):
 
     # Extract negative items here since we skip the analysis step
     # (user runs the full analyzer manually before starting the agent)
-    plog(f"[PIPELINE-INTAKE] Extracting negative items from: {pdf_path}", flush=True)
     try:
         negative_items = extract_negative_items_from_pdf(pdf_path)
-        plog(f"[PIPELINE-INTAKE] Found {len(negative_items)} negative items", flush=True)
     except Exception as exc:
-        plog(f"[PIPELINE-INTAKE] FAILED to extract: {exc}", flush=True)
         raise ValueError(f"Failed to extract accounts from PDF: {exc}")
 
     # Pull existing analysis from DB if available (user ran analyzer earlier)
@@ -480,9 +451,6 @@ def handle_strategy(pipeline):
     analysis = strategy_data.get('analysis', {})
     agent_config = strategy_data.get('agent_config', {})
 
-    plog(f"[PIPELINE-STRATEGY] Starting strategy for pipeline {pipeline.id}", flush=True)
-    plog(f"[PIPELINE-STRATEGY] negative_items count: {len(negative_items)}", flush=True)
-    plog(f"[PIPELINE-STRATEGY] agent_config keys: {list(agent_config.keys())}", flush=True)
 
     if not negative_items:
         raise ValueError("No negative items found to dispute — run Extract Accounts first")
@@ -506,16 +474,13 @@ def handle_strategy(pipeline):
     else:
         # Round 1: dispute EVERY negative item — no AI filtering
         # Use AI only to enrich with legal basis / dispute reason
-        plog(f"[PIPELINE-STRATEGY] Calling select_accounts_for_dispute...", flush=True)
         try:
             decisions = select_accounts_for_dispute(
                 negative_items=negative_items,
                 analysis_data=analysis,
                 round_number=pipeline.round_number,
             )
-            plog(f"[PIPELINE-STRATEGY] AI returned {len(decisions)} decisions", flush=True)
         except Exception as e:
-            plog(f"[PIPELINE-STRATEGY] AI selection failed: {e}", flush=True)
             decisions = []
         # Make sure every negative item is included even if AI skipped it
         ai_keys = {(d.get('account_name',''), d.get('account_number','')) for d in decisions}
@@ -551,9 +516,6 @@ def handle_strategy(pipeline):
         # All 3 bureaus for all rounds
         targets = ['experian', 'transunion', 'equifax']
 
-    plog(f"[PIPELINE-STRATEGY] Creating {len(decisions)} x {len(targets)} = {len(decisions)*len(targets)} dispute accounts", flush=True)
-    plog(f"[PIPELINE-STRATEGY] Pack: {pack}, Level: {level}, Send to: {send_to}", flush=True)
-    plog(f"[PIPELINE-STRATEGY] Targets: {targets}", flush=True)
 
     # Create DisputeAccount records for each account x target
     for decision in decisions:
@@ -574,18 +536,14 @@ def handle_strategy(pipeline):
             )
             db.session.add(account)
 
-    plog(f"[PIPELINE-STRATEGY] All accounts added to session, about to commit...", flush=True)
 
     # Keep DB connection alive after long OpenAI API call
     try:
         db.session.execute(db.text('SELECT 1'))
-        plog(f"[PIPELINE-STRATEGY] DB keepalive OK", flush=True)
     except Exception as ping_err:
-        plog(f"[PIPELINE-STRATEGY] DB keepalive FAILED: {ping_err}", flush=True)
         db.session.rollback()
 
     db.session.commit()
-    plog(f"[PIPELINE-STRATEGY] Commit SUCCESS — returning 'generation'", flush=True)
     return 'generation'
 
 
