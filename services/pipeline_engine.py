@@ -195,73 +195,98 @@ def create_pipeline(client_id, user_id, config=None):
 
 def advance_pipeline(pipeline_id):
     """
-    Advance a pipeline to its next state.
+    Advance a pipeline through its states iteratively (not recursively).
     This is the main entry point — called by the task queue or directly.
     """
-    pipeline = DisputePipeline.query.get(pipeline_id)
-    if not pipeline:
-        logger.error(f"Pipeline {pipeline_id} not found")
-        return
-
-    if pipeline.state in ('completed', 'failed'):
-        logger.info(f"Pipeline {pipeline_id} already in terminal state: {pipeline.state}")
-        return
-
-    handler = STATE_HANDLERS.get(pipeline.state)
-    if not handler:
-        logger.error(f"No handler for state: {pipeline.state}")
-        return
-
-    # Create a task record for tracking
-    task = PipelineTask(
-        pipeline_id=pipeline.id,
-        task_type=pipeline.state,
-        state='running',
-    )
-    db.session.add(task)
-    db.session.commit()
-
-    try:
-        next_state = handler(pipeline)
-        task.state = 'completed'
-        task.completed_at = datetime.utcnow()
-        task.output_json = json.dumps({'next_state': next_state})
-
-        pipeline.state = next_state
-        pipeline.updated_at = datetime.utcnow()
-        db.session.commit()
-
-        logger.info(f"Pipeline {pipeline_id}: {task.task_type} -> {next_state}")
-
-        # If the next state is not a wait state, keep advancing
-        if next_state not in WAIT_STATES:
-            advance_pipeline(pipeline_id)
-
-    except Exception as e:
-        failed_state = pipeline.state if pipeline else 'unknown'
-        logger.exception(f"Pipeline {pipeline_id} failed at {failed_state}: {e}")
+    while True:
+        # Re-fetch pipeline each iteration to get fresh state
         try:
-            db.session.rollback()
+            db.session.execute(db.text('SELECT 1'))
         except Exception:
-            pass
-        # Re-fetch after rollback to get clean references
+            db.session.rollback()
+
+        pipeline = DisputePipeline.query.get(pipeline_id)
+        if not pipeline:
+            print(f"[PIPELINE] Pipeline {pipeline_id} not found", flush=True)
+            return
+
+        current_state = pipeline.state
+        print(f"[PIPELINE] Pipeline {pipeline_id} — current state: {current_state}", flush=True)
+
+        if current_state in ('completed', 'failed'):
+            print(f"[PIPELINE] Pipeline {pipeline_id} in terminal state: {current_state}", flush=True)
+            return
+
+        handler = STATE_HANDLERS.get(current_state)
+        if not handler:
+            print(f"[PIPELINE] No handler for state: {current_state}", flush=True)
+            return
+
+        # Create a task record for tracking
+        task = PipelineTask(
+            pipeline_id=pipeline.id,
+            task_type=current_state,
+            state='running',
+        )
+        db.session.add(task)
+        db.session.commit()
+        print(f"[PIPELINE] Created task for state: {current_state}", flush=True)
+
         try:
-            pipeline = DisputePipeline.query.get(pipeline_id)
-            if pipeline:
-                pipeline.state = 'failed'
-                pipeline.error_message = str(e)[:500]
-                pipeline.updated_at = datetime.utcnow()
-            # Find the most recent task for this pipeline
-            task = PipelineTask.query.filter_by(
-                pipeline_id=pipeline_id
-            ).order_by(PipelineTask.created_at.desc()).first()
-            if task and task.state == 'running':
-                task.state = 'failed'
-                task.error_message = str(e)[:500]
-                task.completed_at = datetime.utcnow()
+            print(f"[PIPELINE] Running handler: {handler.__name__}", flush=True)
+            next_state = handler(pipeline)
+            print(f"[PIPELINE] Handler returned: {next_state}", flush=True)
+
+            # Keep DB alive before committing
+            try:
+                db.session.execute(db.text('SELECT 1'))
+            except Exception:
+                db.session.rollback()
+
+            task.state = 'completed'
+            task.completed_at = datetime.utcnow()
+            task.output_json = json.dumps({'next_state': next_state})
+
+            pipeline.state = next_state
+            pipeline.updated_at = datetime.utcnow()
             db.session.commit()
-        except Exception as inner:
-            logger.error(f"Could not mark pipeline {pipeline_id} as failed: {inner}")
+
+            print(f"[PIPELINE] Pipeline {pipeline_id}: {current_state} -> {next_state} ✓", flush=True)
+
+            # If next state is a wait state, stop advancing
+            if next_state in WAIT_STATES:
+                print(f"[PIPELINE] Reached wait state: {next_state} — stopping", flush=True)
+                return
+            # Otherwise, loop continues to next state
+
+        except Exception as e:
+            print(f"[PIPELINE] FAILED at {current_state}: {type(e).__name__}: {e}", flush=True)
+            logger.exception(f"Pipeline {pipeline_id} failed at {current_state}: {e}")
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            # Re-fetch after rollback
+            try:
+                db.session.execute(db.text('SELECT 1'))
+                pipeline = DisputePipeline.query.get(pipeline_id)
+                if pipeline:
+                    pipeline.state = 'failed'
+                    pipeline.error_message = f"{current_state}: {str(e)[:450]}"
+                    pipeline.updated_at = datetime.utcnow()
+                task = PipelineTask.query.filter_by(
+                    pipeline_id=pipeline_id
+                ).order_by(PipelineTask.created_at.desc()).first()
+                if task and task.state == 'running':
+                    task.state = 'failed'
+                    task.error_message = str(e)[:500]
+                    task.completed_at = datetime.utcnow()
+                db.session.commit()
+                print(f"[PIPELINE] Marked pipeline as failed in DB ✓", flush=True)
+            except Exception as inner:
+                print(f"[PIPELINE] Could not mark as failed: {inner}", flush=True)
+                logger.error(f"Could not mark pipeline {pipeline_id} as failed: {inner}")
+            return
 
 
 def get_pipeline_status(pipeline_id):
@@ -358,9 +383,12 @@ def handle_intake(pipeline):
 
     # Extract negative items here since we skip the analysis step
     # (user runs the full analyzer manually before starting the agent)
+    print(f"[PIPELINE-INTAKE] Extracting negative items from: {pdf_path}", flush=True)
     try:
         negative_items = extract_negative_items_from_pdf(pdf_path)
+        print(f"[PIPELINE-INTAKE] Found {len(negative_items)} negative items", flush=True)
     except Exception as exc:
+        print(f"[PIPELINE-INTAKE] FAILED to extract: {exc}", flush=True)
         raise ValueError(f"Failed to extract accounts from PDF: {exc}")
 
     # Pull existing analysis from DB if available (user ran analyzer earlier)
@@ -438,10 +466,12 @@ def handle_strategy(pipeline):
     analysis = strategy_data.get('analysis', {})
     agent_config = strategy_data.get('agent_config', {})
 
+    print(f"[PIPELINE-STRATEGY] Starting strategy for pipeline {pipeline.id}", flush=True)
+    print(f"[PIPELINE-STRATEGY] negative_items count: {len(negative_items)}", flush=True)
+    print(f"[PIPELINE-STRATEGY] agent_config keys: {list(agent_config.keys())}", flush=True)
+
     if not negative_items:
         raise ValueError("No negative items found to dispute — run Extract Accounts first")
-
-    logger.info(f"Strategy: {len(negative_items)} negative items found for pipeline {pipeline.id}")
 
     if pipeline.round_number > 1:
         # Re-dispute: only accounts that came back verified or no_response
@@ -462,14 +492,16 @@ def handle_strategy(pipeline):
     else:
         # Round 1: dispute EVERY negative item — no AI filtering
         # Use AI only to enrich with legal basis / dispute reason
+        print(f"[PIPELINE-STRATEGY] Calling select_accounts_for_dispute...", flush=True)
         try:
             decisions = select_accounts_for_dispute(
                 negative_items=negative_items,
                 analysis_data=analysis,
                 round_number=pipeline.round_number,
             )
+            print(f"[PIPELINE-STRATEGY] AI returned {len(decisions)} decisions", flush=True)
         except Exception as e:
-            logger.warning(f"AI strategy selection failed, using all accounts: {e}")
+            print(f"[PIPELINE-STRATEGY] AI selection failed: {e}", flush=True)
             decisions = []
         # Make sure every negative item is included even if AI skipped it
         ai_keys = {(d.get('account_name',''), d.get('account_number','')) for d in decisions}
@@ -505,7 +537,9 @@ def handle_strategy(pipeline):
         # All 3 bureaus for all rounds
         targets = ['experian', 'transunion', 'equifax']
 
-    logger.info(f"Strategy: creating {len(decisions)} x {len(targets)} = {len(decisions)*len(targets)} dispute accounts")
+    print(f"[PIPELINE-STRATEGY] Creating {len(decisions)} x {len(targets)} = {len(decisions)*len(targets)} dispute accounts", flush=True)
+    print(f"[PIPELINE-STRATEGY] Pack: {pack}, Level: {level}, Send to: {send_to}", flush=True)
+    print(f"[PIPELINE-STRATEGY] Targets: {targets}", flush=True)
 
     # Create DisputeAccount records for each account x target
     for decision in decisions:
@@ -526,13 +560,18 @@ def handle_strategy(pipeline):
             )
             db.session.add(account)
 
+    print(f"[PIPELINE-STRATEGY] All accounts added to session, about to commit...", flush=True)
+
     # Keep DB connection alive after long OpenAI API call
     try:
         db.session.execute(db.text('SELECT 1'))
-    except Exception:
+        print(f"[PIPELINE-STRATEGY] DB keepalive OK", flush=True)
+    except Exception as ping_err:
+        print(f"[PIPELINE-STRATEGY] DB keepalive FAILED: {ping_err}", flush=True)
         db.session.rollback()
 
     db.session.commit()
+    print(f"[PIPELINE-STRATEGY] Commit SUCCESS — returning 'generation'", flush=True)
     return 'generation'
 
 

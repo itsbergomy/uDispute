@@ -41,11 +41,12 @@ def _run_pipeline_bg(pipeline_id):
             with app.app_context():
                 # Small delay to let the request's commit finish
                 import time; time.sleep(0.5)
-                logger.info(f"[BG Thread] Advancing pipeline {pipeline_id}")
+                print(f"[BG Thread] Starting advance for pipeline {pipeline_id}", flush=True)
                 advance_pipeline(pipeline_id)
-                logger.info(f"[BG Thread] Pipeline {pipeline_id} advanced OK")
+                print(f"[BG Thread] Pipeline {pipeline_id} advanced OK", flush=True)
         except Exception as exc:
-            logger.exception(f"[BG Thread] Pipeline {pipeline_id} failed")
+            print(f"[BG Thread] Pipeline {pipeline_id} EXCEPTION: {type(exc).__name__}: {exc}", flush=True)
+            import traceback; traceback.print_exc()
             # Mark pipeline as failed so the UI shows an error
             try:
                 with app.app_context():
@@ -55,8 +56,9 @@ def _run_pipeline_bg(pipeline_id):
                         pipe.state = 'failed'
                         pipe.error_message = f'Pipeline error: {str(exc)[:200]}'
                         db.session.commit()
+                    print(f"[BG Thread] Marked pipeline {pipeline_id} as failed in DB", flush=True)
             except Exception as inner_exc:
-                logger.error(f"[BG Thread] Could not mark pipeline {pipeline_id} as failed: {inner_exc}")
+                print(f"[BG Thread] Could not mark as failed: {inner_exc}", flush=True)
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()
