@@ -199,11 +199,11 @@ def advance_pipeline(pipeline_id):
     This is the main entry point — called by the task queue or directly.
     """
     while True:
-        # Re-fetch pipeline each iteration to get fresh state
+        # Always start each iteration with a clean session
         try:
-            db.session.execute(db.text('SELECT 1'))
+            db.session.remove()
         except Exception:
-            db.session.rollback()
+            pass
 
         pipeline = DisputePipeline.query.get(pipeline_id)
         if not pipeline:
@@ -220,21 +220,21 @@ def advance_pipeline(pipeline_id):
 
         # Create a task record for tracking
         task = PipelineTask(
-            pipeline_id=pipeline.id,
+            pipeline_id=pipeline_id,
             task_type=current_state,
             state='running',
         )
         db.session.add(task)
         db.session.commit()
+        task_id = task.id  # Cache the ID before handler potentially kills session
 
         try:
             next_state = handler(pipeline)
 
-            # Keep DB alive before committing
-            try:
-                db.session.execute(db.text('SELECT 1'))
-            except Exception:
-                db.session.rollback()
+            # Handler may have killed the session — get fresh everything
+            db.session.remove()
+            pipeline = DisputePipeline.query.get(pipeline_id)
+            task = PipelineTask.query.get(task_id)
 
             task.state = 'completed'
             task.completed_at = datetime.utcnow()
@@ -244,7 +244,6 @@ def advance_pipeline(pipeline_id):
             pipeline.updated_at = datetime.utcnow()
             db.session.commit()
 
-
             # If next state is a wait state, stop advancing
             if next_state in WAIT_STATES:
                 return
@@ -252,21 +251,23 @@ def advance_pipeline(pipeline_id):
 
         except Exception as e:
             logger.exception(f"Pipeline {pipeline_id} failed at {current_state}: {e}")
+            # Full cleanup — nuke the session and start fresh
             try:
                 db.session.rollback()
             except Exception:
                 pass
-            # Re-fetch after rollback
             try:
-                db.session.execute(db.text('SELECT 1'))
+                db.session.remove()
+            except Exception:
+                pass
+            # Re-fetch with a completely fresh session
+            try:
                 pipeline = DisputePipeline.query.get(pipeline_id)
                 if pipeline:
                     pipeline.state = 'failed'
                     pipeline.error_message = f"{current_state}: {str(e)[:450]}"
                     pipeline.updated_at = datetime.utcnow()
-                task = PipelineTask.query.filter_by(
-                    pipeline_id=pipeline_id
-                ).order_by(PipelineTask.created_at.desc()).first()
+                task = PipelineTask.query.get(task_id)
                 if task and task.state == 'running':
                     task.state = 'failed'
                     task.error_message = str(e)[:500]
@@ -366,19 +367,17 @@ def handle_intake(pipeline):
         if not os.path.exists(pdf_path):
             raise ValueError(f"PDF file not found: {client.pdf_filename}")
 
-    # Compute and store PDF hash
-    pipeline.pdf_hash = compute_pdf_hash(pdf_path)
+    # Compute PDF hash
+    pdf_hash = compute_pdf_hash(pdf_path)
 
-    # Extract negative items here since we skip the analysis step
-    # (user runs the full analyzer manually before starting the agent)
-    try:
-        negative_items = extract_negative_items_from_pdf(pdf_path)
-    except Exception as exc:
-        raise ValueError(f"Failed to extract accounts from PDF: {exc}")
+    # Cache IDs and strategy before releasing DB
+    pipeline_id = pipeline.id
+    client_id = client.id
+    strategy_data = json.loads(pipeline.strategy_json or '{}')
 
-    # Pull existing analysis from DB if available (user ran analyzer earlier)
+    # Pull existing analysis while we still have DB
     analysis = {}
-    latest = ClientReportAnalysis.query.filter_by(client_id=client.id).order_by(
+    latest = ClientReportAnalysis.query.filter_by(client_id=client_id).order_by(
         ClientReportAnalysis.id.desc()
     ).first()
     if latest:
@@ -387,21 +386,25 @@ def handle_intake(pipeline):
         except (ValueError, TypeError):
             pass
 
-    # Merge into strategy_json (preserving agent_config)
-    strategy_data = json.loads(pipeline.strategy_json or '{}')
+    # ── Release DB before long PDF extraction ──
+    db.session.expunge_all()
+    db.session.remove()
+
+    # Extract negative items (SLOW — 30-60s, no DB connection held)
+    try:
+        negative_items = extract_negative_items_from_pdf(pdf_path)
+    except Exception as exc:
+        raise ValueError(f"Failed to extract accounts from PDF: {exc}")
+
+    # ── Fresh DB connection — write results ──
+    pipeline = DisputePipeline.query.get(pipeline_id)
+    pipeline.pdf_hash = pdf_hash
     strategy_data['negative_items'] = negative_items
     strategy_data['analysis'] = analysis
     pipeline.strategy_json = json.dumps(strategy_data)
-
-    # Keep DB connection alive after potentially long PDF extraction
-    try:
-        db.session.execute(db.text('SELECT 1'))
-    except Exception:
-        db.session.rollback()
-
     db.session.commit()
 
-    return 'strategy'  # Skip analysis — user runs analyzer manually before starting agent
+    return 'strategy'
 
 
 def handle_analysis(pipeline):
@@ -552,118 +555,153 @@ def handle_strategy(pipeline):
 
 def handle_generation(pipeline):
     """Generate dispute letters for each DisputeAccount in the current round."""
-    accounts = DisputeAccount.query.filter_by(
-        pipeline_id=pipeline.id,
-        round_number=pipeline.round_number,
-        outcome='pending',
-    ).all()
+    # ── PHASE 1: Read all DB data into plain Python structures ──
+    pipeline_id = pipeline.id
+    client_id = pipeline.client_id
+    round_number = pipeline.round_number
 
-    client = Client.query.get(pipeline.client_id)
+    accounts_data = []
+    for a in DisputeAccount.query.filter_by(
+        pipeline_id=pipeline_id, round_number=round_number, outcome='pending'
+    ).all():
+        accounts_data.append({
+            'id': a.id, 'account_name': a.account_name,
+            'account_number': a.account_number, 'bureau': a.bureau,
+            'template_pack': a.template_pack,
+        })
+
+    client = Client.query.get(client_id)
+    client_data = {
+        'id': client.id, 'first_name': client.first_name, 'last_name': client.last_name,
+        'email': client.email, 'address_line1': getattr(client, 'address_line1', ''),
+        'address_line2': getattr(client, 'address_line2', ''),
+        'city': getattr(client, 'city', ''), 'state': getattr(client, 'state', ''),
+        'zip_code': getattr(client, 'zip_code', ''),
+    }
+
     agent_config = _get_agent_config(pipeline)
     send_to = agent_config.get('send_to', 'bureaus')
     creditor_addresses = agent_config.get('creditor_addresses', [])
+    custom_letter_id = agent_config.get('custom_letter_id')
 
-    # Pull parsed accounts (with inaccuracies) from strategy_json
-    # so build_prompt can map inaccuracies → FCRA violations for case-specific letters
     strategy_data = json.loads(pipeline.strategy_json or '{}')
     parsed_accounts = strategy_data.get('negative_items', [])
 
-    generated_count = 0
-    for account in accounts:
-        # Skip CFPB escalation (handled differently)
-        if account.bureau == 'cfpb':
+    # Load custom letter template if needed
+    custom_body = None
+    if custom_letter_id:
+        custom = CustomLetter.query.get(custom_letter_id)
+        if custom:
+            custom_body = custom.body
+
+    # Load legal research data for round 2+
+    legal_data = {}
+    if round_number > 1:
+        for ad in accounts_data:
+            prev_response = BureauResponse.query.filter_by(
+                dispute_account_id=ad['id']
+            ).order_by(BureauResponse.uploaded_at.desc()).first()
+            if prev_response and prev_response.analysis_json:
+                legal_data[ad['id']] = prev_response.analysis_json
+
+    # ── PHASE 2: Release DB — do all API work with no connection ──
+    db.session.expunge_all()
+    db.session.remove()
+
+    generated_letters = []  # Collect results to save later
+
+    for ad in accounts_data:
+        if ad['bureau'] == 'cfpb':
             continue
 
-        # Keep DB connection alive between long API calls
-        try:
-            db.session.execute(db.text('SELECT 1'))
-        except Exception:
-            db.session.rollback()
+        logger.info(f"Generating letter for {ad['account_name']} / {ad['bureau']}")
 
-        logger.info(f"Generating letter for {account.account_name} / {account.bureau}")
-
-        # Determine recipient for context
+        # Build recipient
         if send_to == 'creditors':
             recipient = next(
-                (c for c in creditor_addresses if c['name'] == account.bureau),
-                {'name': account.bureau}
+                (c for c in creditor_addresses if c['name'] == ad['bureau']),
+                {'name': ad['bureau']}
             )
         else:
-            recipient = BUREAU_ADDRESSES.get(account.bureau.lower(), {'name': account.bureau.title()})
+            recipient = BUREAU_ADDRESSES.get(ad['bureau'].lower(), {'name': ad['bureau'].title()})
 
-        # Build full context with client + account + recipient details
-        context = _get_client_context(client, account, recipient)
+        # Build context from plain dicts (no ORM objects)
+        # Reconstruct a minimal account-like dict for _get_client_context
+        class _Obj:
+            pass
+        account_obj = _Obj()
+        for k, v in ad.items():
+            setattr(account_obj, k, v)
+        client_obj = _Obj()
+        for k, v in client_data.items():
+            setattr(client_obj, k, v)
 
-        # Filter parsed_accounts to the current account for targeted inaccuracy injection
+        context = _get_client_context(client_obj, account_obj, recipient)
+
         relevant_accounts = [
             a for a in parsed_accounts
-            if a.get('account_number') == account.account_number
-            or a.get('account_name', '').lower() == (account.account_name or '').lower()
+            if a.get('account_number') == ad['account_number']
+            or a.get('account_name', '').lower() == (ad['account_name'] or '').lower()
         ]
 
-        # For Round 2+, run Legal Research Agent to strengthen the letter
+        # Legal research for round 2+
         legal_context = None
-        if pipeline.round_number > 1:
+        if round_number > 1 and ad['id'] in legal_data:
             try:
                 from services.legal_research import research_for_prompt
-                # Get the bureau response from the previous round's BureauResponse
-                bureau_response_text = None
-                prev_response = BureauResponse.query.filter_by(
-                    dispute_account_id=account.id
-                ).order_by(BureauResponse.uploaded_at.desc()).first()
-                if prev_response and prev_response.analysis_json:
-                    bureau_response_text = prev_response.analysis_json
-
                 legal_context = research_for_prompt(
-                    account_name=account.account_name,
-                    bureau_response=bureau_response_text,
-                    round_number=pipeline.round_number,
+                    account_name=ad['account_name'],
+                    bureau_response=legal_data[ad['id']],
+                    round_number=round_number,
                 )
             except Exception as e:
-                logger.warning(f"Legal research failed for {account.account_name}: {e}")
+                logger.warning(f"Legal research failed for {ad['account_name']}: {e}")
 
-        # Build the letter — custom letter = pure template fill (no GPT), prompt packs = GPT
+        # Generate the letter (API call — no DB needed)
         try:
-            custom_letter_id = agent_config.get('custom_letter_id')
-            if custom_letter_id:
-                custom = CustomLetter.query.get(custom_letter_id)
-                if custom:
-                    # Pure template passthrough — inject bureau/account/client data, skip GPT
-                    letter_text = _sanitize_letter(custom.body, context)
-                else:
-                    prompt, has_inaccuracies, has_legal = build_prompt(account.template_pack, 0, context, parsed_accounts=relevant_accounts, legal_research_context=legal_context)
-                    letter_text = _sanitize_letter(generate_letter(prompt, has_inaccuracies=has_inaccuracies, has_legal_research=has_legal), context)
+            if custom_body:
+                letter_text = _sanitize_letter(custom_body, context)
             else:
-                prompt, has_inaccuracies, has_legal = build_prompt(account.template_pack, 0, context, parsed_accounts=relevant_accounts, legal_research_context=legal_context)
-                letter_text = _sanitize_letter(generate_letter(prompt, has_inaccuracies=has_inaccuracies, has_legal_research=has_legal), context)
+                prompt, has_inaccuracies, has_legal = build_prompt(
+                    ad['template_pack'], 0, context,
+                    parsed_accounts=relevant_accounts,
+                    legal_research_context=legal_context,
+                )
+                letter_text = _sanitize_letter(
+                    generate_letter(prompt, has_inaccuracies=has_inaccuracies, has_legal_research=has_legal),
+                    context,
+                )
 
-            # Save to database (stamp round_number for round-scoped tracking)
-            letter_record = ClientDisputeLetter(
-                client_id=client.id,
-                letter_text=letter_text,
-                status='Draft',
-                template_name=f"{account.template_pack} - {account.bureau}",
-                round_number=pipeline.round_number,
-            )
-            db.session.add(letter_record)
-            db.session.flush()  # Get the ID
-
-            account.letter_id = letter_record.id
-            db.session.commit()
-            generated_count += 1
-            logger.info(f"Generated letter {generated_count} for {account.account_name} / {account.bureau}")
+            generated_letters.append({
+                'account_id': ad['id'],
+                'letter_text': letter_text,
+                'template_name': f"{ad['template_pack']} - {ad['bureau']}",
+            })
+            logger.info(f"Generated letter for {ad['account_name']} / {ad['bureau']}")
 
         except Exception as e:
-            logger.error(f"Failed to generate letter for {account.account_name} / {account.bureau}: {e}")
-            try:
-                db.session.rollback()
-            except Exception:
-                pass
-            continue  # Skip this letter, try the next one
+            logger.error(f"Failed to generate letter for {ad['account_name']} / {ad['bureau']}: {e}")
+            continue
 
-    if generated_count == 0:
+    if not generated_letters:
         raise ValueError("Failed to generate any letters — all API calls failed")
 
+    # ── PHASE 3: Fresh DB connection — save all letters at once ──
+    for gl in generated_letters:
+        letter_record = ClientDisputeLetter(
+            client_id=client_id,
+            letter_text=gl['letter_text'],
+            status='Draft',
+            template_name=gl['template_name'],
+            round_number=round_number,
+        )
+        db.session.add(letter_record)
+        db.session.flush()
+
+        account = DisputeAccount.query.get(gl['account_id'])
+        account.letter_id = letter_record.id
+
+    db.session.commit()
     return 'review'
 
 

@@ -35,7 +35,9 @@ class Config:
     else:
         SQLALCHEMY_ENGINE_OPTIONS = {
             'pool_pre_ping': True,
-            'pool_recycle': 270,  # Recycle connections before Render's 5-min idle timeout
+            'pool_recycle': 120,  # Aggressive recycle — Render kills idle connections
+            'pool_size': 10,
+            'max_overflow': 5,
         }
     SECRET_KEY = os.getenv('SECRET_KEY', 'smartflow')
 
