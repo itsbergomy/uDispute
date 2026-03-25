@@ -170,22 +170,29 @@ def delete_client(client_id):
     if client.business_user_id != current_user.id:
         abort(403)
 
-    # Delete associated data in order (foreign key constraints)
-    # Get pipeline IDs for this client
+    # Delete associated data — order matters (foreign key constraints)
+    # 1. Bureau responses (FK → dispute_accounts)
     pipelines = DisputePipeline.query.filter_by(client_id=client.id).all()
     for pipeline in pipelines:
+        accounts = DisputeAccount.query.filter_by(pipeline_id=pipeline.id).all()
+        for acct in accounts:
+            BureauResponse.query.filter_by(dispute_account_id=acct.id).delete()
+        # 2. Dispute accounts (FK → client_dispute_letters, pipelines)
         DisputeAccount.query.filter_by(pipeline_id=pipeline.id).delete()
         PipelineTask.query.filter_by(pipeline_id=pipeline.id).delete()
+
+    # 3. Letters (now safe — no accounts referencing them)
+    ClientDisputeLetter.query.filter_by(client_id=client.id).delete()
+
+    # 4. Pipelines
     DisputePipeline.query.filter_by(client_id=client.id).delete()
 
-    # Delete other associated records
-    ClientDisputeLetter.query.filter_by(client_id=client.id).delete()
+    # 5. Other associated records (no FK dependencies)
     ClientReportAnalysis.query.filter_by(client_id=client.id).delete()
     SupportingDoc.query.filter_by(client_id=client.id).delete()
-    BureauResponse.query.filter_by(client_id=client.id).delete()
     ClientPortalToken.query.filter_by(client_id=client.id).delete()
 
-    # Delete message threads
+    # 6. Message threads
     threads = MessageThread.query.filter_by(client_id=client.id).all()
     for thread in threads:
         Message.query.filter_by(thread_id=thread.id).delete()
