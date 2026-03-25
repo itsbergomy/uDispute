@@ -164,7 +164,6 @@ def create_client():
 
 @business_bp.route('/clients/<int:client_id>/delete', methods=['POST'])
 @login_required
-@require_business_plan()
 def delete_client(client_id):
     """Delete a client and all associated data."""
     client = Client.query.get_or_404(client_id)
