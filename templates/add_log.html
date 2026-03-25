@@ -6,6 +6,7 @@
   <div class="glass-card glass-card--heavy glass-p-lg">
     <h1 class="text-2xl font-bold mb-4 glass-text-chrome" style="color:var(--text-primary);">Add Daily Log Entry</h1>
     <form method="POST" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div>
         <label class="glass-label">Title</label>
         <input name="title" class="glass-input w-full mt-1" required>

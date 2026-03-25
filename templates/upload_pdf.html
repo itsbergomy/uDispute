@@ -17,6 +17,7 @@
     <p class="mb-8" style="color:var(--text-secondary);">Please upload your credit report to begin parsing for negative accounts.</p>
 
     <form method="POST" action="{{ url_for('upload_pdf') }}" enctype="multipart/form-data" id="uploadForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div class="upload-area glass-inset rounded-2xl p-8 mb-6" style="border:2px dashed rgba(0,113,227,0.25);">
         <div class="mb-3">{{ icons.icon_inbox(size=32, uid='up2') }}</div>
         <p class="upload-text text-sm font-medium mb-4" style="color:var(--text-secondary);">Drop your PDF here or click below</p>

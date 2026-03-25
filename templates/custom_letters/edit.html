@@ -6,6 +6,7 @@
   <div class="glass-card glass-card--heavy glass-p-lg">
     <h2 class="text-3xl font-bold mb-6 glass-text-3d" style="color:var(--text-primary);">Edit Custom Letter</h2>
     <form method="POST" action="{{ url_for('business.edit_custom_letter', letter_id=letter.id) }}" class="space-y-6">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <!-- Template Name -->
       <div>
         <label for="name" class="glass-label mb-1">

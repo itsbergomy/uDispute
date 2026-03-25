@@ -4,19 +4,32 @@ Centralizes all config and provides create_app() for use by task workers and blu
 """
 
 import os
+import secrets
 import tempfile
+from datetime import timedelta
 from flask import Flask
 from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask_mail import Mail
+from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
 
 load_dotenv()
 
+# ── Security: rate limiter (imported here so blueprints can use it) ──
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    limiter = Limiter(key_func=get_remote_address, default_limits=[])
+except ImportError:
+    limiter = None
+
 
 class Config:
     UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
-    ALLOWED_EXTENSIONS = {'pdf'}
+    ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg'}
+    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB upload limit
+
     # Use PostgreSQL on Render (DATABASE_URL), SQLite locally
     _db_url = os.environ.get('DATABASE_URL', '')
     # Render gives postgres:// but SQLAlchemy needs postgresql://
@@ -39,7 +52,28 @@ class Config:
             'pool_size': 10,
             'max_overflow': 5,
         }
-    SECRET_KEY = os.getenv('SECRET_KEY', 'smartflow')
+
+    # ── Security: SECRET_KEY ──
+    # Require SECRET_KEY in production; generate a random one for local dev only
+    _secret = os.getenv('SECRET_KEY')
+    if _secret:
+        SECRET_KEY = _secret
+    elif _db_url:
+        # Production (has DATABASE_URL) but no SECRET_KEY — refuse to start
+        raise RuntimeError(
+            "SECRET_KEY environment variable is required in production. "
+            "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
+    else:
+        # Local dev only — generate ephemeral key (sessions won't persist across restarts)
+        SECRET_KEY = secrets.token_hex(32)
+
+    # ── Security: session settings ──
+    PERMANENT_SESSION_LIFETIME = timedelta(minutes=60)
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    # Only set Secure flag when not on localhost
+    SESSION_COOKIE_SECURE = bool(_db_url)  # True in production (PostgreSQL), False locally
 
     # Mail
     MAIL_SERVER = 'smtp.gmail.com'
@@ -50,8 +84,18 @@ class Config:
 
 
 mail = Mail()
+csrf = CSRFProtect()
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
+
+# ── Security audit logger ──
+import logging
+audit_logger = logging.getLogger('security.audit')
+_handler = logging.StreamHandler()
+_handler.setFormatter(logging.Formatter('%(asctime)s [AUDIT] %(message)s'))
+if not audit_logger.handlers:
+    audit_logger.addHandler(_handler)
+    audit_logger.setLevel(logging.INFO)
 
 
 def create_app():
@@ -59,12 +103,32 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
+    # Make sessions permanent so PERMANENT_SESSION_LIFETIME applies
+    @app.before_request
+    def _make_session_permanent():
+        from flask import session
+        session.permanent = True
+
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.environ['UPLOAD_FOLDER'] = app.config['UPLOAD_FOLDER']
 
     from models import db
     db.init_app(app)
     Migrate(app, db)
+    csrf.init_app(app)
+    if limiter:
+        limiter.init_app(app)
+
+    # ── Security headers ──
+    @app.after_request
+    def set_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        if app.config.get('SESSION_COOKIE_SECURE'):
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        return response
 
     # Enable WAL mode for SQLite so background threads can read/write concurrently
     from sqlalchemy import event

@@ -31,6 +31,7 @@
 
   {# ── Entity Cards ── #}
   <form method="POST" action="{{ url_for('disputes.handle_entity') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <div class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));">
 
       {% set entities = [

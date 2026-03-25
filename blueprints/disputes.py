@@ -1351,17 +1351,12 @@ def serve_upload(filename):
     # Check if the filename is actually a Cloudinary URL stored in a Correspondence record
     doc = Correspondence.query.filter_by(user_id=current_user.id, filename=filename).first()
     if doc and doc.file_url and doc.file_url.startswith('http'):
-        import requests as http_req
-        try:
-            resp = http_req.get(doc.file_url, timeout=15)
-            response = make_response(resp.content)
-            ext = doc.file_url.rsplit('.', 1)[-1].lower().split('?')[0] if '.' in doc.file_url.split('?')[0] else 'pdf'
-            content_types = {'pdf': 'application/pdf', 'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg'}
-            response.headers['Content-Type'] = content_types.get(ext, 'application/pdf')
-            response.headers['Content-Disposition'] = 'inline'
-            return response
-        except Exception:
+        from urllib.parse import urlparse
+        parsed = urlparse(doc.file_url)
+        ALLOWED_HOSTS = {'res.cloudinary.com', 'cloudinary.com'}
+        if parsed.hostname and any(parsed.hostname.endswith(h) for h in ALLOWED_HOSTS):
             return redirect(doc.file_url)
+        abort(403)  # Unknown host — refuse to proxy
 
     upload_base = current_app.config.get('UPLOAD_FOLDER', 'uploads')
     user_folder = os.path.join(upload_base, str(current_user.id))

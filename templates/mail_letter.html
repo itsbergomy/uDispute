@@ -18,6 +18,7 @@
     </div>
 
     <form action="/mail-letter" method="POST" enctype="multipart/form-data" class="space-y-10">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
       <!-- Upload PDF -->
       <div class="glass-inset rounded-2xl p-6">

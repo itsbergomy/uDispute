@@ -12,6 +12,7 @@
   </h1>
 
   <form method="POST" class="space-y-6 glass-card glass-card--heavy glass-p-lg">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <!-- Name -->
     <div>
       <label for="name" class="glass-label mb-1">

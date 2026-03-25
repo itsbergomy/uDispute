@@ -23,6 +23,7 @@
     <form method="POST"
           action="{{ url_for('messages_thread', client_id=thread.client_id) }}"
           class="mt-6 flex space-x-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <input type="text" name="body" placeholder="Type a message..." required
              class="glass-input flex-1 rounded-full" />
       <button type="submit" class="glass-btn glass-btn--primary glass-btn--pill p-2">➤</button>

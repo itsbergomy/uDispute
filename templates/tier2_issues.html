@@ -46,6 +46,7 @@
   </div>
 
   <form method="POST" action="{{ url_for('disputes.save_tier2_issues') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <input type="hidden" name="account_name" value="{{ account.account_name }}">
     <input type="hidden" name="account_number" value="{{ account.account_number }}">
     <input type="hidden" name="status" value="{{ account.status }}">

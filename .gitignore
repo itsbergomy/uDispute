@@ -34,3 +34,4 @@ playwright_user_data/
 cfpb_complaint_flow.json
 cfpb-auth.json
 cfpb-auth.json.bak
+.gstack/

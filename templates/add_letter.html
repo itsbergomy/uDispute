@@ -8,6 +8,7 @@
   <div class="glass-card glass-card--heavy glass-p-lg w-full max-w-lg">
     <h2 class="text-2xl font-bold mb-6 glass-text-3d" style="color:var(--text-primary);">Record Mailed Letter</h2>
     <form action="{{ url_for('add_letter') }}" method="POST" class="space-y-6">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
       <div>
         <label for="recipient" class="glass-label">Recipient</label>

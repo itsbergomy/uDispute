@@ -17,6 +17,7 @@
     </div>
 
     <form action="/convert-pdf" method="POST" enctype="multipart/form-data" class="space-y-6">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div class="glass-inset rounded-xl p-4">
         <textarea name="letter" class="glass-input glass-textarea w-full h-52 text-base" style="background:transparent;border:none;box-shadow:none;">{{ letter }}</textarea>
       </div>

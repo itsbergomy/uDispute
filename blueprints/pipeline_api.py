@@ -22,6 +22,11 @@ from services.cloud_storage import upload_file, delete_file, is_configured as cl
 
 pipeline_bp = Blueprint('pipeline', __name__)
 
+# Exempt API endpoints from CSRF — they use JSON bodies, not HTML forms.
+# The CSRF fetch interceptor in base_header.html still sends the token for browser calls.
+from config import csrf
+csrf.exempt(pipeline_bp)
+
 # Valid prompt packs
 VALID_PACKS = {'default', 'consumer_law', 'ACDV_response', 'arbitration'}
 

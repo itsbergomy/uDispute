@@ -254,6 +254,7 @@
         <form method="POST" action="{{ url_for('disputes.tier1_mail', letter_id=L.id) }}"
               class="tier1-mail-form inline-flex" data-bureau="{{ L.bureau }}"
               enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <input type="hidden" name="mail_class" class="js-mail-class" />
           <input type="hidden" name="servicelevel" class="js-servicelevel" />
           <input type="hidden" name="color" class="js-color" />

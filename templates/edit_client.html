@@ -11,6 +11,7 @@
     <h1 class="text-2xl font-bold glass-text-chrome" style="color:var(--text-primary);">Edit Client</h1>
 
     <form method="POST" action="{{ url_for('edit_client', client_id=client.id) }}" enctype="multipart/form-data" class="space-y-6">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <!-- Name + Email -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
         <div>

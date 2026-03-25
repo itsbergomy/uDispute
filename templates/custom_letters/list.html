@@ -9,6 +9,7 @@
     <div class="flex items-center gap-3">
       <!-- Upload existing letter -->
       <form method="POST" action="{{ url_for('business.upload_custom_letter') }}" enctype="multipart/form-data" class="inline-flex">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <input type="file" name="letter_file" accept=".pdf,.docx,.txt" required
                class="hidden" id="uploadLetterInput" onchange="this.form.submit()">
         <button type="button" onclick="document.getElementById('uploadLetterInput').click()"
@@ -45,6 +46,7 @@
             <form method="POST"
                   action="{{ url_for('business.delete_custom_letter', letter_id=L.id) }}"
                   class="inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
               <button type="submit"
                       class="glass-btn glass-btn--danger">Delete</button>
             </form>

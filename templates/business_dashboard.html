@@ -504,6 +504,7 @@
       </div>
 
       <form method="POST" action="{{ url_for('business.create_client') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
         <!-- Identity -->
         <p class="text-xs font-semibold mb-1.5 glass-text-emboss" style="color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Identity</p>

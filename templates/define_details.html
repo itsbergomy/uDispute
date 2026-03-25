@@ -33,6 +33,7 @@
     </h2>
 
     <form method="POST" action="{{ url_for('define_details') }}" class="space-y-6 text-left">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div class="glass-inset rounded-xl p-5 space-y-5">
         {# CORE FIELDS #}
         {% for name,label in core_fields %}

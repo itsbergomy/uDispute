@@ -19,6 +19,7 @@
       <p style="color:var(--text-secondary);"><strong style="color:var(--text-primary);">Status:</strong> {{ status }}</p>
     </div>
     <form method="POST" action="{{ url_for('disputes.save_confirmed_account') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <input type="hidden" name="account_name" value="{{ account_name }}">
       <input type="hidden" name="account_number" value="{{ account_number }}">
       <input type="hidden" name="status" value="{{ status }}">

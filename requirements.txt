@@ -1,23 +1,44 @@
-flask
-flask-sqlalchemy
-flask-migrate
-flask-login
-flask-mail
-openai
-pandas
-python-dotenv
-colorama
-pdfplumber
-PyPDF2
-reportlab
-Pillow
-PyMuPDF
-stripe
-requests
-playwright
-huey
-python-docx
-cryptography
-gunicorn
-cloudinary
-psycopg2-binary
+# ── Core Framework ──
+flask==3.1.3
+flask-sqlalchemy==3.1.1
+flask-migrate==4.1.0
+flask-login==0.6.3
+flask-mail==0.10.0
+
+# ── Security ──
+flask-wtf>=1.2.0
+flask-limiter>=3.5.0
+cryptography==46.0.5
+
+# ── AI / LLM ──
+openai==2.26.0
+
+# ── PDF Processing ──
+pdfplumber==0.11.8
+PyPDF2==3.0.1
+reportlab==4.4.10
+Pillow==11.3.0
+PyMuPDF==1.26.5
+
+# ── Payments ──
+stripe==14.4.1
+
+# ── Data / Utilities ──
+pandas==2.3.3
+python-dotenv==1.2.1
+colorama==0.4.6
+requests==2.32.5
+python-docx==1.2.0
+
+# ── Browser Automation ──
+playwright==1.58.0
+
+# ── Background Tasks ──
+huey==2.6.0
+
+# ── Cloud / Storage ──
+cloudinary==1.44.1
+
+# ── Production Server ──
+gunicorn>=21.2.0
+psycopg2-binary>=2.9.9

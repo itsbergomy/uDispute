@@ -20,6 +20,7 @@
     </div>
 
     <form method="POST" action="{{ url_for('finalize_udispute_letter', client_id=client.id) }}" enctype="multipart/form-data" class="space-y-6">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
       <!-- Editable Letter -->
       <div class="glass-inset rounded-xl p-4">

@@ -17,6 +17,7 @@
     </div>
 
     <form method="POST" action="{{ url_for('manual_mode') }}" class="space-y-5">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div class="glass-inset rounded-xl p-5 space-y-5">
         <div>
           <label class="glass-label block">Account Name:</label>

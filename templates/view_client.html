@@ -34,6 +34,7 @@
       <!-- Actions Row -->
       <div class="flex flex-wrap items-center gap-2">
         <form id="runAnalyzerForm" method="POST" action="{{ url_for('business.run_analysis_for_client', client_id=client.id) }}" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <button id="runAnalyzerBtn" type="submit"
                   class="glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge px-4 py-1.5 text-xs font-semibold inline-flex items-center gap-1.5"
                   style="position:relative;overflow:hidden;">
@@ -47,6 +48,7 @@
         </form>
 
         <form id="extractAccountsForm" method="POST" action="{{ url_for('business.extract_for_udispute', client_id=client.id) }}" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <button id="extractAccountsBtn" type="submit"
                   class="glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge px-4 py-1.5 text-xs font-semibold inline-flex items-center gap-1.5"
                   style="position:relative;overflow:hidden;">
@@ -108,6 +110,7 @@
                 <span class="text-xs glass-badge glass-badge--info">{{ data.status_text }}</span>
                 <form method="POST" action="{{ url_for('business.delete_analysis', analysis_id=analysis.id) }}"
                       onsubmit="return confirm('Delete this analysis?');" style="display:inline;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                   <button type="submit" title="Delete analysis"
                           class="cursor-pointer opacity-30 hover:opacity-100 transition-opacity"
                           style="color:var(--text-tertiary);">
@@ -154,6 +157,7 @@
             <div>
               <h4 class="text-xs font-semibold mb-1" style="color:var(--text-secondary);">Recommendations</h4>
               <form method="POST" action="{{ url_for('business.update_recommendations', analysis_id=analysis.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <textarea name="recommendations" rows="3"
                           class="glass-input glass-textarea w-full text-sm"
                           placeholder="Enter recommendations...">{% for rec in data.recommendations %}{{ rec }}{% if not loop.last %}
@@ -229,6 +233,7 @@
           <span class="glass-badge glass-badge--neutral text-xs">Round {{ pipeline_status.round_number }} of {{ pipeline_status.max_rounds }}</span>
         </h2>
         <form method="POST" action="/api/pipeline/{{ pipeline_status.id }}/cancel" id="cancelPipelineForm">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <button type="button" onclick="if(confirm('Cancel this pipeline?')){fetch('/api/pipeline/{{ pipeline_status.id }}/cancel',{method:'POST'}).then(()=>location.reload())}"
                   class="glass-btn glass-btn--pill glass-raised px-4 py-1.5 text-xs font-semibold inline-flex items-center gap-1.5"
                   style="background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2);box-shadow:0 2px 8px rgba(239,68,68,0.12),inset 0 1px 0 rgba(255,255,255,0.15);">
@@ -601,6 +606,7 @@
           </p>
         </div>
         <form method="POST" action="{{ url_for('business.generate_notice_of_dispute', client_id=client.id) }}" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <button type="submit" id="noticeBtn"
                   class="glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge px-5 py-2 text-sm font-semibold inline-flex items-center gap-2"
                   style="position:relative;overflow:hidden;"
@@ -620,6 +626,7 @@
       <h2 class="text-lg font-bold mb-4 glass-text-3d">uDispute&trade;</h2>
 
       <form method="POST" action="{{ url_for('business.run_udispute_flow', client_id=client.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
           <div>
             <label class="glass-label text-xs mb-1">Account</label>
@@ -856,6 +863,7 @@
 
         <form method="POST" action="{{ url_for('business.upload_correspondence', client_id=client.id) }}"
               enctype="multipart/form-data" class="mt-3 flex gap-2 items-end">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <input type="file" name="correspondence_file" accept="application/pdf" required
                  class="glass-input flex-1 text-sm" />
           <button type="submit" class="glass-btn glass-btn--primary glass-btn--pill text-xs px-4 py-2">Upload</button>
@@ -901,6 +909,7 @@
                   action="{{ url_for('business.delete_supporting_doc', client_id=client.id, doc_id=doc.id) }}"
                   onsubmit="return confirm('Remove this document?');"
                   style="margin:0;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
               <button type="submit" class="glass-btn glass-btn--pill text-xs px-2 py-1"
                       style="background:rgba(231,76,60,0.15);color:#e74c3c;">✕</button>
             </form>
@@ -921,6 +930,7 @@
             action="{{ url_for('business.upload_supporting_docs', client_id=client.id) }}"
             enctype="multipart/form-data"
             class="glass-inset rounded-xl p-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="flex gap-3 mb-3">
           <select name="doc_type" class="glass-input text-sm" style="flex:1;">
             <option value="evidence">Evidence</option>

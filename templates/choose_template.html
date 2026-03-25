@@ -35,6 +35,7 @@
   </p>
 
   <form method="POST" action="/generate-letter-screen">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in" style="animation-delay:.1s">
 
       {# Template counter #}

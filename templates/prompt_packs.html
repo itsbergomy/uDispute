@@ -28,6 +28,7 @@
     </div>
 
     <form method="POST" action="{{ url_for('prompt_packs') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <input type="hidden" name="pack_key" id="packKey">
       <button type="submit"
               class="w-full glass-btn glass-btn--primary glass-shimmer-edge" style="position:relative;overflow:hidden;">

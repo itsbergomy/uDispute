@@ -509,21 +509,15 @@ def client_file(client_id, filetype):
     if not fn:
         abort(404)
 
-    # If it's a Cloudinary URL, proxy the file with correct Content-Type
-    # so the browser displays PDFs inline instead of downloading
+    # If it's a Cloudinary URL, redirect to it (safe: no server-side fetch)
     if fn.startswith('http'):
-        import requests as http_req
-        try:
-            resp = http_req.get(fn, timeout=15)
-            response = make_response(resp.content)
-            # Use the route's filetype param to determine content type
-            type_map = {'pdf': 'application/pdf', 'id': 'image/jpeg', 'ssn': 'image/jpeg', 'util': 'image/jpeg'}
-            ct = type_map.get(filetype) or resp.headers.get('Content-Type', 'application/pdf')
-            response.headers['Content-Type'] = ct
-            response.headers['Content-Disposition'] = 'inline'
-            return response
-        except Exception:
+        from urllib.parse import urlparse
+        parsed = urlparse(fn)
+        # Only allow known cloud storage domains — blocks SSRF against internal services
+        ALLOWED_HOSTS = {'res.cloudinary.com', 'cloudinary.com'}
+        if parsed.hostname and any(parsed.hostname.endswith(h) for h in ALLOWED_HOSTS):
             return redirect(fn)
+        abort(403)  # Unknown host — refuse to proxy
 
     # Files are saved in client-specific subdirectories; fall back to root for legacy files
     upload_dir = current_app.config['UPLOAD_FOLDER']

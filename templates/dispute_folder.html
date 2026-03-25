@@ -103,6 +103,7 @@
           <p class="text-sm" style="color:var(--text-tertiary);">No log entries yet.</p>
         {% endfor %}
         <form action="{{ url_for('disputes.add_log') }}" method="POST" class="mt-4 glass-inset rounded-xl p-5">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <input name="title" required class="glass-input mb-2" placeholder="Title" />
           <textarea name="content" required class="glass-input glass-textarea" placeholder="Describe your activity..."></textarea>
           <button type="submit" class="mt-2 glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge">Add Log Entry</button>
@@ -213,6 +214,7 @@
 
         <!-- Manual letter recording -->
         <form action="{{ url_for('disputes.add_letter') }}" method="POST" class="mt-4 glass-inset rounded-xl p-5">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <div class="flex gap-3 mb-3">
             <select name="bureau" class="glass-input text-sm" style="flex:1;">
               <option value="">Bureau (optional)</option>
@@ -263,6 +265,7 @@
         {% endfor %}
         <form action="{{ url_for('disputes.upload_doc') }}" method="POST" enctype="multipart/form-data"
               class="mt-4 glass-inset rounded-xl p-5">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <label class="glass-label mb-2">Upload a document</label>
           <input type="file" name="file" required class="glass-input mb-2" />
           <button type="submit" class="glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge">Upload</button>

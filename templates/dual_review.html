@@ -45,6 +45,7 @@
       Preserves &sect; 1681s-2(b) private right of action. Triggers 30-day investigation under &sect; 1681i.
     </p>
     <form action="/convert-pdf" method="POST" enctype="multipart/form-data" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div class="glass-inset rounded-xl p-3">
         <textarea name="letter" rows="18" class="glass-input glass-textarea w-full text-sm"
                   style="background:transparent;border:none;box-shadow:none;">{{ cra_letter }}</textarea>
@@ -88,6 +89,7 @@
       Bypasses e-OSCAR under 12 C.F.R. &sect; 1022.43 (Regulation V). Furnisher must investigate and report to ALL CRAs.
     </p>
     <form action="/convert-pdf" method="POST" enctype="multipart/form-data" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div class="glass-inset rounded-xl p-3">
         <textarea name="letter" rows="18" class="glass-input glass-textarea w-full text-sm"
                   style="background:transparent;border:none;box-shadow:none;">{{ furnisher_letter }}</textarea>

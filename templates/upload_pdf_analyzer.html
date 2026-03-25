@@ -19,6 +19,7 @@
     </p>
 
     <form action="{{ url_for('report_analyzer') }}" method="POST" enctype="multipart/form-data" id="uploadForm" class="space-y-6">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <!-- Dashed upload area -->
       <label for="creditReport" class="block cursor-pointer">
         <div class="upload-area glass-inset rounded-2xl p-8 transition" style="border:2px dashed rgba(0,113,227,0.25);">

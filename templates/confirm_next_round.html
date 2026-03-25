@@ -14,6 +14,7 @@
     <h2 class="text-2xl font-bold mb-4 glass-text-3d" style="color:var(--text-primary);">Round {{ current_round }} complete!</h2>
     <p class="mb-6" style="color:var(--text-secondary);">Do you want to start Round {{ current_round + 1 }}?</p>
     <form method="POST" class="flex justify-center gap-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <button type="submit" name="confirm_round" value="yes"
               class="glass-btn glass-btn--primary glass-btn--lg glass-shimmer-edge" style="position:relative;overflow:hidden;">
         Yes, Start Round {{ current_round + 1 }}
