@@ -890,8 +890,17 @@ def handle_delivery(pipeline):
 
         package_filename = f"package_{client.id}_{account.id}_{_uuid.uuid4().hex[:8]}.pdf"
 
+        # 4a. Placeholder safety check — validate BEFORE upload/move
+        try:
+            _validate_pdf_no_placeholders(tmp_package)
+        except ValueError as e:
+            logger.error(str(e))
+            account.letter.status = 'Rejected'
+            db.session.commit()
+            fail_count += 1
+            continue
+
         if cloud_configured():
-            # Upload to Cloudinary — URL is already public
             cloud_result = upload_from_path(tmp_package, folder=f"clients/{client.id}/packages", filename=package_filename.rsplit('.', 1)[0])
             pdf_url = cloud_result['secure_url'] if cloud_result else None
             if not pdf_url:
@@ -903,16 +912,6 @@ def handle_delivery(pipeline):
             public_path = os.path.join(package_dir, package_filename)
             shutil.move(tmp_package, public_path)
             pdf_url = f"{base_url}/static/uploads/{client.id}/packages/{package_filename}"
-
-        # 4. Final placeholder safety check
-        try:
-            _validate_pdf_no_placeholders(public_path)
-        except ValueError as e:
-            logger.error(str(e))
-            account.letter.status = 'Rejected'
-            db.session.commit()
-            fail_count += 1
-            continue
 
         # 5. Determine recipient address
         if send_to == 'creditors':
@@ -961,7 +960,7 @@ def handle_delivery(pipeline):
         if result.get('success'):
             account.mailed_at = datetime.utcnow()
             account.letter.status = 'Sent'
-            account.letter.pdf_url = f"/static/uploads/{client.id}/packages/{package_filename}"
+            account.letter.pdf_url = pdf_url
             account.letter.mailed_at = datetime.utcnow()
             account.letter.delivery_status = 'queued'
             account.letter.mail_class = mail_opts.get('mail_class', 'usps_first_class')
