@@ -280,6 +280,7 @@
           </div>
 
           <!-- Letter Source -->
+          <div id="letterSourceSection" style="transition:opacity 0.3s;">
           <p class="text-sm font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Letter Source</p>
           <div class="grid grid-cols-2 gap-3 mb-2">
             <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="source-packs-card">
@@ -299,38 +300,54 @@
               <div class="text-xs" style="color:var(--text-tertiary);">Your uploaded templates</div>
             </label>
           </div>
-          <!-- Pack selection per round (shown when Prompt Packs chosen) -->
-          <div id="packSelectSection" class="mb-4 space-y-2">
-            <p class="text-xs font-medium" style="color:var(--text-secondary);">Choose a pack for each round:</p>
-            {% for i in range(1, 4) %}
-            <div class="flex items-center gap-2">
-              <span class="text-xs font-semibold w-16" style="color:var(--text-tertiary);">Round {{ i }}</span>
-              <select name="round_pack_{{ i }}" class="round-pack-select glass-select glass-input text-sm flex-1 !py-1">
-                <option value="default" {% if i == 1 %}selected{% endif %}>Default</option>
-                <option value="consumer_law" {% if i == 2 %}selected{% endif %}>Consumer Law</option>
-                <option value="ACDV_response" {% if i == 3 %}selected{% endif %}>ACDV Enforcement</option>
-                <option value="arbitration">Arbitration</option>
-              </select>
+
+          <!-- Round Strategy Mapper (shown when Prompt Packs chosen) -->
+          <div id="packSelectSection" class="mb-4">
+            <p class="text-xs font-medium mb-2" style="color:var(--text-secondary);">Map your escalation strategy per round:</p>
+            <div id="roundMapperRows" class="space-y-2">
+              {% for i in range(1, 4) %}
+              <div class="glass-inset rounded-xl p-3 flex items-center gap-3 round-mapper-row">
+                <span class="text-xs font-bold w-14 flex-shrink-0 glass-text-emboss" style="color:var(--text-primary);">Round {{ i }}</span>
+                <div class="glass-inset rounded-lg p-0.5 flex-1">
+                  <select name="round_strategy_{{ i }}" class="round-strategy-select glass-select text-xs w-full" style="background:transparent;border:none;box-shadow:none;">
+                    <option value="standard" {% if i == 1 %}selected{% endif %}>Standard</option>
+                    <option value="dual_letter" {% if i == 2 %}selected{% endif %}>Dual Letter</option>
+                    <option value="arbitration" {% if i == 3 %}selected{% endif %}>Arbitration</option>
+                  </select>
+                </div>
+                <div class="glass-inset rounded-lg p-0.5 flex-1">
+                  <select name="round_pack_{{ i }}" class="round-pack-select glass-select text-xs w-full" style="background:transparent;border:none;box-shadow:none;">
+                    <option value="default" {% if i == 1 %}selected{% endif %}>Default</option>
+                    <option value="consumer_law" {% if i == 2 %}selected{% endif %}>Consumer Law</option>
+                    <option value="ACDV_response" {% if i == 3 %}selected{% endif %}>ACDV Response</option>
+                    <option value="arbitration">Arbitration</option>
+                  </select>
+                </div>
+              </div>
+              {% endfor %}
             </div>
-            {% endfor %}
+            <input type="hidden" id="roundMapperJSON" name="round_mapper">
           </div>
 
           <div id="customLetterSelect" class="hidden mb-4">
-            <select id="custom-letter-id" class="glass-select glass-input text-sm w-full !py-1.5">
-              <option value="">Select a custom letter...</option>
-              {% for cl in custom_letters %}
-              <option value="{{ cl.id }}">{{ cl.name }}</option>
-              {% endfor %}
-            </select>
+            <div class="glass-inset rounded-xl p-1">
+              <select id="custom-letter-id" class="glass-select text-sm w-full" style="background:transparent;border:none;box-shadow:none;">
+                <option value="">Select a custom letter...</option>
+                {% for cl in custom_letters %}
+                <option value="{{ cl.id }}">{{ cl.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
             {% if not custom_letters %}
             <p class="text-xs mt-1" style="color:var(--text-tertiary);">
               No custom letters yet. <a href="{{ url_for('business.list_custom_letters') }}" style="color:var(--accent);">Upload one</a>
             </p>
             {% endif %}
           </div>
+          </div>
 
-          <!-- Send To (always visible — both modes need this) -->
-          <div class="mb-4">
+          <!-- Send To -->
+          <div id="sendToSection" class="mb-4" style="transition:opacity 0.3s;">
             <p class="text-sm font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Send Letters To</p>
             <div class="grid grid-cols-2 gap-3">
               <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="sendto-bureaus-card">
@@ -361,26 +378,30 @@
           </div>
 
           <!-- Batch Size -->
-          <div class="mb-4">
+          <div id="batchSizeSection" class="mb-4" style="transition:opacity 0.3s;">
             <p class="text-sm font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Batch Size</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="glass-label text-xs mb-1">Letters per round</label>
-                <select id="batchPerRound" class="glass-select w-full text-sm">
-                  <option value="0" selected>All at once</option>
-                  <option value="3">3 letters</option>
-                  <option value="5">5 letters</option>
-                  <option value="10">10 letters</option>
-                </select>
+                <div class="glass-inset rounded-lg p-0.5">
+                  <select id="batchPerRound" class="glass-select w-full text-sm" style="background:transparent;border:none;box-shadow:none;">
+                    <option value="0" selected>All at once</option>
+                    <option value="3">3 letters</option>
+                    <option value="5">5 letters</option>
+                    <option value="10">10 letters</option>
+                  </select>
+                </div>
               </div>
               <div>
                 <label class="glass-label text-xs mb-1">Letters per mailing</label>
-                <select id="batchPerMailing" class="glass-select w-full text-sm">
-                  <option value="0" selected>All at once</option>
-                  <option value="3">3 per day</option>
-                  <option value="5">5 per day</option>
-                  <option value="stagger">Stagger (2 day gap)</option>
-                </select>
+                <div class="glass-inset rounded-lg p-0.5">
+                  <select id="batchPerMailing" class="glass-select w-full text-sm" style="background:transparent;border:none;box-shadow:none;">
+                    <option value="0" selected>All at once</option>
+                    <option value="3">3 per day</option>
+                    <option value="5">5 per day</option>
+                    <option value="stagger">Stagger (2 day gap)</option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>
@@ -391,20 +412,24 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="glass-label text-xs mb-1">Mail Class</label>
-                <select id="mailClass" class="glass-select w-full text-sm">
-                  <option value="usps_first_class">USPS First Class</option>
-                  <option value="usps_standard">USPS Standard</option>
-                  <option value="usps_priority_mail">USPS Priority Mail</option>
-                  <option value="usps_priority_mail_express">Priority Mail Express</option>
-                </select>
+                <div class="glass-inset rounded-lg p-0.5">
+                  <select id="mailClass" class="glass-select w-full text-sm" style="background:transparent;border:none;box-shadow:none;">
+                    <option value="usps_first_class">USPS First Class</option>
+                    <option value="usps_standard">USPS Standard</option>
+                    <option value="usps_priority_mail">USPS Priority Mail</option>
+                    <option value="usps_priority_mail_express">Priority Mail Express</option>
+                  </select>
+                </div>
               </div>
               <div>
                 <label class="glass-label text-xs mb-1">Service Level</label>
-                <select id="mailServiceLevel" class="glass-select w-full text-sm">
-                  <option value="">Standard</option>
-                  <option value="certified">Certified Mail</option>
-                  <option value="certified_return_receipt">Certified + Return Receipt</option>
-                </select>
+                <div class="glass-inset rounded-lg p-0.5">
+                  <select id="mailServiceLevel" class="glass-select w-full text-sm" style="background:transparent;border:none;box-shadow:none;">
+                    <option value="">Standard</option>
+                    <option value="certified">Certified Mail</option>
+                    <option value="certified_return_receipt">Certified + Return Receipt</option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>
@@ -493,72 +518,92 @@
       <form method="POST" action="{{ url_for('business.create_client') }}" enctype="multipart/form-data">
 
         <!-- Identity -->
-        <div class="grid grid-cols-2 gap-x-3 gap-y-2 mb-3">
+        <p class="text-xs font-semibold mb-1.5 glass-text-emboss" style="color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Identity</p>
+        <div class="grid grid-cols-2 gap-x-3 gap-y-2 mb-4">
           <div>
-            <label class="block text-sm font-semibold mb-0.5" style="color:var(--text-primary);">First Name *</label>
-            <input name="first_name" required class="glass-input" placeholder="Jane">
+            <label class="block text-xs font-semibold mb-0.5" style="color:var(--text-primary);">First Name *</label>
+            <div class="glass-inset rounded-lg p-0.5">
+              <input name="first_name" required class="glass-input" style="background:transparent;border:none;box-shadow:none;" placeholder="Jane">
+            </div>
           </div>
           <div>
-            <label class="block text-sm font-semibold mb-0.5" style="color:var(--text-primary);">Last Name *</label>
-            <input name="last_name" required class="glass-input" placeholder="Doe">
+            <label class="block text-xs font-semibold mb-0.5" style="color:var(--text-primary);">Last Name *</label>
+            <div class="glass-inset rounded-lg p-0.5">
+              <input name="last_name" required class="glass-input" style="background:transparent;border:none;box-shadow:none;" placeholder="Doe">
+            </div>
           </div>
           <div class="col-span-2">
-            <label class="block text-sm font-semibold mb-0.5" style="color:var(--text-primary);">Email *</label>
-            <input name="email" type="email" required class="glass-input" placeholder="jane@example.com">
+            <label class="block text-xs font-semibold mb-0.5" style="color:var(--text-primary);">Email *</label>
+            <div class="glass-inset rounded-lg p-0.5">
+              <input name="email" type="email" required class="glass-input" style="background:transparent;border:none;box-shadow:none;" placeholder="jane@example.com">
+            </div>
           </div>
         </div>
 
         <!-- Address -->
-        <div class="grid grid-cols-2 gap-x-3 gap-y-2 mb-3">
+        <p class="text-xs font-semibold mb-1.5 glass-text-emboss" style="color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Address</p>
+        <div class="grid grid-cols-2 gap-x-3 gap-y-2 mb-4">
           <div>
-            <label class="block text-sm font-semibold mb-0.5" style="color:var(--text-primary);">Address</label>
-            <input name="address_line1" class="glass-input" placeholder="123 Main St">
+            <label class="block text-xs font-semibold mb-0.5" style="color:var(--text-primary);">Street</label>
+            <div class="glass-inset rounded-lg p-0.5">
+              <input name="address_line1" class="glass-input" style="background:transparent;border:none;box-shadow:none;" placeholder="123 Main St">
+            </div>
           </div>
           <div>
-            <label class="block text-sm font-semibold mb-0.5" style="color:var(--text-primary);">Apt / Suite</label>
-            <input name="address_line2" class="glass-input" placeholder="Apt 4B">
+            <label class="block text-xs font-semibold mb-0.5" style="color:var(--text-primary);">Apt / Suite</label>
+            <div class="glass-inset rounded-lg p-0.5">
+              <input name="address_line2" class="glass-input" style="background:transparent;border:none;box-shadow:none;" placeholder="Apt 4B">
+            </div>
           </div>
           <div>
-            <label class="block text-sm font-semibold mb-0.5" style="color:var(--text-primary);">City</label>
-            <input name="city" class="glass-input" placeholder="Los Angeles">
+            <label class="block text-xs font-semibold mb-0.5" style="color:var(--text-primary);">City</label>
+            <div class="glass-inset rounded-lg p-0.5">
+              <input name="city" class="glass-input" style="background:transparent;border:none;box-shadow:none;" placeholder="Los Angeles">
+            </div>
           </div>
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <label class="block text-sm font-semibold mb-0.5" style="color:var(--text-primary);">State</label>
-              <input name="state" class="glass-input" placeholder="CA">
+              <label class="block text-xs font-semibold mb-0.5" style="color:var(--text-primary);">State</label>
+              <div class="glass-inset rounded-lg p-0.5">
+                <input name="state" class="glass-input" style="background:transparent;border:none;box-shadow:none;" placeholder="CA">
+              </div>
             </div>
             <div>
-              <label class="block text-sm font-semibold mb-0.5" style="color:var(--text-primary);">ZIP</label>
-              <input name="zip_code" class="glass-input" placeholder="90001">
+              <label class="block text-xs font-semibold mb-0.5" style="color:var(--text-primary);">ZIP</label>
+              <div class="glass-inset rounded-lg p-0.5">
+                <input name="zip_code" class="glass-input" style="background:transparent;border:none;box-shadow:none;" placeholder="90001">
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Documents — compact 2x2 -->
-        <p class="text-sm font-semibold mb-1" style="color:var(--text-primary);">Documents</p>
-        <div class="grid grid-cols-2 gap-2 mb-3">
-          <div>
-            <label class="block text-xs font-semibold mb-0.5" style="color:var(--text-secondary);">Credit Report</label>
-            <input name="pdf_file" type="file" accept=".pdf" class="glass-input text-xs py-1 file:mr-2 file:py-0.5 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-[var(--accent)]">
+        <!-- Documents -->
+        <p class="text-xs font-semibold mb-1.5 glass-text-emboss" style="color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Documents</p>
+        <div class="grid grid-cols-2 gap-2 mb-4">
+          <div class="glass-inset rounded-xl p-2.5">
+            <label class="block text-xs font-semibold mb-1" style="color:var(--text-secondary);">Credit Report</label>
+            <input name="pdf_file" type="file" accept=".pdf" class="glass-input text-xs py-1 file:mr-2 file:py-0.5 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-[var(--accent)]" style="background:transparent;border:none;box-shadow:none;">
           </div>
-          <div>
-            <label class="block text-xs font-semibold mb-0.5" style="color:var(--text-secondary);">Photo ID</label>
-            <input name="id_file" type="file" accept="image/*,.pdf" class="glass-input text-xs py-1 file:mr-2 file:py-0.5 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-[var(--accent)]">
+          <div class="glass-inset rounded-xl p-2.5">
+            <label class="block text-xs font-semibold mb-1" style="color:var(--text-secondary);">Photo ID</label>
+            <input name="id_file" type="file" accept="image/*,.pdf" class="glass-input text-xs py-1 file:mr-2 file:py-0.5 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-[var(--accent)]" style="background:transparent;border:none;box-shadow:none;">
           </div>
-          <div>
-            <label class="block text-xs font-semibold mb-0.5" style="color:var(--text-secondary);">SSN Card</label>
-            <input name="ssn_file" type="file" accept="image/*,.pdf" class="glass-input text-xs py-1 file:mr-2 file:py-0.5 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-[var(--accent)]">
+          <div class="glass-inset rounded-xl p-2.5">
+            <label class="block text-xs font-semibold mb-1" style="color:var(--text-secondary);">SSN Card</label>
+            <input name="ssn_file" type="file" accept="image/*,.pdf" class="glass-input text-xs py-1 file:mr-2 file:py-0.5 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-[var(--accent)]" style="background:transparent;border:none;box-shadow:none;">
           </div>
-          <div>
-            <label class="block text-xs font-semibold mb-0.5" style="color:var(--text-secondary);">Utility Bill</label>
-            <input name="utility_file" type="file" accept="image/*,.pdf" class="glass-input text-xs py-1 file:mr-2 file:py-0.5 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-[var(--accent)]">
+          <div class="glass-inset rounded-xl p-2.5">
+            <label class="block text-xs font-semibold mb-1" style="color:var(--text-secondary);">Utility Bill</label>
+            <input name="utility_file" type="file" accept="image/*,.pdf" class="glass-input text-xs py-1 file:mr-2 file:py-0.5 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-[var(--accent)]" style="background:transparent;border:none;box-shadow:none;">
           </div>
         </div>
 
-        <!-- Notes — compact -->
+        <!-- Notes -->
         <div class="mb-3">
-          <label class="block text-sm font-semibold mb-0.5" style="color:var(--text-primary);">Notes</label>
-          <textarea name="notes" rows="2" class="glass-input w-full" style="min-height:auto;resize:vertical;" placeholder="Initial notes about client situation..."></textarea>
+          <label class="block text-xs font-semibold mb-0.5 glass-text-emboss" style="color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Notes</label>
+          <div class="glass-inset rounded-xl p-1">
+            <textarea name="notes" rows="2" class="glass-input w-full" style="min-height:auto;resize:vertical;background:transparent;border:none;box-shadow:none;" placeholder="Initial notes about client situation..."></textarea>
+          </div>
         </div>
 
         <button type="submit" class="glass-btn glass-btn--primary glass-btn--full rounded-2xl">
@@ -660,6 +705,38 @@
         card.style.borderWidth = strategy === s ? '2px' : '';
       }
     });
+
+    var letterSrc = document.getElementById('letterSourceSection');
+    var batchSize = document.getElementById('batchSizeSection');
+    var sendToSec = document.getElementById('sendToSection');
+    var bureausCard = document.getElementById('sendto-bureaus-card');
+    var creditorsCard = document.getElementById('sendto-creditors-card');
+
+    // Reset everything
+    letterSrc.style.opacity = '1'; letterSrc.style.pointerEvents = 'auto';
+    batchSize.style.opacity = '1'; batchSize.style.pointerEvents = 'auto';
+    sendToSec.style.opacity = '1'; sendToSec.style.pointerEvents = 'auto';
+
+    if (strategy === 'notice') {
+      // Notice: grey out letter source, batch size; lock to bureaus
+      letterSrc.style.opacity = '0.35'; letterSrc.style.pointerEvents = 'none';
+      batchSize.style.opacity = '0.35'; batchSize.style.pointerEvents = 'none';
+      // Lock Send To to Bureaus
+      document.querySelector('input[name="send_to"][value="bureaus"]').checked = true;
+      sendToSec.style.opacity = '0.35'; sendToSec.style.pointerEvents = 'none';
+      bureausCard.style.borderColor = 'var(--accent)'; bureausCard.style.borderWidth = '2px';
+      creditorsCard.style.borderColor = ''; creditorsCard.style.borderWidth = '';
+      document.getElementById('creditorSection').classList.add('hidden');
+    } else if (strategy === 'dual') {
+      // Dual: highlight both send-to, grey out batch size
+      batchSize.style.opacity = '0.35'; batchSize.style.pointerEvents = 'none';
+      sendToSec.style.pointerEvents = 'none';
+      bureausCard.style.borderColor = 'var(--accent)'; bureausCard.style.borderWidth = '2px';
+      creditorsCard.style.borderColor = 'var(--accent)'; creditorsCard.style.borderWidth = '2px';
+    } else {
+      // Standard: everything enabled, reset send-to styling
+      updateSendToUI();
+    }
   }
 
   function updateSendToUI() {
