@@ -124,6 +124,13 @@
                         class="glass-btn glass-btn--primary glass-btn--pill text-xs px-3 py-1">
                   Launch Agent
                 </button>
+                <button type="button"
+                        onclick="event.preventDefault(); event.stopPropagation(); deleteClient({{ c.id }}, '{{ c.first_name }} {{ c.last_name }}')"
+                        class="glass-btn glass-btn--pill text-xs px-2 py-1 opacity-40 hover:opacity-100 transition-opacity"
+                        style="background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.15);"
+                        title="Delete client">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"/></svg>
+                </button>
                 <span class="text-xs" style="color:var(--text-tertiary);">View &rarr;</span>
               </div>
             </a>
@@ -623,6 +630,30 @@
     const m = document.getElementById('addClientModal');
     if (m) { m.classList.add('hidden'); m.classList.remove('flex'); }
   }
+
+  // ── Delete Client ──
+  function deleteClient(clientId, clientName) {
+    if (!confirm('Delete ' + clientName + ' and ALL their data?\n\nThis includes pipelines, letters, analyses, documents, and notes.\n\nThis cannot be undone.')) return;
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/clients/' + clientId + '/delete';
+    document.body.appendChild(form);
+    form.submit();
+  }
+
+  // ── Create Client Form Animation ──
+  (function() {
+    const form = document.querySelector('#addClientModal form');
+    if (!form) return;
+    form.addEventListener('submit', function(e) {
+      const btn = form.querySelector('button[type="submit"]');
+      if (!btn) return;
+      btn.disabled = true;
+      btn.innerHTML = '<svg class="animate-spin h-4 w-4 inline-block mr-2" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4A4 4 0 008 12H4z"/></svg>Creating Client...';
+      btn.style.opacity = '0.7';
+    });
+  })();
 
   // ── Agent Config Modal ──
   let selectedClientId = null;

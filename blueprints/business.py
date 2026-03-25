@@ -17,7 +17,8 @@ from werkzeug.utils import secure_filename
 from models import (
     db, Client, ClientReportAnalysis, ClientDisputeLetter,
     WorkflowSetting, CustomLetter, MessageThread, Message,
-    Correspondence, DisputePipeline, ClientPortalToken, SupportingDoc
+    Correspondence, DisputePipeline, ClientPortalToken, SupportingDoc,
+    PipelineTask, DisputeAccount, BureauResponse
 )
 from services.pdf_parser import extract_negative_items_from_pdf
 from services.report_analyzer import run_report_analysis
@@ -158,6 +159,43 @@ def create_client():
     db.session.commit()
 
     flash(f"Client {first_name} {last_name} created.", "success")
+    return redirect(url_for("business.business_dashboard"))
+
+
+@business_bp.route('/clients/<int:client_id>/delete', methods=['POST'])
+@login_required
+@require_business
+def delete_client(client_id):
+    """Delete a client and all associated data."""
+    client = Client.query.get_or_404(client_id)
+    if client.business_user_id != current_user.id:
+        abort(403)
+
+    # Delete associated data in order (foreign key constraints)
+    # Get pipeline IDs for this client
+    pipelines = DisputePipeline.query.filter_by(client_id=client.id).all()
+    for pipeline in pipelines:
+        DisputeAccount.query.filter_by(pipeline_id=pipeline.id).delete()
+        PipelineTask.query.filter_by(pipeline_id=pipeline.id).delete()
+    DisputePipeline.query.filter_by(client_id=client.id).delete()
+
+    # Delete other associated records
+    ClientDisputeLetter.query.filter_by(client_id=client.id).delete()
+    ClientReportAnalysis.query.filter_by(client_id=client.id).delete()
+    SupportingDoc.query.filter_by(client_id=client.id).delete()
+    BureauResponse.query.filter_by(client_id=client.id).delete()
+    ClientPortalToken.query.filter_by(client_id=client.id).delete()
+
+    # Delete message threads
+    threads = MessageThread.query.filter_by(client_id=client.id).all()
+    for thread in threads:
+        Message.query.filter_by(thread_id=thread.id).delete()
+    MessageThread.query.filter_by(client_id=client.id).delete()
+
+    db.session.delete(client)
+    db.session.commit()
+
+    flash(f"Client {client.first_name} {client.last_name} has been deleted.", "success")
     return redirect(url_for("business.business_dashboard"))
 
 
