@@ -575,6 +575,103 @@ def handle_strategy(pipeline):
     return 'generation'
 
 
+def _generate_notice_of_dispute(pipeline, client_data, accounts_data, round_number):
+    """Generate hardcoded Notice of Dispute letters — one per bureau, no AI calls."""
+    from datetime import datetime as _dt
+
+    client_name = f"{client_data['first_name']} {client_data['last_name']}"
+    client_email = client_data.get('email', '')
+    today_date = _dt.now().strftime('%B %d, %Y')
+
+    # Group accounts by bureau
+    bureaus = {}
+    for ad in accounts_data:
+        bureau = ad.get('bureau', '').strip()
+        if not bureau or bureau == 'cfpb':
+            continue
+        bureaus.setdefault(bureau, []).append(ad)
+
+    generated_letters = []
+
+    for bureau, accts in bureaus.items():
+        # Bureau address block
+        addr = BUREAU_ADDRESSES.get(bureau.lower(), {})
+        bureau_block = f"{addr.get('name', bureau)}\n{addr.get('address1', '')}\n{addr.get('city', '')}, {addr.get('state', '')} {addr.get('zip', '')}"
+
+        # Account list block
+        account_lines = []
+        for a in accts:
+            line = f"- {a['account_name']}"
+            if a.get('account_number'):
+                line += f" (Account #{a['account_number']})"
+            account_lines.append(line)
+        account_block = '\n'.join(account_lines)
+
+        letter_text = f"""{client_name}
+{client_data.get('address_line1', '[Your Address]')}
+{client_data.get('city', '[City]')}, {client_data.get('state', '[State]')} {client_data.get('zip_code', '[ZIP]')}
+
+{today_date}
+
+{bureau_block}
+
+RE: Notice of Dispute
+
+Dear {addr.get('name', bureau)},
+
+I am writing to formally dispute the inclusion of the following account(s) associated with my credit file:
+
+{account_block}
+
+Under the Fair Credit Reporting Act (15 U.S.C. § 1681i), I am exercising my right to dispute the accuracy and completeness of the information listed above. I request that you conduct a thorough and reasonable investigation into each disputed item.
+
+Please be advised that these account(s) contain inaccurate, incomplete, or unverifiable information. I demand that you verify every aspect of each account — including the original creditor, balance, payment history, dates, and account status — directly with the data furnisher. If the information cannot be verified within 30 days, it must be removed from my credit report.
+
+Please send me written confirmation of your investigation results and any corrections made to my credit file.
+
+Below is my ID.
+
+Sincerely,
+
+{client_name}
+{client_email}"""
+
+        # Create one letter per bureau, link to the first account in that bureau
+        generated_letters.append({
+            'account_ids': [a['id'] for a in accts],
+            'letter_text': letter_text,
+            'template_name': f"Notice of Dispute - {bureau}",
+            'bureau': bureau,
+        })
+        logger.info(f"Generated Notice of Dispute for {bureau} ({len(accts)} accounts)")
+
+    if not generated_letters:
+        raise ValueError("No bureaus found to generate Notice of Dispute letters")
+
+    # Save letters and link to accounts
+    for gl in generated_letters:
+        letter_record = ClientDisputeLetter(
+            client_id=pipeline.client_id,
+            letter_text=gl['letter_text'],
+            status='Draft',
+            template_name=gl['template_name'],
+            round_number=round_number,
+            bureau=gl['bureau'],
+        )
+        db.session.add(letter_record)
+        db.session.flush()
+
+        # Link all accounts for this bureau to this single letter
+        for acct_id in gl['account_ids']:
+            account = DisputeAccount.query.get(acct_id)
+            if account:
+                account.letter_id = letter_record.id
+
+    db.session.commit()
+    logger.info(f"Notice of Dispute: {len(generated_letters)} letters created (one per bureau)")
+    return 'review'
+
+
 def handle_generation(pipeline):
     """Generate dispute letters for each DisputeAccount in the current round."""
     # ── PHASE 1: Read all DB data into plain Python structures ──
@@ -606,9 +703,14 @@ def handle_generation(pipeline):
     send_to = agent_config.get('send_to', 'bureaus')
     creditor_addresses = agent_config.get('creditor_addresses', [])
     custom_letter_id = agent_config.get('custom_letter_id')
+    strategy = agent_config.get('strategy', 'standard')
 
     strategy_data = json.loads(pipeline.strategy_json or '{}')
     parsed_accounts = strategy_data.get('negative_items', [])
+
+    # ── Notice of Dispute: hardcoded template, no AI ──
+    if strategy == 'notice_of_dispute':
+        return _generate_notice_of_dispute(pipeline, client_data, accounts_data, round_number)
 
     # Load custom letter template if needed
     custom_body = None

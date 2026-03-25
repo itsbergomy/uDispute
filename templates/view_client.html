@@ -1205,7 +1205,17 @@
     document.getElementById('tab-' + tabName).classList.add('active');
     document.querySelector('[data-tab="' + tabName + '"]').style.background = 'var(--accent)';
     document.querySelector('[data-tab="' + tabName + '"]').style.color = '#fff';
+    // Persist tab in URL hash
+    history.replaceState(null, '', '#' + tabName);
   }
+
+  // Restore tab from URL hash on page load
+  (function() {
+    var hash = window.location.hash.replace('#', '');
+    if (hash && document.getElementById('tab-' + hash)) {
+      switchTab(hash);
+    }
+  })();
 
   // ── Loading animation helper ──
   function startButtonLoading(btn, spin, icon, text, loadingText) {
