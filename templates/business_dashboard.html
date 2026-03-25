@@ -308,21 +308,17 @@
               {% for i in range(1, 4) %}
               <div class="glass-inset rounded-xl p-3 flex items-center gap-3 round-mapper-row">
                 <span class="text-xs font-bold w-14 flex-shrink-0 glass-text-emboss" style="color:var(--text-primary);">Round {{ i }}</span>
-                <div class="glass-inset rounded-lg p-0.5 flex-1">
-                  <select name="round_strategy_{{ i }}" class="round-strategy-select glass-select text-xs w-full" style="background:transparent;border:none;box-shadow:none;">
-                    <option value="standard" {% if i == 1 %}selected{% endif %}>Standard</option>
-                    <option value="dual_letter" {% if i == 2 %}selected{% endif %}>Dual Letter</option>
-                    <option value="arbitration" {% if i == 3 %}selected{% endif %}>Arbitration</option>
-                  </select>
-                </div>
-                <div class="glass-inset rounded-lg p-0.5 flex-1">
-                  <select name="round_pack_{{ i }}" class="round-pack-select glass-select text-xs w-full" style="background:transparent;border:none;box-shadow:none;">
-                    <option value="default" {% if i == 1 %}selected{% endif %}>Default</option>
-                    <option value="consumer_law" {% if i == 2 %}selected{% endif %}>Consumer Law</option>
-                    <option value="ACDV_response" {% if i == 3 %}selected{% endif %}>ACDV Response</option>
-                    <option value="arbitration">Arbitration</option>
-                  </select>
-                </div>
+                <select name="round_strategy_{{ i }}" class="round-strategy-select glass-select text-xs flex-1 !py-1.5">
+                  <option value="standard" {% if i == 1 %}selected{% endif %}>Standard</option>
+                  <option value="dual_letter" {% if i == 2 %}selected{% endif %}>Dual Letter</option>
+                  <option value="arbitration" {% if i == 3 %}selected{% endif %}>Arbitration</option>
+                </select>
+                <select name="round_pack_{{ i }}" class="round-pack-select glass-select text-xs flex-1 !py-1.5">
+                  <option value="default" {% if i == 1 %}selected{% endif %}>Default</option>
+                  <option value="consumer_law" {% if i == 2 %}selected{% endif %}>Consumer Law</option>
+                  <option value="ACDV_response" {% if i == 3 %}selected{% endif %}>ACDV Response</option>
+                  <option value="arbitration">Arbitration</option>
+                </select>
               </div>
               {% endfor %}
             </div>
