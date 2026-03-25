@@ -1,159 +1,147 @@
 {% extends "base_header.html" %}
+{% import '_icons.html' as icons %}
 {% block title %}Round {{ round_number }} Letter — {{ letter.account_name or 'Dispute' }}{% endblock %}
 
 {% block content %}
-<main class="min-h-screen" style="padding:0;">
+<main class="px-4 py-10 max-w-3xl mx-auto">
 
-  <div style="
-    position: fixed;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%) scale(0.85);
-    width: 680px;
-    max-width: 94vw;
-    max-height: 88vh;
-    display: flex;
-    flex-direction: column;
-    background: rgba(220,225,235,0.85);
-    backdrop-filter: blur(32px) saturate(190%) brightness(1.06);
-    -webkit-backdrop-filter: blur(32px) saturate(190%) brightness(1.06);
-    border: 1px solid rgba(255,255,255,0.30);
-    border-radius: 16px;
-    box-shadow:
-      0 24px 80px rgba(0,0,0,0.18),
-      0 8px 28px rgba(0,0,0,0.10),
-      0 2px 8px rgba(0,0,0,0.06),
-      inset 0 1px 0 rgba(255,255,255,0.50),
-      inset 0 -1px 0 rgba(255,255,255,0.06);
-    opacity: 0;
-    z-index: 100;
-    animation: folder-open 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s forwards;
-    overflow: hidden;
-  ">
+  {# ── Back Button ── #}
+  <a href="{{ url_for('disputes.dispute_folder') }}"
+     class="inline-flex items-center gap-2 mb-6 glass-btn glass-btn--ghost px-4 py-2 rounded-full text-sm"
+     style="color:var(--text-secondary);">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+    Back to Dispute Folder
+  </a>
 
-    <!-- Title Bar -->
-    <div style="
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 0.6rem 1rem 0.55rem 0.85rem;
-      background: rgba(255,255,255,0.08);
-      border-bottom: 1px solid rgba(255,255,255,0.12);
-      flex-shrink: 0;
-    ">
-      <a href="{{ url_for('disputes.dispute_folder') }}"
-         style="
-           width: 14px; height: 14px; border-radius: 50%;
-           background: linear-gradient(135deg, #ff6058, #e0443e);
-           border: 1px solid rgba(0,0,0,0.12);
-           display: flex; align-items: center; justify-content: center;
-           flex-shrink: 0;
-         " title="Back to Dispute Folder"></a>
-
-      <div style="display:flex;align-items:center;gap:8px;flex:1;justify-content:center;margin-right:14px;">
-        <span class="glass-text-emboss" style="font-size:0.8rem;font-weight:600;color:var(--text-primary);letter-spacing:0.01em;">
-          Round {{ round_number }} Letter Review
-        </span>
-      </div>
+  {# ── Header Card ── #}
+  <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in text-center">
+    <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
+      {{ icons.icon_document(size=28, uid='erhdr') }}
     </div>
 
-    <!-- Content -->
-    <div style="flex:1;overflow-y:auto;padding:1.25rem 1.5rem 1.5rem;">
+    <span style="
+      display:inline-block;
+      font-size:0.65rem;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:0.1em;
+      padding:4px 12px;
+      border-radius:100px;
+      background:linear-gradient(135deg, #10b981, #059669);
+      color:#fff;
+      margin-bottom:0.75rem;
+      box-shadow:0 3px 10px rgba(16,185,129,0.25), inset 0 1px 0 rgba(255,255,255,0.3);
+    ">Round {{ round_number }}</span>
 
-      <!-- Round Context -->
-      <div class="flex items-center gap-2 mb-3">
-        <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
-              style="background:rgba(59,130,246,0.15);color:rgba(59,130,246,0.9);">
-          Round {{ round_number }}
-        </span>
-        {% if letter.bureau %}
-          <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
-                style="background:{% if letter.bureau == 'Equifax' %}rgba(231,76,60,0.2){% elif letter.bureau == 'TransUnion' %}rgba(52,152,219,0.2){% else %}rgba(155,89,182,0.2){% endif %};color:var(--text-secondary);">
-            {{ letter.bureau }}
-          </span>
-        {% endif %}
-        {% if letter.account_name %}
-          <span class="text-xs" style="color:var(--text-tertiary);">{{ letter.account_name }}</span>
-        {% endif %}
+    <h2 class="text-2xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">
+      Escalation Letter Review
+    </h2>
+    <p style="color:var(--text-tertiary);font-size:0.85rem;">
+      {{ letter.account_name or 'Dispute' }}
+      {% if letter.bureau %} &bull; {{ letter.bureau }}{% endif %}
+    </p>
+  </div>
+
+  {# ── What's in This Letter ── #}
+  <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in" style="animation-delay:.05s;border:1.5px solid rgba(16,185,129,0.2);">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:rgba(16,185,129,0.12);color:#10b981;">ENHANCED</span>
+    </div>
+    <p class="text-xs font-semibold mb-2" style="color:var(--text-primary);">This letter includes:</p>
+    <div class="space-y-2">
+      <div class="flex items-center gap-2">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+        <span class="text-xs" style="color:var(--text-secondary);">CFPB complaint data against this creditor</span>
       </div>
-
-      <!-- What's Different Banner -->
-      <div class="glass-card rounded-xl p-3 mb-4" style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);">
-        <p class="text-xs font-semibold" style="color:rgba(16,185,129,0.9);">What's in this letter:</p>
-        <ul class="text-xs mt-1 space-y-0.5" style="color:var(--text-tertiary);list-style:none;padding:0;">
-          <li>&#x2713; CFPB complaint data against this creditor</li>
-          <li>&#x2713; Federal case law citations supporting your dispute</li>
-          <li>&#x2713; Specific FCRA sections violated</li>
-          {% if previous and previous.response_text %}
-            <li>&#x2713; Direct response to their Round {{ previous.round_number }} verification</li>
-          {% endif %}
-        </ul>
+      <div class="flex items-center gap-2">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+        <span class="text-xs" style="color:var(--text-secondary);">Federal case law citations supporting your dispute</span>
       </div>
-
-      <!-- Letter Text (Editable) -->
-      <form action="{{ url_for('disputes.convert_pdf') }}" method="POST">
-        <label class="glass-label mb-2" style="font-size:0.75rem;color:var(--text-secondary);">
-          Review and edit your letter before generating the dispute package:
-        </label>
-        <textarea name="letter_text" class="glass-input glass-textarea mb-4" rows="16"
-                  style="font-size:0.8rem;line-height:1.6;font-family:'Plus Jakarta Sans',sans-serif;">{{ letter.letter_text }}</textarea>
-
-        <input type="hidden" name="bureau" value="{{ letter.bureau or '' }}">
-        <input type="hidden" name="round_number" value="{{ round_number }}">
-        <input type="hidden" name="account_name" value="{{ letter.account_name or '' }}">
-        <input type="hidden" name="escalation_letter_id" value="{{ letter.id }}">
-
-        <div class="flex gap-3">
-          <button type="submit" class="flex-1 glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge py-2.5 text-sm font-semibold">
-            Generate Dispute Package
-          </button>
-          <a href="{{ url_for('disputes.dispute_folder') }}"
-             class="glass-btn glass-btn--pill py-2.5 px-4 text-sm"
-             style="background:rgba(255,255,255,0.08);color:var(--text-secondary);">
-            Save for Later
-          </a>
-        </div>
-
-        <p class="text-xs text-center mt-2 mb-4" style="color:var(--text-tertiary);">
-          You can edit the letter above before generating your PDF package.
-        </p>
-
-        <!-- One-Click Mail -->
-        <div class="glass-card rounded-xl p-4" style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);">
-          <p class="text-xs font-semibold mb-2" style="color:rgba(16,185,129,0.9);">Ready to mail directly?</p>
-          <p class="text-xs mb-3" style="color:var(--text-tertiary);">Skip the package — generate PDF and send via DocuPost in one click.</p>
-          <div class="grid grid-cols-2 gap-2 mb-3">
-            <select id="escalationMailClass" class="glass-input text-xs">
-              <option value="usps_first_class">USPS First Class</option>
-              <option value="usps_certified">USPS Certified</option>
-              <option value="usps_priority">USPS Priority</option>
-            </select>
-            <select id="escalationServiceLevel" class="glass-input text-xs">
-              <option value="standard">Standard</option>
-              <option value="certified">Certified Mail</option>
-              <option value="certified_return">Certified w/ Return Receipt</option>
-            </select>
-          </div>
-          <button type="button" onclick="quickMail({{ letter.id }})"
-                  class="w-full glass-btn glass-btn--pill py-2 text-sm font-semibold"
-                  style="background:linear-gradient(135deg,rgba(16,185,129,0.2),rgba(16,185,129,0.1));color:rgba(16,185,129,0.9);border:1px solid rgba(16,185,129,0.25);"
-                  id="quickMailBtn">
-            Mail This Letter Now
-          </button>
-        </div>
-      </form>
-
+      <div class="flex items-center gap-2">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+        <span class="text-xs" style="color:var(--text-secondary);">Specific FCRA sections violated</span>
+      </div>
+      {% if previous and previous.response_text %}
+      <div class="flex items-center gap-2">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+        <span class="text-xs" style="color:var(--text-secondary);">Direct response to their Round {{ previous.round_number }} verification</span>
+      </div>
+      {% endif %}
     </div>
   </div>
 
-</main>
+  {# ── Letter Editor ── #}
+  <form action="{{ url_for('disputes.convert_pdf') }}" method="POST">
+    <h3 class="text-lg font-semibold mb-3 glass-text-emboss" style="color:var(--text-primary);">
+      Review Your Letter
+    </h3>
+    <p style="color:var(--text-tertiary);font-size:0.8rem;margin-bottom:1rem;">
+      Edit the letter below before generating your dispute package.
+    </p>
 
-<style>
-  @keyframes folder-open {
-    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
-    60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.02); }
-    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  }
-</style>
+    <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in" style="animation-delay:.1s">
+      <textarea name="letter_text" class="glass-input glass-textarea w-full text-sm" rows="16"
+                style="line-height:1.6;font-family:var(--font-body);resize:vertical;">{{ letter.letter_text }}</textarea>
+    </div>
+
+    <input type="hidden" name="bureau" value="{{ letter.bureau or '' }}">
+    <input type="hidden" name="round_number" value="{{ round_number }}">
+    <input type="hidden" name="account_name" value="{{ letter.account_name or '' }}">
+    <input type="hidden" name="escalation_letter_id" value="{{ letter.id }}">
+
+    {# ── Action Buttons ── #}
+    <div class="flex gap-3 mb-6">
+      <button type="submit" class="flex-1 glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge py-3 text-sm font-semibold"
+              style="position:relative;overflow:hidden;">
+        Generate Dispute Package
+      </button>
+      <a href="{{ url_for('disputes.dispute_folder') }}"
+         class="glass-btn glass-btn--pill py-3 px-6 text-sm font-semibold"
+         style="background:rgba(255,255,255,0.1);color:var(--text-secondary);border:1px solid rgba(255,255,255,0.15);">
+        Save for Later
+      </a>
+    </div>
+
+    {# ── One-Click Mail ── #}
+    <h3 class="text-lg font-semibold mb-3 glass-text-emboss" style="color:var(--text-primary);">
+      Mail Options
+    </h3>
+    <p style="color:var(--text-tertiary);font-size:0.8rem;margin-bottom:1rem;">
+      Skip the package — generate PDF and send via DocuPost in one click.
+    </p>
+
+    <div class="glass-card glass-card--heavy glass-p rounded-2xl mb-6 glass-animate-in" style="animation-delay:.15s">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+        <div>
+          <label class="glass-label text-xs font-semibold mb-2 block" style="color:var(--text-secondary);">Mail Class</label>
+          <select id="escalationMailClass" class="glass-select w-full text-sm">
+            <option value="usps_first_class">USPS First Class</option>
+            <option value="usps_certified">USPS Certified</option>
+            <option value="usps_priority">USPS Priority</option>
+          </select>
+        </div>
+        <div>
+          <label class="glass-label text-xs font-semibold mb-2 block" style="color:var(--text-secondary);">Service Level</label>
+          <select id="escalationServiceLevel" class="glass-select w-full text-sm">
+            <option value="standard">Standard</option>
+            <option value="certified">Certified Mail</option>
+            <option value="certified_return">Certified w/ Return Receipt</option>
+          </select>
+        </div>
+      </div>
+
+      <button type="button" onclick="quickMail({{ letter.id }})"
+              class="w-full glass-btn glass-btn--pill glass-shimmer-edge py-3 text-sm font-semibold"
+              style="position:relative;overflow:hidden;background:linear-gradient(135deg,rgba(16,185,129,0.15),rgba(16,185,129,0.08));color:#10b981;border:1.5px solid rgba(16,185,129,0.25);"
+              id="quickMailBtn">
+        Mail This Letter Now
+      </button>
+    </div>
+  </form>
+
+</main>
 
 <script>
 function quickMail(letterId) {
@@ -165,7 +153,6 @@ function quickMail(letterId) {
   btn.disabled = true;
   btn.style.opacity = '0.6';
 
-  // Get the edited letter text from the textarea
   const letterText = document.querySelector('textarea[name="letter_text"]').value;
 
   fetch('/api/quick-mail', {

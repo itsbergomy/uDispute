@@ -1,172 +1,203 @@
 {% extends "base_header.html" %}
+{% import '_icons.html' as icons %}
 {% block title %}Log Response — {{ letter.account_name or 'Dispute' }}{% endblock %}
 
 {% block content %}
-<main class="min-h-screen" style="padding:0;">
+<main class="px-4 py-10 max-w-3xl mx-auto">
 
-  <div style="
-    position: fixed;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%) scale(0.85);
-    width: 560px;
-    max-width: 94vw;
-    max-height: 88vh;
-    display: flex;
-    flex-direction: column;
-    background: rgba(220,225,235,0.85);
-    backdrop-filter: blur(32px) saturate(190%) brightness(1.06);
-    -webkit-backdrop-filter: blur(32px) saturate(190%) brightness(1.06);
-    border: 1px solid rgba(255,255,255,0.30);
-    border-radius: 16px;
-    box-shadow:
-      0 24px 80px rgba(0,0,0,0.18),
-      0 8px 28px rgba(0,0,0,0.10),
-      0 2px 8px rgba(0,0,0,0.06),
-      inset 0 1px 0 rgba(255,255,255,0.50),
-      inset 0 -1px 0 rgba(255,255,255,0.06);
-    opacity: 0;
-    z-index: 100;
-    animation: folder-open 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s forwards;
-    overflow: hidden;
-  ">
+  {# ── Back Button ── #}
+  <a href="{{ url_for('disputes.dispute_folder') }}"
+     class="inline-flex items-center gap-2 mb-6 glass-btn glass-btn--ghost px-4 py-2 rounded-full text-sm"
+     style="color:var(--text-secondary);">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+    Back to Dispute Folder
+  </a>
 
-    <!-- Title Bar -->
-    <div style="
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 0.6rem 1rem 0.55rem 0.85rem;
-      background: rgba(255,255,255,0.08);
-      border-bottom: 1px solid rgba(255,255,255,0.12);
-      flex-shrink: 0;
-    ">
-      <a href="{{ url_for('disputes.dispute_folder') }}"
-         style="
-           width: 14px; height: 14px; border-radius: 50%;
-           background: linear-gradient(135deg, #ff6058, #e0443e);
-           border: 1px solid rgba(0,0,0,0.12);
-           display: flex; align-items: center; justify-content: center;
-           flex-shrink: 0;
-         " title="Back to Dispute Folder"></a>
-
-      <div style="display:flex;align-items:center;gap:8px;flex:1;justify-content:center;margin-right:14px;">
-        <span class="glass-text-emboss" style="font-size:0.8rem;font-weight:600;color:var(--text-primary);letter-spacing:0.01em;">
-          Log Response
-        </span>
-      </div>
+  {# ── Header Card ── #}
+  <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in text-center">
+    <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
+      {{ icons.icon_letter_received(size=28, uid='lrhdr') if icons.icon_letter_received is defined else icons.icon_check(size=28, uid='lrhdr') }}
     </div>
 
-    <!-- Content -->
-    <div style="flex:1;overflow-y:auto;padding:1.25rem 1.5rem 1.5rem;">
+    <span style="
+      display:inline-block;
+      font-size:0.65rem;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:0.1em;
+      padding:4px 12px;
+      border-radius:100px;
+      background:linear-gradient(135deg, #f59e0b, #f97316);
+      color:#fff;
+      margin-bottom:0.75rem;
+      box-shadow:0 3px 10px rgba(245,158,11,0.25), inset 0 1px 0 rgba(255,255,255,0.3);
+    ">Response Received</span>
 
-      <!-- Dispute Context -->
-      <div class="glass-card glass-card--light rounded-xl p-4 mb-4">
-        <div class="flex items-center gap-2 mb-2">
-          <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
-                style="background:rgba(255,255,255,0.1);color:var(--text-secondary);">
-            Round {{ letter.round_number or 1 }}
-          </span>
-          {% if letter.bureau %}
-            <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
-                  style="background:{% if letter.bureau == 'Equifax' %}rgba(231,76,60,0.2){% elif letter.bureau == 'TransUnion' %}rgba(52,152,219,0.2){% else %}rgba(155,89,182,0.2){% endif %};color:var(--text-secondary);">
-              {{ letter.bureau }}
-            </span>
-          {% endif %}
-        </div>
-        {% if letter.account_name %}
-          <p class="text-sm font-semibold" style="color:var(--text-primary);">{{ letter.account_name }}</p>
-        {% endif %}
-        <p class="text-xs mt-1" style="color:var(--text-tertiary);">
-          Mailed {{ letter.created_at.strftime('%B %d, %Y') if letter.created_at else 'N/A' }}
-        </p>
-      </div>
-
-      <!-- Response Form -->
-      <form action="{{ url_for('disputes.log_response', letter_id=letter.id) }}" method="POST" enctype="multipart/form-data">
-
-        <!-- Outcome Selection -->
-        <label class="glass-label mb-2" style="font-size:0.75rem;color:var(--text-secondary);">What was the outcome?</label>
-        <div class="grid grid-cols-1 gap-2 mb-4">
-
-          <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer flex items-center gap-3 hover:border-green-400 transition-all"
-                 style="border:2px solid transparent;">
-            <input type="radio" name="outcome" value="removed" required class="accent-green-500">
-            <div>
-              <span class="text-sm font-semibold" style="color:var(--text-primary);">Removed</span>
-              <p class="text-xs" style="color:var(--text-tertiary);">Account deleted from credit report</p>
-            </div>
-          </label>
-
-          <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer flex items-center gap-3"
-                 style="border:2px solid transparent;">
-            <input type="radio" name="outcome" value="updated" class="accent-blue-500">
-            <div>
-              <span class="text-sm font-semibold" style="color:var(--text-primary);">Updated</span>
-              <p class="text-xs" style="color:var(--text-tertiary);">Creditor corrected the information</p>
-            </div>
-          </label>
-
-          <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer flex items-center gap-3"
-                 style="border:2px solid transparent;">
-            <input type="radio" name="outcome" value="verified" class="accent-red-500">
-            <div>
-              <span class="text-sm font-semibold" style="color:var(--text-primary);">Verified as Accurate</span>
-              <p class="text-xs" style="color:var(--text-tertiary);">Bureau says they investigated and verified — triggers escalation</p>
-            </div>
-          </label>
-
-          <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer flex items-center gap-3"
-                 style="border:2px solid transparent;">
-            <input type="radio" name="outcome" value="stall" class="accent-yellow-500">
-            <div>
-              <span class="text-sm font-semibold" style="color:var(--text-primary);">Stall Letter</span>
-              <p class="text-xs" style="color:var(--text-tertiary);">Form letter that doesn't address your dispute</p>
-            </div>
-          </label>
-
-          <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer flex items-center gap-3"
-                 style="border:2px solid transparent;">
-            <input type="radio" name="outcome" value="no_response" class="accent-gray-500">
-            <div>
-              <span class="text-sm font-semibold" style="color:var(--text-primary);">No Response</span>
-              <p class="text-xs" style="color:var(--text-tertiary);">30+ days with no reply — FCRA violation</p>
-            </div>
-          </label>
-
-        </div>
-
-        <!-- Upload Response Letter -->
-        <label class="glass-label mb-2" style="font-size:0.75rem;color:var(--text-secondary);">Upload their response (optional but recommended)</label>
-        <input type="file" name="response_file" accept=".pdf,.png,.jpg,.jpeg"
-               class="glass-input mb-3 text-sm" style="padding:0.5rem;" />
-
-        <!-- Response Text -->
-        <label class="glass-label mb-2" style="font-size:0.75rem;color:var(--text-secondary);">What did they say? (paste key text)</label>
-        <textarea name="response_text" class="glass-input glass-textarea mb-4" rows="4"
-                  placeholder="Paste the key parts of their response here..."></textarea>
-
-        <button type="submit" class="w-full glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge py-2.5 text-sm font-semibold">
-          Log Response
-        </button>
-      </form>
-
-    </div>
+    <h2 class="text-2xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">
+      Log Bureau Response
+    </h2>
+    <p style="color:var(--text-tertiary);font-size:0.85rem;">
+      {{ letter.account_name or 'Dispute' }} &bull; Round {{ letter.round_number or 1 }}
+      {% if letter.bureau %} &bull; {{ letter.bureau }}{% endif %}
+    </p>
+    {% if letter.created_at %}
+    <p class="text-xs mt-1" style="color:var(--text-tertiary);">
+      Originally mailed {{ letter.created_at.strftime('%B %d, %Y') }}
+    </p>
+    {% endif %}
   </div>
 
+  {# ── Original Letter Preview ── #}
+  <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in" style="animation-delay:.05s">
+    <details>
+      <summary class="cursor-pointer text-sm font-semibold glass-text-emboss" style="color:var(--text-primary);">
+        View Original Letter
+      </summary>
+      <div class="glass-inset rounded-xl p-4 mt-3">
+        <p class="text-xs" style="color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;font-family:var(--font-mono);">{{ letter.letter_text[:800] }}{% if letter.letter_text|length > 800 %}...{% endif %}</p>
+      </div>
+    </details>
+  </div>
+
+  {# ── Response Form ── #}
+  <form action="{{ url_for('disputes.log_response', letter_id=letter.id) }}" method="POST" enctype="multipart/form-data">
+
+    {# ── Outcome Selection ── #}
+    <h3 class="text-lg font-semibold mb-3 glass-text-emboss" style="color:var(--text-primary);">
+      What was the outcome?
+    </h3>
+    <p style="color:var(--text-tertiary);font-size:0.8rem;margin-bottom:1rem;">
+      Select the response you received from the bureau or creditor.
+    </p>
+
+    <div class="space-y-3 mb-6">
+
+      <label class="glass-card glass-card--heavy glass-p rounded-2xl cursor-pointer flex items-center gap-4 hover:scale-[1.01] transition-all duration-200 outcome-card"
+             style="border:2px solid transparent;">
+        <input type="radio" name="outcome" value="removed" required class="sr-only">
+        <div class="glass-icon-well flex items-center justify-center flex-shrink-0" style="width:40px;height:40px;border-radius:12px;background:rgba(52,199,89,0.12);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#34c759" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <div class="flex-1">
+          <span class="text-sm font-bold" style="color:var(--text-primary);">Removed</span>
+          <p class="text-xs" style="color:var(--text-tertiary);">Account deleted from credit report. Victory.</p>
+        </div>
+      </label>
+
+      <label class="glass-card glass-card--heavy glass-p rounded-2xl cursor-pointer flex items-center gap-4 hover:scale-[1.01] transition-all duration-200 outcome-card"
+             style="border:2px solid transparent;">
+        <input type="radio" name="outcome" value="updated" class="sr-only">
+        <div class="glass-icon-well flex items-center justify-center flex-shrink-0" style="width:40px;height:40px;border-radius:12px;background:rgba(59,130,246,0.12);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </div>
+        <div class="flex-1">
+          <span class="text-sm font-bold" style="color:var(--text-primary);">Updated</span>
+          <p class="text-xs" style="color:var(--text-tertiary);">Creditor corrected the information on file.</p>
+        </div>
+      </label>
+
+      <label class="glass-card glass-card--heavy glass-p rounded-2xl cursor-pointer flex items-center gap-4 hover:scale-[1.01] transition-all duration-200 outcome-card"
+             style="border:2px solid transparent;">
+        <input type="radio" name="outcome" value="verified" class="sr-only">
+        <div class="glass-icon-well flex items-center justify-center flex-shrink-0" style="width:40px;height:40px;border-radius:12px;background:rgba(239,68,68,0.12);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </div>
+        <div class="flex-1">
+          <span class="text-sm font-bold" style="color:var(--text-primary);">Verified as Accurate</span>
+          <p class="text-xs" style="color:var(--text-tertiary);">Bureau claims they investigated and verified. We'll demand proof of their verification method and escalate.</p>
+        </div>
+      </label>
+
+      <label class="glass-card glass-card--heavy glass-p rounded-2xl cursor-pointer flex items-center gap-4 hover:scale-[1.01] transition-all duration-200 outcome-card"
+             style="border:2px solid transparent;">
+        <input type="radio" name="outcome" value="stall" class="sr-only">
+        <div class="glass-icon-well flex items-center justify-center flex-shrink-0" style="width:40px;height:40px;border-radius:12px;background:rgba(245,158,11,0.12);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+        </div>
+        <div class="flex-1">
+          <span class="text-sm font-bold" style="color:var(--text-primary);">Stall Letter</span>
+          <p class="text-xs" style="color:var(--text-tertiary);">Generic form letter that doesn't address your specific dispute points.</p>
+        </div>
+      </label>
+
+      <label class="glass-card glass-card--heavy glass-p rounded-2xl cursor-pointer flex items-center gap-4 hover:scale-[1.01] transition-all duration-200 outcome-card"
+             style="border:2px solid transparent;">
+        <input type="radio" name="outcome" value="no_response" class="sr-only">
+        <div class="glass-icon-well flex items-center justify-center flex-shrink-0" style="width:40px;height:40px;border-radius:12px;background:rgba(156,163,175,0.12);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        </div>
+        <div class="flex-1">
+          <span class="text-sm font-bold" style="color:var(--text-primary);">No Response</span>
+          <p class="text-xs" style="color:var(--text-tertiary);">30+ days with no reply — automatic FCRA violation under 15 U.S.C. 1681i(a).</p>
+        </div>
+      </label>
+
+    </div>
+
+    {# ── Verification Proof Request (shown when "Verified" is selected) ── #}
+    <div id="verificationProofSection" class="hidden mb-6 glass-animate-in">
+      <div class="glass-card glass-card--heavy glass-p rounded-2xl" style="border:1px solid rgba(239,68,68,0.2);">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:rgba(239,68,68,0.12);color:#ef4444;">IMPORTANT</span>
+        </div>
+        <h4 class="text-sm font-bold mb-1" style="color:var(--text-primary);">Demand Proof of Verification</h4>
+        <p class="text-xs mb-3" style="color:var(--text-tertiary);line-height:1.5;">
+          Under FCRA 15 U.S.C. 1681i(a)(7), the bureau must provide the method of verification upon request.
+          If they simply "verified" without conducting a real investigation, that's a sham investigation —
+          exactly what CFPB v. Experian (2025) ruled against.
+        </p>
+        <p class="text-xs font-semibold" style="color:var(--text-secondary);">
+          Your escalation letter will automatically demand their verification method, the name of the person who conducted the investigation, and all documentation reviewed.
+        </p>
+      </div>
+    </div>
+
+    {# ── Upload Response Letter ── #}
+    <h3 class="text-lg font-semibold mb-3 glass-text-emboss" style="color:var(--text-primary);">
+      Upload Their Response
+    </h3>
+    <p style="color:var(--text-tertiary);font-size:0.8rem;margin-bottom:1rem;">
+      Upload the bureau's response letter. This strengthens your escalation.
+    </p>
+
+    <div class="glass-card glass-card--heavy glass-p rounded-2xl mb-6 glass-animate-in" style="animation-delay:.1s">
+      <label class="glass-label text-xs font-semibold mb-2 block" style="color:var(--text-secondary);">Response Document</label>
+      <input type="file" name="response_file" accept=".pdf,.png,.jpg,.jpeg"
+             class="glass-input w-full text-sm file:mr-3 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-white/10 file:text-[var(--accent)]" />
+
+      <label class="glass-label text-xs font-semibold mb-2 mt-4 block" style="color:var(--text-secondary);">Key Text from Their Response</label>
+      <textarea name="response_text" class="glass-input glass-textarea w-full text-sm" rows="4"
+                placeholder="Paste the important parts of their response — what they said about the account, their reasoning, any claims they verified..."></textarea>
+    </div>
+
+    {# ── Submit ── #}
+    <button type="submit" class="w-full glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge py-3 text-sm font-semibold"
+            style="position:relative;overflow:hidden;">
+      Log Response
+    </button>
+
+  </form>
 </main>
 
-<style>
-  @keyframes folder-open {
-    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
-    60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.02); }
-    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  }
+<script>
+  // Show verification proof section when "Verified" is selected
+  document.querySelectorAll('input[name="outcome"]').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+      var section = document.getElementById('verificationProofSection');
+      if (this.value === 'verified') {
+        section.classList.remove('hidden');
+      } else {
+        section.classList.add('hidden');
+      }
 
-  /* Highlight selected outcome */
-  input[type="radio"]:checked + div span:first-child { color: var(--text-primary) !important; }
-  label:has(input[type="radio"]:checked) {
-    border-color: rgba(255,255,255,0.3) !important;
-    background: rgba(255,255,255,0.08) !important;
-  }
-</style>
+      // Update card borders
+      document.querySelectorAll('.outcome-card').forEach(function(card) {
+        card.style.borderColor = 'transparent';
+      });
+      this.closest('.outcome-card').style.borderColor = 'var(--accent)';
+    });
+  });
+</script>
 {% endblock %}
