@@ -1037,6 +1037,30 @@ def handle_response_received(pipeline):
     if pipeline.round_number >= max_rounds:
         return 'completed'  # Exhausted configured rounds
 
+    # Evaluate business rules for round_completed trigger
+    try:
+        from services.rules_engine import evaluate_rules
+        round_summary = {
+            'removed': sum(1 for a in accounts if a.outcome == 'removed'),
+            'updated': sum(1 for a in accounts if a.outcome == 'updated'),
+            'verified': sum(1 for a in accounts if a.outcome == 'verified'),
+            'no_response': sum(1 for a in accounts if a.outcome == 'no_response'),
+        }
+        rules_result = evaluate_rules(pipeline.user_id, 'round_completed', {
+            'pipeline_id': pipeline.id,
+            'round_number': pipeline.round_number,
+            'round_summary': round_summary,
+            'outcome': 'verified' if round_summary['verified'] > 0 else 'no_response' if round_summary['no_response'] > 0 else 'mixed',
+        })
+        # If auto_escalate was executed, the pipeline state was already changed
+        if rules_result:
+            pipeline_refreshed = DisputePipeline.query.get(pipeline.id)
+            if pipeline_refreshed and pipeline_refreshed.state == 'strategy':
+                plog(f"[PIPELINE] Rules engine auto-escalated pipeline {pipeline.id}")
+                return 'strategy'
+    except Exception as e:
+        plog(f"[PIPELINE] Rules engine evaluation failed: {e}")
+
     # Hard pause — user reviews outcomes and decides whether to start next round
     return 'round_review'
 

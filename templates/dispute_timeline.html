@@ -1,0 +1,127 @@
+{% extends "base_header.html" %}
+{% import '_icons.html' as icons %}
+{% block title %}Dispute Timeline — {{ client.first_name }} {{ client.last_name }}{% endblock %}
+
+{% block content %}
+<main class="px-4 py-10 max-w-3xl mx-auto">
+
+  {# ── Back Button ── #}
+  <a href="{{ url_for('business.view_client', client_id=client.id) }}"
+     class="inline-flex items-center gap-2 mb-6 glass-btn glass-btn--ghost px-4 py-2 rounded-full text-sm"
+     style="color:var(--text-secondary);">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+    Back to Client
+  </a>
+
+  {# ── Header Card ── #}
+  <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in text-center">
+    <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
+      {{ icons.icon_file(size=28, uid='tlhdr') }}
+    </div>
+
+    <span style="
+      display:inline-block;
+      font-size:0.65rem;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:0.1em;
+      padding:4px 12px;
+      border-radius:100px;
+      background:linear-gradient(135deg, #0ea5e9, #6366f1);
+      color:#fff;
+      margin-bottom:0.75rem;
+      box-shadow:0 3px 10px rgba(14,165,233,0.25), inset 0 1px 0 rgba(255,255,255,0.3);
+    ">Evidence Timeline</span>
+
+    <h2 class="text-2xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">
+      Dispute History — {{ client.first_name }} {{ client.last_name }}
+    </h2>
+    <p style="color:var(--text-tertiary);font-size:0.85rem;">
+      Complete chronological record of all dispute activity
+    </p>
+  </div>
+
+  {# ── Summary Metrics ── #}
+  <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in" style="animation-delay:.05s">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="glass-inset rounded-xl p-3 text-center">
+        <div class="text-xs" style="color:var(--text-tertiary);">ROUNDS</div>
+        <div class="text-xl font-bold glass-text-emboss">{{ max_round }}</div>
+      </div>
+      <div class="glass-inset rounded-xl p-3 text-center">
+        <div class="text-xs" style="color:var(--text-tertiary);">LETTERS SENT</div>
+        <div class="text-xl font-bold glass-text-emboss">{{ total_mailed }}</div>
+      </div>
+      <div class="glass-inset rounded-xl p-3 text-center">
+        <div class="text-xs" style="color:var(--text-tertiary);">REMOVED</div>
+        <div class="text-xl font-bold glass-text-emboss" style="color:#22c55e;">{{ total_removed }}</div>
+      </div>
+      <div class="glass-inset rounded-xl p-3 text-center">
+        <div class="text-xs" style="color:var(--text-tertiary);">UPDATED</div>
+        <div class="text-xl font-bold glass-text-emboss" style="color:#3b82f6;">{{ total_updated }}</div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Timeline ── #}
+  <h3 class="text-lg font-semibold mb-3 glass-text-emboss" style="color:var(--text-primary);">
+    Chronological Record
+  </h3>
+
+  <div class="relative" style="padding-left:28px;">
+    {# Vertical line #}
+    <div style="position:absolute;left:12px;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.15);border-radius:1px;"></div>
+
+    {% for event in events %}
+    <div class="mb-4 glass-animate-in" style="animation-delay:{{ loop.index0 * 0.03 }}s;position:relative;">
+      {# Timeline dot #}
+      <div style="
+        position:absolute;
+        left:-22px;
+        top:16px;
+        width:10px;
+        height:10px;
+        border-radius:50%;
+        border:2px solid {% if event.color == 'green' %}#22c55e{% elif event.color == 'red' %}#ef4444{% elif event.color == 'orange' %}#f59e0b{% elif event.color == 'purple' %}#8b5cf6{% else %}var(--accent){% endif %};
+        background:{% if event.color == 'green' %}rgba(34,197,94,0.2){% elif event.color == 'red' %}rgba(239,68,68,0.2){% elif event.color == 'orange' %}rgba(245,158,11,0.2){% elif event.color == 'purple' %}rgba(139,92,246,0.2){% else %}rgba(0,113,227,0.2){% endif %};
+      "></div>
+
+      <div class="glass-card glass-card--heavy rounded-2xl p-4">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-sm font-bold" style="color:var(--text-primary);">{{ event.title }}</span>
+          {% if event.round > 0 %}
+          <span class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,0.1);color:var(--text-tertiary);">R{{ event.round }}</span>
+          {% endif %}
+        </div>
+        <p class="text-xs" style="color:var(--text-secondary);">{{ event.detail }}</p>
+        {% if event.date %}
+        <p class="text-xs mt-1" style="color:var(--text-tertiary);">{{ event.date.strftime('%B %d, %Y at %I:%M %p') }}</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# ── Print Button ── #}
+  <div class="text-center mt-8 mb-4">
+    <button onclick="window.print()" class="glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge px-8 py-3 text-sm font-semibold"
+            style="position:relative;overflow:hidden;">
+      Print Timeline for Records
+    </button>
+  </div>
+
+</main>
+
+<style>
+  @media print {
+    nav, .glass-btn--ghost, button[onclick="window.print()"] { display: none !important; }
+    main { padding: 0 !important; max-width: 100% !important; }
+    .glass-card { box-shadow: none !important; border: 1px solid #ddd !important; background: #fff !important; }
+    .glass-inset { background: #f5f5f5 !important; box-shadow: none !important; }
+    .glass-text-emboss, .glass-text-3d { -webkit-text-fill-color: #000 !important; color: #000 !important; }
+    body { background: #fff !important; }
+  }
+</style>
+{% endblock %}

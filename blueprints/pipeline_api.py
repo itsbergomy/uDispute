@@ -318,6 +318,23 @@ def upload_response(pipeline_id):
     ).all()
 
     all_responded = all(a.outcome != 'pending' for a in round_accounts)
+
+    # Evaluate business rules on individual response
+    rules_executed = []
+    try:
+        from services.rules_engine import evaluate_rules
+        rules_executed = evaluate_rules(current_user.id, 'response_received', {
+            'account_name': account.account_name,
+            'account_number': account.account_number,
+            'bureau': account.bureau,
+            'outcome': response_type,
+            'round_number': account.round_number,
+            'pipeline_id': pipeline_id,
+        })
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Rules evaluation failed: {e}")
+
     if all_responded and pipeline.state == 'awaiting_response':
         pipeline.state = 'response_received'
         pipeline.updated_at = datetime.utcnow()
@@ -329,6 +346,7 @@ def upload_response(pipeline_id):
         'message': 'Response recorded',
         'account_outcome': response_type,
         'all_responded': all_responded,
+        'rules_executed': rules_executed,
     })
 
 
@@ -705,6 +723,290 @@ def delete_account_doc(doc_id):
 #  Creditor Intelligence API
 # ═══════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════
+#  Dispute Timeline
+# ═══════════════════════════════════════════════════════════
+
+@pipeline_bp.route('/pipeline/<int:pipeline_id>/timeline', methods=['GET'])
+@login_required
+def pipeline_timeline(pipeline_id):
+    """Generate a chronological timeline of all dispute events for evidence/court use."""
+    from flask import render_template
+
+    pipeline = DisputePipeline.query.get(pipeline_id)
+    if not pipeline or pipeline.user_id != current_user.id:
+        return jsonify({'error': 'Pipeline not found'}), 404
+
+    client = Client.query.get(pipeline.client_id)
+    events = []
+
+    # Pipeline creation
+    events.append({
+        'date': pipeline.created_at,
+        'type': 'pipeline_started',
+        'title': 'Dispute Pipeline Initiated',
+        'detail': f"Mode: {pipeline.mode or 'supervised'}",
+        'round': 0,
+        'icon': 'rocket',
+        'color': 'blue',
+    })
+
+    # Get all accounts across all rounds
+    accounts = DisputeAccount.query.filter_by(pipeline_id=pipeline_id).order_by(
+        DisputeAccount.round_number, DisputeAccount.created_at
+    ).all()
+
+    rounds_seen = set()
+    for acct in accounts:
+        # Round start event (first account of each round)
+        if acct.round_number not in rounds_seen:
+            rounds_seen.add(acct.round_number)
+            if acct.round_number > 1:
+                events.append({
+                    'date': acct.created_at,
+                    'type': 'round_started',
+                    'title': f'Round {acct.round_number} Escalation',
+                    'detail': f'Strategy: {acct.template_pack or "default"}',
+                    'round': acct.round_number,
+                    'icon': 'escalate',
+                    'color': 'purple',
+                })
+
+        # Dispute filed
+        events.append({
+            'date': acct.created_at,
+            'type': 'dispute_filed',
+            'title': f'Dispute Filed: {acct.account_name}',
+            'detail': f'{acct.bureau} · Round {acct.round_number} · Pack: {acct.template_pack or "default"}',
+            'round': acct.round_number,
+            'icon': 'letter',
+            'color': 'blue',
+        })
+
+        # Letter mailed
+        if acct.letter and acct.letter.mailed_at:
+            events.append({
+                'date': acct.letter.mailed_at,
+                'type': 'letter_mailed',
+                'title': f'Letter Mailed: {acct.account_name}',
+                'detail': f'{acct.bureau} · {acct.letter.mail_class or "USPS"} · Tracking: {acct.letter.tracking_number or "N/A"}',
+                'round': acct.round_number,
+                'icon': 'mail',
+                'color': 'green',
+            })
+
+        # Letter delivered
+        if acct.letter and acct.letter.delivery_status == 'delivered':
+            events.append({
+                'date': acct.letter.delivery_status_updated_at or acct.letter.mailed_at,
+                'type': 'letter_delivered',
+                'title': f'Letter Delivered: {acct.account_name}',
+                'detail': f'{acct.bureau}',
+                'round': acct.round_number,
+                'icon': 'delivered',
+                'color': 'green',
+            })
+
+        # Response received
+        if acct.response_received_at:
+            events.append({
+                'date': acct.response_received_at,
+                'type': 'response_received',
+                'title': f'Response: {acct.account_name}',
+                'detail': f'{acct.bureau} · Outcome: {acct.outcome or "pending"}',
+                'round': acct.round_number,
+                'icon': 'response',
+                'color': 'green' if acct.outcome in ('removed', 'updated') else 'red' if acct.outcome == 'verified' else 'orange',
+            })
+
+        # Bureau responses with research
+        for resp in acct.responses:
+            if resp.analysis_json and resp.analysis_json != '{}':
+                events.append({
+                    'date': resp.uploaded_at,
+                    'type': 'research_completed',
+                    'title': f'Legal Research: {acct.account_name}',
+                    'detail': 'CFPB complaint data + case law cached for escalation',
+                    'round': acct.round_number,
+                    'icon': 'research',
+                    'color': 'purple',
+                })
+
+    # Sort by date
+    events.sort(key=lambda e: e['date'] if e['date'] else datetime.min)
+
+    # Summary stats
+    total_letters = len([a for a in accounts if a.letter])
+    total_mailed = len([a for a in accounts if a.letter and a.letter.mailed_at])
+    total_removed = len([a for a in accounts if a.outcome == 'removed'])
+    total_updated = len([a for a in accounts if a.outcome == 'updated'])
+    max_round = max((a.round_number for a in accounts), default=1)
+
+    # Check if template exists, otherwise return JSON
+    try:
+        return render_template('dispute_timeline.html',
+                               pipeline=pipeline,
+                               client=client,
+                               events=events,
+                               total_letters=total_letters,
+                               total_mailed=total_mailed,
+                               total_removed=total_removed,
+                               total_updated=total_updated,
+                               max_round=max_round)
+    except Exception:
+        # Fallback to JSON if template doesn't exist yet
+        return jsonify({
+            'events': [{
+                'date': e['date'].isoformat() if e['date'] else None,
+                'type': e['type'],
+                'title': e['title'],
+                'detail': e['detail'],
+                'round': e['round'],
+                'color': e['color'],
+            } for e in events],
+            'summary': {
+                'total_letters': total_letters,
+                'total_mailed': total_mailed,
+                'total_removed': total_removed,
+                'total_updated': total_updated,
+                'max_round': max_round,
+            }
+        })
+
+
+# ═══════════════════════════════════════════════════════════
+#  Batch Response Processing
+# ═══════════════════════════════════════════════════════════
+
+@pipeline_bp.route('/pipeline/<int:pipeline_id>/batch-response', methods=['POST'])
+@login_required
+def batch_upload_responses(pipeline_id):
+    """Upload multiple response files at once — auto-classify and match to accounts."""
+    pipeline = DisputePipeline.query.get(pipeline_id)
+    if not pipeline or pipeline.user_id != current_user.id:
+        return jsonify({'error': 'Pipeline not found'}), 404
+
+    files = request.files.getlist('response_files')
+    if not files:
+        return jsonify({'error': 'No files uploaded'}), 400
+
+    # Get pending accounts for this round
+    pending_accounts = DisputeAccount.query.filter_by(
+        pipeline_id=pipeline_id,
+        round_number=pipeline.round_number,
+        outcome='pending',
+    ).all()
+
+    if not pending_accounts:
+        return jsonify({'error': 'No pending accounts in this round'}), 400
+
+    import tempfile
+    from services.response_classifier import classify_response_file
+
+    matched = []
+    unmatched = []
+
+    for file in files:
+        if not file or not file.filename:
+            continue
+
+        # Save to temp file for processing
+        ext = os.path.splitext(file.filename)[1].lower()
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+        file.save(tmp.name)
+        tmp.close()
+
+        try:
+            result = classify_response_file(tmp.name, pending_accounts)
+            if result and result['match_confidence'] >= 0.3:
+                # Upload the file to permanent storage
+                filename = secure_filename(f"response_{result['account_id']}_{file.filename}")
+                if cloud_configured():
+                    from services.cloud_storage import upload_file
+                    upload_result = upload_file(
+                        open(tmp.name, 'rb'),
+                        folder=f"clients/{pipeline.client_id}/responses",
+                        resource_type="raw",
+                    )
+                    if upload_result:
+                        filename = upload_result['secure_url']
+
+                # Create BureauResponse record
+                response = BureauResponse(
+                    dispute_account_id=result['account_id'],
+                    filename=filename,
+                    response_type=result['outcome'],
+                )
+                db.session.add(response)
+
+                # Update account outcome
+                account = DisputeAccount.query.get(result['account_id'])
+                if account:
+                    account.outcome = result['outcome']
+                    account.response_received_at = datetime.utcnow()
+
+                    # Auto-research for escalation-worthy outcomes
+                    if result['outcome'] in ('verified', 'stall', 'no_response'):
+                        try:
+                            from services.legal_research import research_dispute
+                            package = research_dispute(
+                                company_name=account.account_name,
+                                bureau_response=result['outcome'],
+                                round_number=account.round_number,
+                            )
+                            response.analysis_json = json.dumps({
+                                'cfpb_summary': package.get('cfpb_summary'),
+                                'case_law': package.get('case_law'),
+                                'fcra_citation': package.get('fcra_citation'),
+                                'prompt_context': package.get('prompt_context', ''),
+                            }, default=str)
+                        except Exception:
+                            pass
+
+                # Remove from pending list so it's not matched again
+                pending_accounts = [a for a in pending_accounts if a.id != result['account_id']]
+
+                matched.append({
+                    'filename': file.filename,
+                    'account_name': result['account_name'],
+                    'outcome': result['outcome'],
+                    'match_confidence': result['match_confidence'],
+                    'outcome_confidence': result['outcome_confidence'],
+                })
+            else:
+                unmatched.append({'filename': file.filename, 'reason': 'Could not match to any pending account'})
+        except Exception as e:
+            unmatched.append({'filename': file.filename, 'reason': str(e)[:100]})
+        finally:
+            os.unlink(tmp.name)
+
+    db.session.commit()
+
+    # Check if all accounts now have responses
+    all_accounts = DisputeAccount.query.filter_by(
+        pipeline_id=pipeline_id,
+        round_number=pipeline.round_number,
+    ).all()
+    all_responded = all(a.outcome != 'pending' for a in all_accounts)
+
+    if all_responded and pipeline.state == 'awaiting_response':
+        pipeline.state = 'response_received'
+        pipeline.updated_at = datetime.utcnow()
+        db.session.commit()
+        _advance(pipeline.id)
+
+    return jsonify({
+        'matched': matched,
+        'unmatched': unmatched,
+        'all_responded': all_responded,
+        'remaining_pending': len([a for a in all_accounts if a.outcome == 'pending']),
+    })
+
+
+# ═══════════════════════════════════════════════════════════
+#  Creditor Intelligence API
+# ═══════════════════════════════════════════════════════════
+
 @pipeline_bp.route('/creditor-profile/<path:creditor_name>', methods=['GET'])
 @login_required
 def get_creditor_profile(creditor_name):
@@ -772,3 +1074,105 @@ def rebuild_creditor_profiles():
 
     count = rebuild_all_profiles(current_user.id)
     return jsonify({'ok': True, 'accounts_processed': count})
+
+
+# ═══════════════════════════════════════════════════════════
+#  Business Rules API
+# ═══════════════════════════════════════════════════════════
+
+@pipeline_bp.route('/rules', methods=['GET'])
+@login_required
+def list_rules():
+    """List all business rules for the current user."""
+    from models import BusinessRule
+
+    rules = BusinessRule.query.filter_by(user_id=current_user.id).order_by(BusinessRule.created_at).all()
+    return jsonify({
+        'rules': [{
+            'id': r.id,
+            'name': r.name,
+            'trigger': r.trigger,
+            'conditions': json.loads(r.conditions_json or '{}'),
+            'action': r.action,
+            'action_config': json.loads(r.action_config_json or '{}'),
+            'enabled': r.enabled,
+        } for r in rules],
+    })
+
+
+@pipeline_bp.route('/rules', methods=['POST'])
+@login_required
+def create_rule():
+    """Create a new business rule."""
+    from models import BusinessRule
+
+    data = request.get_json()
+    if not data or not data.get('name') or not data.get('trigger') or not data.get('action'):
+        return jsonify({'error': 'name, trigger, and action are required'}), 400
+
+    rule = BusinessRule(
+        user_id=current_user.id,
+        name=data['name'],
+        trigger=data['trigger'],
+        conditions_json=json.dumps(data.get('conditions', {})),
+        action=data['action'],
+        action_config_json=json.dumps(data.get('action_config', {})),
+        enabled=data.get('enabled', True),
+    )
+    db.session.add(rule)
+    db.session.commit()
+
+    return jsonify({'ok': True, 'rule_id': rule.id})
+
+
+@pipeline_bp.route('/rules/<int:rule_id>', methods=['PUT'])
+@login_required
+def update_rule(rule_id):
+    """Update a business rule."""
+    from models import BusinessRule
+
+    rule = BusinessRule.query.get(rule_id)
+    if not rule or rule.user_id != current_user.id:
+        return jsonify({'error': 'Rule not found'}), 404
+
+    data = request.get_json()
+    if 'name' in data:
+        rule.name = data['name']
+    if 'trigger' in data:
+        rule.trigger = data['trigger']
+    if 'conditions' in data:
+        rule.conditions_json = json.dumps(data['conditions'])
+    if 'action' in data:
+        rule.action = data['action']
+    if 'action_config' in data:
+        rule.action_config_json = json.dumps(data['action_config'])
+    if 'enabled' in data:
+        rule.enabled = data['enabled']
+
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@pipeline_bp.route('/rules/<int:rule_id>', methods=['DELETE'])
+@login_required
+def delete_rule(rule_id):
+    """Delete a business rule."""
+    from models import BusinessRule
+
+    rule = BusinessRule.query.get(rule_id)
+    if not rule or rule.user_id != current_user.id:
+        return jsonify({'error': 'Rule not found'}), 404
+
+    db.session.delete(rule)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@pipeline_bp.route('/rules/presets', methods=['POST'])
+@login_required
+def create_preset_rules_endpoint():
+    """Create default preset rules for the current user."""
+    from services.rules_engine import create_preset_rules
+
+    create_preset_rules(current_user.id)
+    return jsonify({'ok': True, 'message': 'Preset rules created (disabled by default)'})

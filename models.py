@@ -321,6 +321,27 @@ class CreditorProfile(db.Model):
     user = db.relationship('User', backref='creditor_profiles')
 
 
+class BusinessRule(db.Model):
+    """Configurable automation rules for Business plan users."""
+    __tablename__ = 'business_rules'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('Users.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    trigger = db.Column(db.String(50), nullable=False)
+    # Triggers: response_received, round_completed, no_response_30d, all_responses_in
+    conditions_json = db.Column(db.Text, default='{}')
+    # e.g. {"outcome": "verified", "creditor_pattern": "MIDLAND*", "round_gte": 2}
+    action = db.Column(db.String(50), nullable=False)
+    # Actions: auto_escalate, file_cfpb, pause_pipeline, send_to_creditor
+    action_config_json = db.Column(db.Text, default='{}')
+    # e.g. {"pack": "arbitration", "dual_letter": true}
+    enabled = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='business_rules')
+
+
 class MessageThread(db.Model):
     __tablename__ = 'message_threads'
     id = db.Column(db.Integer, primary_key=True)
