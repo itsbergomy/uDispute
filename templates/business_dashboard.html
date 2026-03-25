@@ -11,30 +11,6 @@
     <p class="text-[var(--text-secondary)] mt-1">Here's what's happening across your clients.</p>
   </div>
 
-  <!-- ═══ AI Agent Widget ═══ -->
-  <div class="flex justify-end glass-animate-in" style="animation-delay:.1s;margin-bottom:-1rem;">
-    <div id="agentWidget" class="glass-agent-bar flex items-center gap-3" style="padding:0.5rem 0.9rem 0.5rem 0.65rem;">
-      <div class="glass-icon-well glass-breathe" style="width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-        {{ icons.icon_agent(24, 'ag1') }}
-      </div>
-      <select id="agent-client-select" class="glass-input glass-select text-xs !py-1 !px-2 !pr-6 !rounded-lg !border-0" style="width:auto;min-width:120px;max-width:150px;background-color:rgba(255,255,255,0.06);font-size:0.7rem;">
-        <option value="">Client</option>
-        <option value="all">All Clients</option>
-        {% for c in clients %}
-          <option value="{{ c.id }}" data-has-pdf="{{ 'yes' if c.pdf_filename else 'no' }}">
-            {{ c.first_name }} {{ c.last_name }}
-          </option>
-        {% endfor %}
-      </select>
-      <div id="agentToggle"
-           class="glass-toggle glass-toggle--blue flex-shrink-0"
-           onclick="toggleAgent(this)"
-           role="switch" aria-checked="false" tabindex="0"
-           title="Start Agent"
-           style="width:38px;height:20px;border-radius:10px;display:flex;align-items:center;"></div>
-    </div>
-  </div>
-
   <!-- ═══ 4 Metric Cards ═══ -->
   <div id="metricsRow" class="grid gap-5 grid-cols-2 lg:grid-cols-4 glass-stagger">
 
@@ -96,10 +72,17 @@
     <div id="clientListPanel" class="glass-metric-panel glass-p space-y-4 glass-animate-in">
       <div class="flex items-center justify-between">
         <h2 class="text-xl font-bold glass-text-3d">Clients</h2>
-        <button id="addClientBtn"
-                class="glass-btn glass-btn--primary glass-btn--pill text-sm">
-          + Add Client
-        </button>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="launchAgent('all', 'All Clients', true)"
+                  class="glass-btn glass-btn--secondary glass-btn--pill text-xs px-3 py-1.5 font-semibold inline-flex items-center gap-1">
+            {{ icons.icon_agent(14, 'launchAll') }}
+            Launch All
+          </button>
+          <button id="addClientBtn"
+                  class="glass-btn glass-btn--primary glass-btn--pill text-sm">
+            + Add Client
+          </button>
+        </div>
       </div>
 
       <!-- Search -->
@@ -117,6 +100,8 @@
       <div id="clientList" class="space-y-2 max-h-[420px] overflow-y-auto pr-1">
         {% if clients %}
           {% for c in clients %}
+            {% set active_states = ['intake','strategy','generation','delivery','awaiting_response','review'] %}
+            {% set has_active = c.pipelines | selectattr('state', 'in', active_states) | list | length > 0 %}
             <a href="{{ url_for('business.view_client', client_id=c.id) }}"
                class="client-row glass-list-item flex justify-between items-center"
                data-name="{{ c.first_name }} {{ c.last_name }}">
@@ -130,7 +115,17 @@
                   <p class="text-xs" style="color:var(--text-tertiary);">{{ c.email }}</p>
                 </div>
               </div>
-              <span class="text-xs" style="color:var(--text-tertiary);">View &rarr;</span>
+              <div class="flex items-center gap-2">
+                {% if has_active %}
+                  <span class="glass-badge glass-badge--info glass-breathe-fast text-xs">Active</span>
+                {% endif %}
+                <button type="button"
+                        onclick="event.preventDefault(); event.stopPropagation(); launchAgent({{ c.id }}, '{{ c.first_name }} {{ c.last_name }}', {{ 'true' if c.pdf_filename else 'false' }})"
+                        class="glass-btn glass-btn--primary glass-btn--pill text-xs px-3 py-1">
+                  Launch Agent
+                </button>
+                <span class="text-xs" style="color:var(--text-tertiary);">View &rarr;</span>
+              </div>
             </a>
           {% endfor %}
         {% else %}
@@ -632,42 +627,45 @@
   // ── Agent Config Modal ──
   let selectedClientId = null;
 
-  function toggleAgent(toggle) {
-    const sel = document.getElementById('agent-client-select');
-    if (!sel.value) { alert('Please select a client first.'); return; }
+  // Client PDF map for batch mode
+  const clientPdfMap = [
+    {% for c in clients %}
+      { id: {{ c.id }}, hasPdf: {{ 'true' if c.pdf_filename else 'false' }} },
+    {% endfor %}
+  ];
 
-    if (sel.value === 'all') {
-      // "All Clients" selected — check at least one has a PDF
-      const pdfOpts = document.querySelectorAll('#agent-client-select option[data-has-pdf="yes"]');
-      if (pdfOpts.length === 0) {
+  function launchAgent(clientId, clientName, hasPdf) {
+    if (clientId === 'all') {
+      const pdfCount = clientPdfMap.filter(c => c.hasPdf).length;
+      if (pdfCount === 0) {
         alert('No clients have credit reports uploaded.');
         return;
       }
-      toggle.classList.add('glass-toggle--active');
       selectedClientId = 'all';
-      document.getElementById('agentClientName').textContent = `All Clients (${pdfOpts.length} with reports)`;
+      document.getElementById('agentClientName').textContent = 'All Clients (' + pdfCount + ' with reports)';
     } else {
-      const opt = sel.options[sel.selectedIndex];
-      if (opt.dataset.hasPdf === 'no') {
+      if (!hasPdf) {
         alert('This client has no credit report uploaded. Upload a PDF first.');
         return;
       }
-      toggle.classList.add('glass-toggle--active');
-      selectedClientId = parseInt(sel.value);
-      document.getElementById('agentClientName').textContent = opt.textContent.trim();
+      selectedClientId = parseInt(clientId);
+      document.getElementById('agentClientName').textContent = clientName;
     }
 
     document.getElementById('agentError').classList.add('hidden');
     const m = document.getElementById('agentConfigModal');
     m.classList.remove('hidden'); m.classList.add('flex');
+
+    // Ensure all UI highlights are correct on modal open
+    updateModeUI();
+    updateStrategyUI();
+    updateSendToUI();
+    updateLetterSourceUI();
   }
 
   function closeAgentModal() {
     const m = document.getElementById('agentConfigModal');
     m.classList.add('hidden'); m.classList.remove('flex');
-    // Reset toggle if pipeline wasn't started
-    const toggle = document.getElementById('agentToggle');
-    if (toggle) toggle.classList.remove('glass-toggle--active');
   }
 
   function updateModeUI() {
@@ -843,8 +841,7 @@
     try {
       if (selectedClientId === 'all') {
         // Batch mode — start pipeline for every client with a PDF
-        const opts = document.querySelectorAll('#agent-client-select option[data-has-pdf="yes"]');
-        const clientIds = Array.from(opts).map(o => parseInt(o.value));
+        const clientIds = clientPdfMap.filter(c => c.hasPdf).map(c => c.id);
         if (clientIds.length === 0) {
           throw new Error('No clients have credit reports uploaded.');
         }
@@ -894,6 +891,7 @@
 
   // Initialize mode UI
   updateModeUI();
+  updateStrategyUI();
   updateSendToUI();
   updateLetterSourceUI();
 
@@ -966,15 +964,13 @@
           + '<br><br>Let\u2019s walk through what\u2019s in front of you.'
       },
 
-      // ── AI Agent Widget ──
+      // ── Launch Agent ──
       {
-        target: '#agentWidget',
-        title: 'The AI Agent — Your Autopilot',
-        body: 'This is the crown jewel of the Business plan. The AI Agent runs <strong>autonomous dispute pipelines</strong> for your clients:'
-          + '<br><br>\u2022 Select a client from the dropdown'
-          + '<br>\u2022 Toggle the agent ON'
-          + '<br>\u2022 Configure mode (Supervised or Full Auto), letter source, and delivery options'
-          + '<br><br>In <strong>Full Auto</strong>, the agent analyzes the credit report, generates letters using your chosen prompt pack, merges supporting docs, mails everything via DocuPost, and escalates round by round — without you touching a thing.'
+        target: '#clientListPanel',
+        title: 'Launch AI Agent per Client',
+        body: 'Each client card has a <strong>Launch Agent</strong> button. Click it to configure and start an autonomous dispute pipeline for that client.'
+          + '<br><br>Use <strong>Launch All</strong> to start pipelines for every client with a credit report on file.'
+          + '<br><br>In <strong>Full Auto</strong>, the agent generates letters, mails everything, and escalates round by round automatically.'
           + '<br><br><span style="color:var(--accent, #0077ed);font-size:0.85rem;font-weight:600;">Supervised mode pauses before delivery so you can review.</span>'
       },
 
