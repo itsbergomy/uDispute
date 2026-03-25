@@ -326,14 +326,12 @@
           </div>
 
           <div id="customLetterSelect" class="hidden mb-4">
-            <div class="glass-inset rounded-xl p-1">
-              <select id="custom-letter-id" class="glass-select text-sm w-full" style="background:transparent;border:none;box-shadow:none;">
-                <option value="">Select a custom letter...</option>
-                {% for cl in custom_letters %}
-                <option value="{{ cl.id }}">{{ cl.name }}</option>
-                {% endfor %}
-              </select>
-            </div>
+            <select id="custom-letter-id" class="glass-select text-sm w-full">
+              <option value="">Select a custom letter...</option>
+              {% for cl in custom_letters %}
+              <option value="{{ cl.id }}">{{ cl.name }}</option>
+              {% endfor %}
+            </select>
             {% if not custom_letters %}
             <p class="text-xs mt-1" style="color:var(--text-tertiary);">
               No custom letters yet. <a href="{{ url_for('business.list_custom_letters') }}" style="color:var(--accent);">Upload one</a>
@@ -379,25 +377,21 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="glass-label text-xs mb-1">Letters per round</label>
-                <div class="glass-inset rounded-lg p-0.5">
-                  <select id="batchPerRound" class="glass-select w-full text-sm" style="background:transparent;border:none;box-shadow:none;">
-                    <option value="0" selected>All at once</option>
-                    <option value="3">3 letters</option>
-                    <option value="5">5 letters</option>
-                    <option value="10">10 letters</option>
-                  </select>
-                </div>
+                <select id="batchPerRound" class="glass-select w-full text-sm">
+                  <option value="0" selected>All at once</option>
+                  <option value="3">3 letters</option>
+                  <option value="5">5 letters</option>
+                  <option value="10">10 letters</option>
+                </select>
               </div>
               <div>
                 <label class="glass-label text-xs mb-1">Letters per mailing</label>
-                <div class="glass-inset rounded-lg p-0.5">
-                  <select id="batchPerMailing" class="glass-select w-full text-sm" style="background:transparent;border:none;box-shadow:none;">
-                    <option value="0" selected>All at once</option>
-                    <option value="3">3 per day</option>
-                    <option value="5">5 per day</option>
-                    <option value="stagger">Stagger (2 day gap)</option>
-                  </select>
-                </div>
+                <select id="batchPerMailing" class="glass-select w-full text-sm">
+                  <option value="0" selected>All at once</option>
+                  <option value="3">3 per day</option>
+                  <option value="5">5 per day</option>
+                  <option value="stagger">Stagger (2 day gap)</option>
+                </select>
               </div>
             </div>
           </div>
@@ -408,24 +402,20 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="glass-label text-xs mb-1">Mail Class</label>
-                <div class="glass-inset rounded-lg p-0.5">
-                  <select id="mailClass" class="glass-select w-full text-sm" style="background:transparent;border:none;box-shadow:none;">
-                    <option value="usps_first_class">USPS First Class</option>
-                    <option value="usps_standard">USPS Standard</option>
-                    <option value="usps_priority_mail">USPS Priority Mail</option>
-                    <option value="usps_priority_mail_express">Priority Mail Express</option>
-                  </select>
-                </div>
+                <select id="mailClass" class="glass-select w-full text-sm">
+                  <option value="usps_first_class">USPS First Class</option>
+                  <option value="usps_standard">USPS Standard</option>
+                  <option value="usps_priority_mail">USPS Priority Mail</option>
+                  <option value="usps_priority_mail_express">Priority Mail Express</option>
+                </select>
               </div>
               <div>
                 <label class="glass-label text-xs mb-1">Service Level</label>
-                <div class="glass-inset rounded-lg p-0.5">
-                  <select id="mailServiceLevel" class="glass-select w-full text-sm" style="background:transparent;border:none;box-shadow:none;">
-                    <option value="">Standard</option>
-                    <option value="certified">Certified Mail</option>
-                    <option value="certified_return_receipt">Certified + Return Receipt</option>
-                  </select>
-                </div>
+                <select id="mailServiceLevel" class="glass-select w-full text-sm">
+                  <option value="">Standard</option>
+                  <option value="certified">Certified Mail</option>
+                  <option value="certified_return_receipt">Certified + Return Receipt</option>
+                </select>
               </div>
             </div>
           </div>
