@@ -289,6 +289,38 @@ class BureauResponse(db.Model):
     dispute_account = db.relationship('DisputeAccount', backref='responses')
 
 
+class CreditorProfile(db.Model):
+    """Cross-client creditor intelligence — aggregated dispute outcomes per creditor per business user."""
+    __tablename__ = 'creditor_profiles'
+
+    id = db.Column(db.Integer, primary_key=True)
+    business_user_id = db.Column(db.Integer, db.ForeignKey('Users.id'), nullable=False)
+    creditor_name = db.Column(db.String(200), nullable=False)  # normalized
+
+    # Aggregated stats
+    total_disputes = db.Column(db.Integer, default=0)
+    removed_count = db.Column(db.Integer, default=0)
+    updated_count = db.Column(db.Integer, default=0)
+    verified_count = db.Column(db.Integer, default=0)
+    no_response_count = db.Column(db.Integer, default=0)
+
+    # Strategy intelligence
+    avg_rounds_to_remove = db.Column(db.Float, nullable=True)
+    best_pack = db.Column(db.String(50), nullable=True)  # which template_pack wins most
+
+    # CFPB cache
+    cfpb_complaint_count = db.Column(db.Integer, nullable=True)
+    cfpb_win_rate = db.Column(db.Float, nullable=True)
+    cfpb_last_checked = db.Column(db.DateTime, nullable=True)
+
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('business_user_id', 'creditor_name', name='uq_creditor_per_user'),
+    )
+    user = db.relationship('User', backref='creditor_profiles')
+
+
 class MessageThread(db.Model):
     __tablename__ = 'message_threads'
     id = db.Column(db.Integer, primary_key=True)

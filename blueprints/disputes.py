@@ -1556,8 +1556,7 @@ def escalate_dispute(letter_id):
 @login_required
 def quick_mail():
     """One-click mail: generate PDF + send via DocuPost from the escalation review page."""
-    from services.pdf_builder import build_dispute_pdf
-    from services.docupost import send_letter as docupost_send
+    from services.delivery import mail_letter_via_docupost
 
     data = request.get_json()
     letter_id = data.get('letter_id')
@@ -1578,24 +1577,61 @@ def quick_mail():
     letter.service_level = service_level
 
     try:
-        # Build PDF
-        pdf_url = build_dispute_pdf(letter.letter_text, current_user, letter.bureau or 'Bureau')
-        letter.pdf_url = pdf_url
+        # Build recipient from bureau address
+        bureau_info = BUREAU_ADDRESSES.get(letter.bureau, {})
+        if not bureau_info:
+            return jsonify({'error': f'Unknown bureau: {letter.bureau}'}), 400
 
-        # Send via DocuPost
-        result = docupost_send(
-            pdf_url=pdf_url,
-            recipient_name=letter.bureau or 'Bureau',
-            mail_class=mail_class,
-            service_level=service_level,
+        recipient = {
+            'name': bureau_info.get('name', letter.bureau),
+            'company': bureau_info.get('company', ''),
+            'address1': bureau_info.get('address1', ''),
+            'address2': bureau_info.get('address2', ''),
+            'city': bureau_info.get('city', ''),
+            'state': bureau_info.get('state', ''),
+            'zip': bureau_info.get('zip', ''),
+        }
+
+        sender = {
+            'name': f'{current_user.first_name} {current_user.last_name}',
+            'company': '',
+            'address1': getattr(current_user, 'address_line1', '') or '',
+            'address2': getattr(current_user, 'address_line2', '') or '',
+            'city': getattr(current_user, 'city', '') or '',
+            'state': getattr(current_user, 'state', '') or '',
+            'zip': getattr(current_user, 'zip_code', '') or '',
+        }
+
+        mail_options = {
+            'mail_class': mail_class,
+            'servicelevel': service_level if service_level != 'standard' else '',
+            'color': 'false',
+            'doublesided': 'false',
+        }
+
+        # Send via DocuPost using HTML content (avoids needing a public PDF URL)
+        # Format letter text as basic HTML for DocuPost
+        html_body = '<html><body style="font-family:Arial,sans-serif;font-size:12px;line-height:1.6;">'
+        for line in letter.letter_text.split('\n'):
+            if line.strip():
+                html_body += f'<p style="margin:0 0 6px 0;">{line.strip()}</p>'
+            else:
+                html_body += '<br/>'
+        html_body += '</body></html>'
+
+        result = mail_letter_via_docupost(
+            html_content=html_body,
+            recipient=recipient,
+            sender=sender,
+            mail_options=mail_options,
         )
 
-        if result and result.get('id'):
-            letter.docupost_letter_id = str(result['id'])
-            letter.docupost_cost = result.get('cost')
+        if result and result.get('success'):
+            resp_data = result.get('response', {})
+            letter.docupost_letter_id = str(resp_data.get('letter_id', ''))
+            letter.docupost_cost = resp_data.get('cost')
             letter.delivery_status = 'queued'
             letter.mailed_at = datetime.utcnow()
-            letter.status = 'Sent'
 
         db.session.commit()
         return jsonify({'ok': True, 'message': 'Letter mailed successfully'})

@@ -522,6 +522,28 @@ def handle_strategy(pipeline):
         pack = escalation['pack']
         level = escalation['level']
 
+    # Smart escalation: override pack with creditor intelligence if available (round 2+)
+    if round_number > 1 and negative_items:
+        try:
+            from services.escalation_engine import recommend_escalation
+            # Use first account's outcome to drive recommendation
+            first_account_name = negative_items[0].get('account_name', '')
+            prev_accounts = DisputeAccount.query.filter_by(
+                pipeline_id=pipeline_id,
+                round_number=round_number - 1,
+            ).all()
+            prev_outcome = 'verified'
+            for pa in prev_accounts:
+                if pa.account_name == first_account_name and pa.outcome:
+                    prev_outcome = pa.outcome
+                    break
+            rec = recommend_escalation(pipeline.user_id, first_account_name, round_number - 1, prev_outcome)
+            if rec and rec.get('confidence', 0) > 0.4 and rec.get('source') != 'default_ladder':
+                pack = rec['pack']
+                plog(f"[PIPELINE] Smart escalation: {first_account_name} → {pack} (confidence: {rec['confidence']}, source: {rec['source']})")
+        except Exception as e:
+            plog(f"[PIPELINE] Smart escalation check failed: {e}")
+
     if send_to == 'creditors':
         creditor_addresses = agent_config.get('creditor_addresses', [])
         targets = [c['name'] for c in creditor_addresses] if creditor_addresses else ['experian', 'transunion', 'equifax']
@@ -978,6 +1000,7 @@ def handle_awaiting_response(pipeline):
 def handle_response_received(pipeline):
     """
     Examine outcomes for all accounts in the current round.
+    Updates creditor intelligence profiles.
     If all removed/updated -> completed.
     If max rounds exhausted -> completed.
     Otherwise -> round_review (hard pause — user must start next round).
@@ -986,6 +1009,21 @@ def handle_response_received(pipeline):
         pipeline_id=pipeline.id,
         round_number=pipeline.round_number,
     ).all()
+
+    # Update creditor intelligence profiles with outcomes
+    try:
+        from services.creditor_intelligence import update_creditor_profile
+        for acct in accounts:
+            if acct.outcome and acct.outcome != 'pending':
+                update_creditor_profile(
+                    business_user_id=pipeline.user_id,
+                    account_name=acct.account_name,
+                    outcome=acct.outcome,
+                    round_number=acct.round_number,
+                    template_pack=acct.template_pack,
+                )
+    except Exception as e:
+        plog(f"[PIPELINE] Creditor intelligence update failed: {e}")
 
     all_resolved = all(a.outcome in ('removed', 'updated') for a in accounts)
 

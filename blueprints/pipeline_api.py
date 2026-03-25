@@ -287,6 +287,28 @@ def upload_response(pipeline_id):
     # Update account outcome
     account.outcome = response_type
     account.response_received_at = datetime.utcnow()
+
+    # Auto-research: run legal research for escalation-worthy outcomes
+    if response_type in ('verified', 'stall', 'no_response'):
+        try:
+            from services.legal_research import research_dispute
+            import json as _json
+            package = research_dispute(
+                company_name=account.account_name,
+                bureau_response=response_type,
+                round_number=account.round_number,
+            )
+            # Cache research in the response record for use in next round's letter generation
+            response.analysis_json = _json.dumps({
+                'cfpb_summary': package.get('cfpb_summary'),
+                'case_law': package.get('case_law'),
+                'fcra_citation': package.get('fcra_citation'),
+                'prompt_context': package.get('prompt_context', ''),
+            }, default=str)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Auto-research failed for account {account_id}: {e}")
+
     db.session.commit()
 
     # Check if all accounts in the round have responses
@@ -677,3 +699,76 @@ def delete_account_doc(doc_id):
     db.session.delete(doc)
     db.session.commit()
     return jsonify({'ok': True})
+
+
+# ═══════════════════════════════════════════════════════════
+#  Creditor Intelligence API
+# ═══════════════════════════════════════════════════════════
+
+@pipeline_bp.route('/creditor-profile/<path:creditor_name>', methods=['GET'])
+@login_required
+def get_creditor_profile(creditor_name):
+    """Get creditor intelligence profile for a given creditor name."""
+    from services.creditor_intelligence import get_creditor_recommendation, normalize_creditor_name
+    from models import CreditorProfile
+
+    normalized = normalize_creditor_name(creditor_name)
+    profile = CreditorProfile.query.filter_by(
+        business_user_id=current_user.id,
+        creditor_name=normalized,
+    ).first()
+
+    if not profile:
+        return jsonify({'found': False, 'creditor_name': normalized})
+
+    recommendation = get_creditor_recommendation(current_user.id, creditor_name)
+
+    return jsonify({
+        'found': True,
+        'creditor_name': normalized,
+        'total_disputes': profile.total_disputes,
+        'removed_count': profile.removed_count,
+        'updated_count': profile.updated_count,
+        'verified_count': profile.verified_count,
+        'no_response_count': profile.no_response_count,
+        'win_rate': round((profile.removed_count + profile.updated_count) / max(profile.total_disputes, 1) * 100, 1),
+        'avg_rounds_to_remove': round(profile.avg_rounds_to_remove, 1) if profile.avg_rounds_to_remove else None,
+        'best_pack': profile.best_pack,
+        'cfpb_complaint_count': profile.cfpb_complaint_count,
+        'cfpb_win_rate': profile.cfpb_win_rate,
+        'recommendation': recommendation,
+    })
+
+
+@pipeline_bp.route('/creditor-profiles', methods=['GET'])
+@login_required
+def list_creditor_profiles():
+    """List all creditor profiles for the current business user."""
+    from models import CreditorProfile
+
+    profiles = CreditorProfile.query.filter_by(
+        business_user_id=current_user.id,
+    ).order_by(CreditorProfile.total_disputes.desc()).all()
+
+    return jsonify({
+        'profiles': [{
+            'creditor_name': p.creditor_name,
+            'total_disputes': p.total_disputes,
+            'removed_count': p.removed_count,
+            'verified_count': p.verified_count,
+            'win_rate': round((p.removed_count + p.updated_count) / max(p.total_disputes, 1) * 100, 1),
+            'best_pack': p.best_pack,
+            'avg_rounds': round(p.avg_rounds_to_remove, 1) if p.avg_rounds_to_remove else None,
+        } for p in profiles],
+        'total': len(profiles),
+    })
+
+
+@pipeline_bp.route('/creditor-profiles/rebuild', methods=['POST'])
+@login_required
+def rebuild_creditor_profiles():
+    """Rebuild all creditor profiles from historical dispute data."""
+    from services.creditor_intelligence import rebuild_all_profiles
+
+    count = rebuild_all_profiles(current_user.id)
+    return jsonify({'ok': True, 'accounts_processed': count})
