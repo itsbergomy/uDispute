@@ -13,7 +13,7 @@
     max-height: 88vh;
     display: flex;
     flex-direction: column;
-    background: rgba(255,255,255,0.13);
+    background: rgba(220,225,235,0.85);
     backdrop-filter: blur(32px) saturate(190%) brightness(1.06);
     -webkit-backdrop-filter: blur(32px) saturate(190%) brightness(1.06);
     border: 1px solid rgba(255,255,255,0.30);
@@ -113,9 +113,33 @@
           </a>
         </div>
 
-        <p class="text-xs text-center mt-2" style="color:var(--text-tertiary);">
+        <p class="text-xs text-center mt-2 mb-4" style="color:var(--text-tertiary);">
           You can edit the letter above before generating your PDF package.
         </p>
+
+        <!-- One-Click Mail -->
+        <div class="glass-card rounded-xl p-4" style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);">
+          <p class="text-xs font-semibold mb-2" style="color:rgba(16,185,129,0.9);">Ready to mail directly?</p>
+          <p class="text-xs mb-3" style="color:var(--text-tertiary);">Skip the package — generate PDF and send via DocuPost in one click.</p>
+          <div class="grid grid-cols-2 gap-2 mb-3">
+            <select id="escalationMailClass" class="glass-input text-xs">
+              <option value="usps_first_class">USPS First Class</option>
+              <option value="usps_certified">USPS Certified</option>
+              <option value="usps_priority">USPS Priority</option>
+            </select>
+            <select id="escalationServiceLevel" class="glass-input text-xs">
+              <option value="standard">Standard</option>
+              <option value="certified">Certified Mail</option>
+              <option value="certified_return">Certified w/ Return Receipt</option>
+            </select>
+          </div>
+          <button type="button" onclick="quickMail({{ letter.id }})"
+                  class="w-full glass-btn glass-btn--pill py-2 text-sm font-semibold"
+                  style="background:linear-gradient(135deg,rgba(16,185,129,0.2),rgba(16,185,129,0.1));color:rgba(16,185,129,0.9);border:1px solid rgba(16,185,129,0.25);"
+                  id="quickMailBtn">
+            Mail This Letter Now
+          </button>
+        </div>
       </form>
 
     </div>
@@ -130,4 +154,49 @@
     100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   }
 </style>
+
+<script>
+function quickMail(letterId) {
+  const btn = document.getElementById('quickMailBtn');
+  const mailClass = document.getElementById('escalationMailClass').value;
+  const serviceLevel = document.getElementById('escalationServiceLevel').value;
+
+  btn.textContent = 'Preparing...';
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
+
+  // Get the edited letter text from the textarea
+  const letterText = document.querySelector('textarea[name="letter_text"]').value;
+
+  fetch('/api/quick-mail', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      letter_id: letterId,
+      letter_text: letterText,
+      mail_class: mailClass,
+      service_level: serviceLevel,
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) {
+      btn.textContent = 'Error: ' + data.error;
+      btn.style.color = '#ff3b30';
+    } else {
+      btn.textContent = 'Mailed!';
+      btn.style.background = 'rgba(16,185,129,0.3)';
+      setTimeout(() => { window.location.href = '{{ url_for("disputes.dispute_folder") }}'; }, 1500);
+    }
+  })
+  .catch(err => {
+    btn.textContent = 'Network error';
+    btn.style.color = '#ff3b30';
+  })
+  .finally(() => {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  });
+}
+</script>
 {% endblock %}

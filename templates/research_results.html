@@ -13,7 +13,7 @@
     max-height: 88vh;
     display: flex;
     flex-direction: column;
-    background: rgba(255,255,255,0.13);
+    background: rgba(220,225,235,0.85);
     backdrop-filter: blur(32px) saturate(190%) brightness(1.06);
     -webkit-backdrop-filter: blur(32px) saturate(190%) brightness(1.06);
     border: 1px solid rgba(255,255,255,0.30);
@@ -172,13 +172,54 @@
         </div>
       {% endif %}
 
+      <!-- Agent Recommendation -->
+      <div class="glass-card rounded-xl p-4 mb-4" style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full" style="background:rgba(99,102,241,0.15);color:rgba(99,102,241,0.9);">RECOMMENDED</span>
+        </div>
+        <p class="text-sm font-semibold" style="color:var(--text-primary);">
+          {% if letter.outcome == 'verified' and (letter.round_number or 1) == 1 %}
+            Consumer Law Pack with Dual Letter Strategy
+          {% elif letter.outcome == 'verified' and (letter.round_number or 1) >= 2 %}
+            Arbitration Pack — Maximum legal pressure
+          {% elif letter.outcome == 'no_response' %}
+            ACDV Enforcement — They failed to respond within 30 days
+          {% elif letter.outcome == 'stall' %}
+            Consumer Law Pack — Their form letter doesn't satisfy FCRA requirements
+          {% else %}
+            Consumer Law Pack — Escalate with statutory citations
+          {% endif %}
+        </p>
+        <p class="text-xs mt-1" style="color:var(--text-tertiary);line-height:1.4;">
+          {% if letter.outcome == 'verified' and (letter.round_number or 1) == 1 %}
+            Round 1 was verified — escalate with specific FCRA/FDCPA citations and send directly to the furnisher as well.
+          {% elif letter.outcome == 'verified' and (letter.round_number or 1) >= 2 %}
+            Multiple rounds verified. Arbitration signals you're prepared to take legal action — this often triggers deletion.
+          {% elif letter.outcome == 'no_response' %}
+            No response in 30+ days is an automatic FCRA violation. Demand deletion under 15 U.S.C. 1681i(a)(1).
+          {% elif letter.outcome == 'stall' %}
+            A generic form letter doesn't constitute a reasonable investigation. Cite Cushman v. Trans Union.
+          {% else %}
+            Based on the response history, Consumer Law provides the strongest statutory foundation.
+          {% endif %}
+        </p>
+      </div>
+
       <!-- Escalation Action -->
       <form action="{{ url_for('disputes.escalate_dispute', letter_id=letter.id) }}" method="POST">
-        <label class="glass-label mb-2" style="font-size:0.75rem;color:var(--text-secondary);">Choose your strategy for Round {{ next_round }}:</label>
+        <label class="glass-label mb-2" style="font-size:0.75rem;color:var(--text-secondary);">Accept recommendation or choose your strategy for Round {{ next_round }}:</label>
         <select name="prompt_pack" class="glass-input mb-4 text-sm">
-          <option value="consumer_law" selected>Consumer Law Pack — Full statutory firepower</option>
-          <option value="ACDV_response">ACDV Enforcement — Demand method of verification</option>
-          <option value="arbitration">Arbitration Pack — For when they won't budge</option>
+          {% if letter.outcome == 'verified' and (letter.round_number or 1) >= 2 %}
+            <option value="arbitration" selected>Arbitration Pack — Maximum legal pressure</option>
+            <option value="consumer_law">Consumer Law Pack — Full statutory firepower</option>
+          {% elif letter.outcome == 'no_response' %}
+            <option value="ACDV_response" selected>ACDV Enforcement — Demand method of verification</option>
+            <option value="consumer_law">Consumer Law Pack — Full statutory firepower</option>
+          {% else %}
+            <option value="consumer_law" selected>Consumer Law Pack — Full statutory firepower</option>
+            <option value="ACDV_response">ACDV Enforcement — Demand method of verification</option>
+          {% endif %}
+          <option value="arbitration" {% if letter.outcome != 'verified' or (letter.round_number or 1) < 2 %}{% endif %}>Arbitration Pack — For when they won't budge</option>
           <option value="default">Default Pack — Standard dispute</option>
         </select>
 

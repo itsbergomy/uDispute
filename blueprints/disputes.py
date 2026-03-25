@@ -1552,6 +1552,59 @@ def escalate_dispute(letter_id):
                            round_number=next_round)
 
 
+@disputes_bp.route('/api/quick-mail', methods=['POST'])
+@login_required
+def quick_mail():
+    """One-click mail: generate PDF + send via DocuPost from the escalation review page."""
+    from services.pdf_builder import build_dispute_pdf
+    from services.docupost import send_letter as docupost_send
+
+    data = request.get_json()
+    letter_id = data.get('letter_id')
+    letter_text = data.get('letter_text', '')
+    mail_class = data.get('mail_class', 'usps_first_class')
+    service_level = data.get('service_level', 'standard')
+
+    letter = MailedLetter.query.get_or_404(letter_id)
+    if letter.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    # Update letter text if edited
+    if letter_text.strip():
+        letter.letter_text = letter_text.strip()
+
+    # Update mail options
+    letter.mail_class = mail_class
+    letter.service_level = service_level
+
+    try:
+        # Build PDF
+        pdf_url = build_dispute_pdf(letter.letter_text, current_user, letter.bureau or 'Bureau')
+        letter.pdf_url = pdf_url
+
+        # Send via DocuPost
+        result = docupost_send(
+            pdf_url=pdf_url,
+            recipient_name=letter.bureau or 'Bureau',
+            mail_class=mail_class,
+            service_level=service_level,
+        )
+
+        if result and result.get('id'):
+            letter.docupost_letter_id = str(result['id'])
+            letter.docupost_cost = result.get('cost')
+            letter.delivery_status = 'queued'
+            letter.mailed_at = datetime.utcnow()
+            letter.status = 'Sent'
+
+        db.session.commit()
+        return jsonify({'ok': True, 'message': 'Letter mailed successfully'})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)[:200]}), 500
+
+
 @disputes_bp.route('/public-pdf/<token>/<filename>')
 def serve_public_pdf(token, filename):
     """Serve a PDF publicly using a short-lived token — used by DocuPost to fetch PDFs."""
