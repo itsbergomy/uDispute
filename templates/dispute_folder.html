@@ -448,7 +448,10 @@ document.querySelectorAll('.glass-tab').forEach(btn => {
 
 function openInlineEditor(id) {
   // Close any other open editors first
-  document.querySelectorAll('.inline-editor-panel.open').forEach(function(p) { p.classList.remove('open'); });
+  document.querySelectorAll('.inline-editor-panel').forEach(function(p) {
+    p.classList.remove('open');
+    p.style.display = 'none';
+  });
 
   var panel = document.getElementById('editor-panel-' + id);
   var textarea = document.getElementById('editorTextarea-' + id);
@@ -465,13 +468,21 @@ function openInlineEditor(id) {
     })
     .catch(function(err) { textarea.value = 'Error loading: ' + err; });
 
-  panel.classList.add('open');
-  setTimeout(function() { panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
+  // Show then animate open
+  panel.style.display = 'block';
+  requestAnimationFrame(function() {
+    panel.classList.add('open');
+  });
+  setTimeout(function() { panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 150);
 }
 
 function closeInlineEditor(id) {
   var panel = document.getElementById('editor-panel-' + id);
-  if (panel) panel.classList.remove('open');
+  if (panel) {
+    panel.classList.remove('open');
+    // Hide after animation completes
+    setTimeout(function() { panel.style.display = 'none'; }, 400);
+  }
   // Clear file inputs
   ['editorIdFile-', 'editorSsnFile-', 'editorUtilFile-'].forEach(function(prefix) {
     var inp = document.getElementById(prefix + id);
