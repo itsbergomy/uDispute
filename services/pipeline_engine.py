@@ -1200,7 +1200,63 @@ def handle_response_received(pipeline):
         except Exception:
             pass
 
-    # Hard pause — user reviews outcomes and decides whether to start next round
+    # ── Full Auto Mode: skip round_review, auto-escalate ──
+    agent_config_mode = agent_config.get('mode', 'supervised')
+    if agent_config_mode == 'full_auto':
+        unresolved = [a for a in accounts if a.outcome not in ('removed', 'updated')]
+        if unresolved:
+            logger.info(f"[PIPELINE] Full auto mode — auto-escalating {len(unresolved)} "
+                        f"unresolved accounts to round {pipeline.round_number + 1}")
+
+            # Increment round
+            pipeline.round_number += 1
+
+            # Use escalation engine to recommend packs per account
+            try:
+                from services.escalation_engine import recommend_escalation
+                for acct in unresolved:
+                    rec = recommend_escalation(
+                        account_name=acct.account_name,
+                        current_round=pipeline.round_number,
+                        previous_pack=acct.template_pack,
+                        previous_outcome=acct.outcome,
+                        business_user_id=pipeline.user_id,
+                    )
+                    # Create new dispute account for the next round
+                    new_acct = DisputeAccount(
+                        pipeline_id=pipeline.id,
+                        account_name=acct.account_name,
+                        account_number=acct.account_number,
+                        bureau=acct.bureau,
+                        template_pack=rec.get('pack', 'consumer_law'),
+                        escalation_level=acct.escalation_level + 1 if acct.escalation_level else 2,
+                        round_number=pipeline.round_number,
+                        status=acct.status,
+                        issue=acct.issue,
+                        dispute_reason=acct.dispute_reason,
+                    )
+                    db.session.add(new_acct)
+            except Exception as e:
+                logger.warning(f"[PIPELINE] Escalation engine failed, using default packs: {e}")
+                for acct in unresolved:
+                    new_acct = DisputeAccount(
+                        pipeline_id=pipeline.id,
+                        account_name=acct.account_name,
+                        account_number=acct.account_number,
+                        bureau=acct.bureau,
+                        template_pack='consumer_law',
+                        escalation_level=acct.escalation_level + 1 if acct.escalation_level else 2,
+                        round_number=pipeline.round_number,
+                        status=acct.status,
+                        issue=acct.issue,
+                        dispute_reason=acct.dispute_reason,
+                    )
+                    db.session.add(new_acct)
+
+            db.session.commit()
+            return 'generation'  # Skip strategy, go straight to letter generation
+
+    # Supervised mode — hard pause, user reviews outcomes and starts next round
     return 'round_review'
 
 
