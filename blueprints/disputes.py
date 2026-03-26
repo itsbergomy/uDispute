@@ -966,32 +966,55 @@ def cfpb_wizard():
     creditor = account_name
     acct_num = account_number or '[Account Number]'
 
-    narratives = [
-        {
-            'title': 'Validation Violation',
-            'body': (
-                f"This company, {creditor} (Account #{acct_num}), is violating my rights. "
-                "They have not provided validation information under 12 CFR 1006.34(b)(5) "
-                "yet they have placed a collection on my consumer report recently."
-            ),
-        },
-        {
-            'title': 'Deceptive Practices',
-            'body': (
-                f"This agency, {creditor} (Account #{acct_num}), is violating my consumer "
-                "rights by using false, misleading, misrepresentation, and deceptive means."
-            ),
-        },
-        {
-            'title': 'Demand / Closing Statement',
-            'body': (
-                f"I have made previous attempts to fix these issues directly with {creditor} "
-                f"(Account #{acct_num}) and they are violating my rights. I'm entitled to "
-                "$1,000 for every violation listed. They either pay me or delete these "
-                "accounts ASAP."
-            ),
-        },
-    ]
+    # ── Gather context for AI narratives ──
+    # Find inaccuracies from parsed data
+    inaccuracies = []
+    negative_items = session.get('negative_items', [])
+    for item in negative_items:
+        if item.get('account_number') == account_number or item.get('account_name') == account_name:
+            inaccuracies = item.get('inaccuracies', [])
+            break
+
+    # Get CFPB complaint data for this creditor
+    cfpb_data = None
+    try:
+        from services.cfpb_search import search_complaints
+        result = search_complaints(creditor, limit=10)
+        if result and result.get('total', 0) > 0:
+            cfpb_data = result
+    except Exception:
+        pass
+
+    # Get dispute history from mailed letters (if user has any for this account)
+    dispute_history = []
+    try:
+        from models import MailedLetter
+        prior_letters = MailedLetter.query.filter_by(
+            user_id=current_user.id
+        ).filter(
+            MailedLetter.account_name.ilike(f'%{creditor}%')
+        ).order_by(MailedLetter.created_at.desc()).limit(5).all()
+        for L in prior_letters:
+            dispute_history.append({
+                'date': L.created_at.strftime('%B %d, %Y') if L.created_at else 'Unknown',
+                'template': L.template_name or 'Dispute letter',
+                'bureau': L.entity_name or '',
+                'outcome': '',
+            })
+    except Exception:
+        pass
+
+    # ── Generate AI narratives (with static fallback) ──
+    from services.cfpb_narrative_generator import generate_cfpb_narratives
+    narratives = generate_cfpb_narratives(
+        account_name=creditor,
+        account_number=acct_num,
+        bureau=session.get('detected_bureau'),
+        inaccuracies=inaccuracies,
+        dispute_history=dispute_history,
+        cfpb_data=cfpb_data,
+        status=status,
+    )
 
     fair_resolution = (
         "I demand for this to be removed from my credit report. It's damaging my ability "
