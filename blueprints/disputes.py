@@ -998,7 +998,7 @@ def cfpb_wizard():
             dispute_history.append({
                 'date': L.created_at.strftime('%B %d, %Y') if L.created_at else 'Unknown',
                 'template': L.template_name or 'Dispute letter',
-                'bureau': L.entity_name or '',
+                'bureau': L.bureau or '',
                 'outcome': '',
             })
     except Exception:
@@ -1016,6 +1016,9 @@ def cfpb_wizard():
         status=status,
     )
 
+    # Detect static fallback — static narratives use generic titles
+    is_fallback = any(n.get('title') == 'Validation Violation' for n in narratives)
+
     fair_resolution = (
         "I demand for this to be removed from my credit report. It's damaging my ability "
         "to obtain credit, housing, and employment opportunities. "
@@ -1029,6 +1032,7 @@ def cfpb_wizard():
         account_status=status,
         narratives=narratives,
         fair_resolution=fair_resolution,
+        is_fallback=is_fallback,
     )
 
 

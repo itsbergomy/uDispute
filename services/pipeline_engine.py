@@ -589,13 +589,21 @@ def _generate_notice_of_dispute(pipeline, client_data, accounts_data, round_numb
     client_email = client_data.get('email', '')
     today_date = _dt.now().strftime('%B %d, %Y')
 
-    # Group accounts by bureau
+    # Group accounts by bureau — CFPB accounts get flagged, not lettered
     bureaus = {}
+    cfpb_accounts = []
     for ad in accounts_data:
         bureau = ad.get('bureau', '').strip()
-        if not bureau or bureau == 'cfpb':
+        if not bureau:
+            continue
+        if bureau == 'cfpb':
+            cfpb_accounts.append(ad)
             continue
         bureaus.setdefault(bureau, []).append(ad)
+
+    # Flag CFPB-level accounts so the UI can direct users to the CFPB wizard
+    if cfpb_accounts:
+        logger.info(f"[PIPELINE] {len(cfpb_accounts)} account(s) flagged for CFPB complaint filing")
 
     generated_letters = []
 
@@ -743,6 +751,7 @@ def handle_generation(pipeline):
 
     for ad in accounts_data:
         if ad['bureau'] == 'cfpb':
+            logger.info(f"[PIPELINE] Skipping letter generation for {ad['account_name']} — flagged for CFPB complaint")
             continue
 
         logger.info(f"Generating letter for {ad['account_name']} / {ad['bureau']}")
@@ -954,6 +963,7 @@ def handle_delivery(pipeline):
         if not account.letter or account.letter.status != 'Approved':
             continue
         if account.bureau == 'cfpb':
+            logger.info(f"[PIPELINE] Skipping mail for {account.account_name} — CFPB complaints are filed online, not mailed")
             continue
 
         # Build the PDF package
@@ -1159,6 +1169,11 @@ def handle_response_received(pipeline):
             db.session.rollback()
         except Exception:
             pass
+        # Re-query after rollback to avoid DetachedInstanceError
+        accounts = DisputeAccount.query.filter_by(
+            pipeline_id=pipeline.id,
+            round_number=pipeline.round_number,
+        ).all()
 
     all_resolved = all(a.outcome in ('removed', 'updated') for a in accounts)
 
@@ -1216,11 +1231,10 @@ def handle_response_received(pipeline):
                 from services.escalation_engine import recommend_escalation
                 for acct in unresolved:
                     rec = recommend_escalation(
-                        account_name=acct.account_name,
-                        current_round=pipeline.round_number,
-                        previous_pack=acct.template_pack,
-                        previous_outcome=acct.outcome,
                         business_user_id=pipeline.user_id,
+                        account_name=acct.account_name,
+                        current_round=pipeline.round_number - 1,
+                        outcome=acct.outcome or 'verified',
                     )
                     # Create new dispute account for the next round
                     new_acct = DisputeAccount(

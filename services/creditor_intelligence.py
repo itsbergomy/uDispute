@@ -79,16 +79,16 @@ def update_creditor_profile(business_user_id, account_name, outcome, round_numbe
         )
         db.session.add(profile)
 
-    # Increment outcome counter
-    profile.total_disputes += 1
+    # Increment outcome counter (guard against None from unflushed defaults)
+    profile.total_disputes = (profile.total_disputes or 0) + 1
     if outcome == 'removed':
-        profile.removed_count += 1
+        profile.removed_count = (profile.removed_count or 0) + 1
     elif outcome == 'updated':
-        profile.updated_count += 1
+        profile.updated_count = (profile.updated_count or 0) + 1
     elif outcome == 'verified':
-        profile.verified_count += 1
+        profile.verified_count = (profile.verified_count or 0) + 1
     elif outcome == 'no_response':
-        profile.no_response_count += 1
+        profile.no_response_count = (profile.no_response_count or 0) + 1
 
     # Update avg rounds to remove (only for successful removals)
     if outcome == 'removed' and round_number:

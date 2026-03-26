@@ -167,6 +167,13 @@
             Copy one or more of these and paste into the "What happened?" field on cfpb.gov.
             Your creditor name and account number are already filled in.
           </p>
+          {% if is_fallback %}
+          <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:0.6rem 0.85rem;margin-bottom:0.75rem;">
+            <p style="font-size:0.78rem;color:#f59e0b;margin:0;">
+              These are general-purpose narratives. For AI-personalized narratives based on your specific inaccuracies, try again or ensure your account details are loaded.
+            </p>
+          </div>
+          {% endif %}
 
           {% for n in narratives %}
           <div class="glass-inset" style="padding:0.875rem 1rem;margin-bottom:0.75rem;border-radius:12px;">
