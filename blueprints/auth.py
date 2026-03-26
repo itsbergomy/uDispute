@@ -191,8 +191,8 @@ def update_plan():
 @login_required
 def dev_switch_plan(plan):
     """Dev-only: quickly toggle between free/pro/business plans."""
-    if os.getenv('FLASK_ENV') != 'development':
-        abort(404)  # Hide this route in production
+    if not os.getenv('BETA_MODE', 'true').lower() in ('true', '1', 'yes'):
+        abort(404)  # Hide this route after beta
     if plan not in ('free', 'pro', 'business'):
         flash('Invalid plan.', 'error')
         return redirect(url_for('disputes.index'))
