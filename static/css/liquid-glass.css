@@ -1283,6 +1283,8 @@ body.glass-body p { color: var(--text-secondary); line-height: 1.7; }
   filter: drop-shadow(0 2px 2px rgba(0,0,0,0.12))
           drop-shadow(0 -1px 0 rgba(255,255,255,0.35));
   animation: chrome-shimmer 6s ease-in-out infinite;
+  padding-bottom: 0.1em;
+  overflow: visible;
 }
 
 @keyframes chrome-shimmer {
@@ -1320,6 +1322,8 @@ body.glass-body p { color: var(--text-secondary); line-height: 1.7; }
   filter: drop-shadow(0 1px 1px rgba(0,0,0,0.10))
           drop-shadow(0 -1px 0 rgba(255,255,255,0.25));
   animation: chrome-shimmer 10s ease-in-out infinite;
+  padding-bottom: 0.05em;
+  overflow: visible;
 }
 
 /* 3D layered text depth — for h2 / section headings */
