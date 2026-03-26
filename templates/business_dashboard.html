@@ -344,209 +344,274 @@
           <button onclick="closeAgentModal()" class="w-8 h-8 rounded-full flex items-center justify-center text-xl font-bold hover:bg-white/15 transition" style="color:var(--text-tertiary);">&times;</button>
         </div>
 
-        <div id="agentConfigForm">
-          <!-- Mode Selection -->
-          <p class="text-sm font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Mode</p>
-          <div class="grid grid-cols-2 gap-3 mb-4">
-            <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="mode-supervised-card">
-              <input type="radio" name="agent_mode" value="supervised" checked class="sr-only" onchange="updateModeUI()">
-              <div class="glass-icon-well mx-auto mb-2" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
-                {{ icons.icon_eye(size=24, uid='cfg1') }}
-              </div>
-              <div class="text-sm font-semibold">Supervised</div>
-              <div class="text-xs" style="color:var(--text-tertiary);">Pauses for your review</div>
-            </label>
-            <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="mode-fullauto-card">
-              <input type="radio" name="agent_mode" value="full_auto" class="sr-only" onchange="updateModeUI()">
-              <div class="glass-icon-well mx-auto mb-2" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
-                {{ icons.icon_pipeline(size=24, uid='cfg2') }}
-              </div>
-              <div class="text-sm font-semibold">Full Auto</div>
-              <div class="text-xs" style="color:var(--text-tertiary);">Runs without stopping</div>
-            </label>
-          </div>
+        <!-- Step Progress Dots -->
+        <div class="flex items-center justify-center gap-2 mb-5" id="wizardDots">
+          <div class="wizard-dot active" data-step="1" style="width:8px;height:8px;border-radius:50%;background:var(--accent);transition:all 0.3s;cursor:pointer;" onclick="goToWizardStep(1)"></div>
+          <div class="wizard-dot" data-step="2" style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);transition:all 0.3s;cursor:pointer;" onclick="goToWizardStep(2)"></div>
+          <div class="wizard-dot" data-step="3" style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);transition:all 0.3s;cursor:pointer;" onclick="goToWizardStep(3)"></div>
+          <div class="wizard-dot" data-step="4" style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);transition:all 0.3s;cursor:pointer;" onclick="goToWizardStep(4)"></div>
+          <div class="wizard-dot" data-step="5" style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);transition:all 0.3s;cursor:pointer;" onclick="goToWizardStep(5)"></div>
+        </div>
 
-          <!-- Strategy -->
-          <p class="text-sm font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Strategy</p>
-          <div class="grid grid-cols-3 gap-2 mb-4">
-            <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="strategy-standard-card">
-              <input type="radio" name="strategy" value="standard" checked class="sr-only" onchange="updateStrategyUI()">
-              <div class="glass-icon-well mx-auto mb-2" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
-                {{ icons.icon_letter_sent(size=20, uid='cfgS1') }}
-              </div>
-              <div class="text-xs font-semibold">Standard</div>
-              <div class="text-xs" style="color:var(--text-tertiary);line-height:1.3;">1 letter per account</div>
-            </label>
-            <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="strategy-notice-card">
-              <input type="radio" name="strategy" value="notice" class="sr-only" onchange="updateStrategyUI()">
-              <div class="glass-icon-well mx-auto mb-2" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
-                {{ icons.icon_document(size=20, uid='cfgS2') }}
-              </div>
-              <div class="text-xs font-semibold">Notice of Dispute</div>
-              <div class="text-xs" style="color:var(--text-tertiary);line-height:1.3;">1 letter per bureau</div>
-            </label>
-            <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="strategy-dual-card">
-              <input type="radio" name="strategy" value="dual" class="sr-only" onchange="updateStrategyUI()">
-              <div class="glass-icon-well mx-auto mb-2" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
-                {{ icons.icon_clients(size=20, uid='cfgS3') }}
-              </div>
-              <div class="text-xs font-semibold">Dual Letter</div>
-              <div class="text-xs" style="color:var(--text-tertiary);line-height:1.3;">CRA + Furnisher</div>
-            </label>
-          </div>
+        <div id="agentConfigForm" style="position:relative;overflow:hidden;">
 
-          <!-- Letter Source -->
-          <div id="letterSourceSection" style="transition:opacity 0.3s;">
-          <p class="text-sm font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Letter Source</p>
-          <div class="grid grid-cols-2 gap-3 mb-2">
-            <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="source-packs-card">
-              <input type="radio" name="letter_source" value="packs" checked class="sr-only" onchange="updateLetterSourceUI()">
-              <div class="glass-icon-well mx-auto mb-2" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
-                {{ icons.icon_package(size=24, uid='cfg3') }}
-              </div>
-              <div class="text-sm font-semibold">Prompt Packs</div>
-              <div class="text-xs" style="color:var(--text-tertiary);">Built-in templates</div>
-            </label>
-            <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="source-custom-card">
-              <input type="radio" name="letter_source" value="custom" class="sr-only" onchange="updateLetterSourceUI()">
-              <div class="glass-icon-well mx-auto mb-2" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
-                {{ icons.icon_document(size=24, uid='cfg4') }}
-              </div>
-              <div class="text-sm font-semibold">Custom Letter</div>
-              <div class="text-xs" style="color:var(--text-tertiary);">Your uploaded templates</div>
-            </label>
-          </div>
-
-          <!-- Round Strategy Mapper (shown when Prompt Packs chosen) -->
-          <div id="packSelectSection" class="mb-4">
-            <p class="text-xs font-medium mb-2" style="color:var(--text-secondary);">Map your escalation strategy per round:</p>
-            <div id="roundMapperRows" class="space-y-2">
-              {% for i in range(1, 4) %}
-              <div class="glass-inset rounded-xl p-3 flex items-center gap-3 round-mapper-row">
-                <span class="text-xs font-bold w-14 flex-shrink-0 glass-text-emboss" style="color:var(--text-primary);">Round {{ i }}</span>
-                <select name="round_strategy_{{ i }}" class="round-strategy-select glass-select text-xs flex-1 !py-1.5">
-                  <option value="standard" {% if i == 1 %}selected{% endif %}>Standard</option>
-                  <option value="dual_letter" {% if i == 2 %}selected{% endif %}>Dual Letter</option>
-                  <option value="arbitration" {% if i == 3 %}selected{% endif %}>Arbitration</option>
-                </select>
-                <select name="round_pack_{{ i }}" class="round-pack-select glass-select text-xs flex-1 !py-1.5">
-                  <option value="default" {% if i == 1 %}selected{% endif %}>Default</option>
-                  <option value="consumer_law" {% if i == 2 %}selected{% endif %}>Consumer Law</option>
-                  <option value="ACDV_response" {% if i == 3 %}selected{% endif %}>ACDV Response</option>
-                  <option value="arbitration">Arbitration</option>
-                </select>
-              </div>
-              {% endfor %}
-            </div>
-            <input type="hidden" id="roundMapperJSON" name="round_mapper">
-          </div>
-
-          <div id="customLetterSelect" class="hidden mb-4">
-            <select id="custom-letter-id" class="glass-select text-sm w-full">
-              <option value="">Select a custom letter...</option>
-              {% for cl in custom_letters %}
-              <option value="{{ cl.id }}">{{ cl.name }}</option>
-              {% endfor %}
-            </select>
-            {% if not custom_letters %}
-            <p class="text-xs mt-1" style="color:var(--text-tertiary);">
-              No custom letters yet. <a href="{{ url_for('business.list_custom_letters') }}" style="color:var(--accent);">Upload one</a>
-            </p>
-            {% endif %}
-          </div>
-          </div>
-
-          <!-- Send To -->
-          <div id="sendToSection" class="mb-4" style="transition:opacity 0.3s;">
-            <p class="text-sm font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Send Letters To</p>
-            <div class="grid grid-cols-2 gap-3">
-              <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="sendto-bureaus-card">
-                <input type="radio" name="send_to" value="bureaus" checked class="sr-only" onchange="updateSendToUI()">
-                <div class="glass-icon-well mx-auto mb-1.5" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
-                  {{ icons.icon_building(size=20, uid='cfg5') }}
+          <!-- ═══ STEP 1: Mode ═══ -->
+          <div class="wizard-step" data-step="1">
+            <p class="text-sm font-semibold mb-3 glass-text-3d" style="color:var(--text-primary);">How should the agent run?</p>
+            <div class="grid grid-cols-2 gap-3 mb-5">
+              <label class="glass-card glass-card--heavy rounded-xl p-4 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="mode-supervised-card" style="border:2px solid var(--accent);">
+                <input type="radio" name="agent_mode" value="supervised" checked class="sr-only" onchange="updateModeUI()">
+                <div class="glass-icon-well mx-auto mb-2" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
+                  {{ icons.icon_eye(size=24, uid='cfg1') }}
                 </div>
-                <div class="text-xs font-semibold">Bureaus</div>
+                <div class="text-sm font-semibold" style="color:var(--text-primary);">Supervised</div>
+                <div class="text-xs" style="color:var(--text-tertiary);">Pauses for your review</div>
               </label>
-              <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="sendto-creditors-card">
-                <input type="radio" name="send_to" value="creditors" class="sr-only" onchange="updateSendToUI()">
-                <div class="glass-icon-well mx-auto mb-1.5" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
-                  {{ icons.icon_briefcase(size=20, uid='cfg6') }}
+              <label class="glass-card glass-card--heavy rounded-xl p-4 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="mode-fullauto-card" style="border:2px solid transparent;">
+                <input type="radio" name="agent_mode" value="full_auto" class="sr-only" onchange="updateModeUI()">
+                <div class="glass-icon-well mx-auto mb-2" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
+                  {{ icons.icon_pipeline(size=24, uid='cfg2') }}
                 </div>
-                <div class="text-xs font-semibold">Creditors</div>
+                <div class="text-sm font-semibold" style="color:var(--text-primary);">Full Auto</div>
+                <div class="text-xs" style="color:var(--text-tertiary);">Runs without stopping</div>
               </label>
             </div>
-          </div>
-
-          <!-- Creditor Addresses (hidden by default, shown when Creditors selected) -->
-          <div id="creditorSection" class="hidden mb-4">
-            <p class="text-sm font-semibold mb-2" style="color:var(--text-primary);">Creditor Addresses</p>
-            <div id="creditorRows" class="space-y-2"></div>
-            <button type="button" onclick="addCreditorRow()"
-                    class="glass-btn glass-btn--secondary glass-btn--pill text-xs px-3 py-1 mt-2">
-              + Add Creditor
+            <button type="button" onclick="goToWizardStep(2)" class="w-full glass-btn glass-btn--primary glass-btn--pill py-2.5 text-sm font-semibold">
+              Next →
             </button>
           </div>
 
-          <!-- Batch Size -->
-          <div id="batchSizeSection" class="mb-4" style="transition:opacity 0.3s;">
-            <p class="text-sm font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Batch Size</p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="glass-label text-xs mb-1">Letters per round</label>
-                <select id="batchPerRound" class="glass-select w-full text-sm">
-                  <option value="0" selected>All at once</option>
-                  <option value="3">3 letters</option>
-                  <option value="5">5 letters</option>
-                  <option value="10">10 letters</option>
-                </select>
-              </div>
-              <div>
-                <label class="glass-label text-xs mb-1">Letters per mailing</label>
-                <select id="batchPerMailing" class="glass-select w-full text-sm">
-                  <option value="0" selected>All at once</option>
-                  <option value="3">3 per day</option>
-                  <option value="5">5 per day</option>
-                  <option value="stagger">Stagger (2 day gap)</option>
-                </select>
-              </div>
+          <!-- ═══ STEP 2: Strategy ═══ -->
+          <div class="wizard-step" data-step="2" style="display:none;">
+            <p class="text-sm font-semibold mb-3 glass-text-3d" style="color:var(--text-primary);">What's the dispute strategy?</p>
+            <div class="grid grid-cols-3 gap-2 mb-5">
+              <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="strategy-standard-card" style="border:2px solid var(--accent);">
+                <input type="radio" name="strategy" value="standard" checked class="sr-only" onchange="updateStrategyUI()">
+                <div class="glass-icon-well mx-auto mb-2" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
+                  {{ icons.icon_letter_sent(size=20, uid='cfgS1') }}
+                </div>
+                <div class="text-xs font-semibold" style="color:var(--text-primary);">Standard</div>
+                <div class="text-xs" style="color:var(--text-tertiary);line-height:1.3;">1 letter per account</div>
+              </label>
+              <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="strategy-notice-card" style="border:2px solid transparent;">
+                <input type="radio" name="strategy" value="notice" class="sr-only" onchange="updateStrategyUI()">
+                <div class="glass-icon-well mx-auto mb-2" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
+                  {{ icons.icon_document(size=20, uid='cfgS2') }}
+                </div>
+                <div class="text-xs font-semibold" style="color:var(--text-primary);">Notice of Dispute</div>
+                <div class="text-xs" style="color:var(--text-tertiary);line-height:1.3;">1 letter per bureau</div>
+              </label>
+              <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="strategy-dual-card" style="border:2px solid transparent;">
+                <input type="radio" name="strategy" value="dual" class="sr-only" onchange="updateStrategyUI()">
+                <div class="glass-icon-well mx-auto mb-2" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
+                  {{ icons.icon_clients(size=20, uid='cfgS3') }}
+                </div>
+                <div class="text-xs font-semibold" style="color:var(--text-primary);">Dual Letter</div>
+                <div class="text-xs" style="color:var(--text-tertiary);line-height:1.3;">CRA + Furnisher</div>
+              </label>
+            </div>
+            <div class="flex gap-2">
+              <button type="button" onclick="goToWizardStep(1)" class="glass-btn glass-btn--ghost glass-btn--pill py-2.5 px-4 text-sm">← Back</button>
+              <button type="button" onclick="goToWizardStep(3)" class="flex-1 glass-btn glass-btn--primary glass-btn--pill py-2.5 text-sm font-semibold">Next →</button>
             </div>
           </div>
 
-          <!-- Mail Options -->
-          <div class="mb-4">
-            <p class="text-sm font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Mail Options</p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="glass-label text-xs mb-1">Mail Class</label>
-                <select id="mailClass" class="glass-select w-full text-sm">
-                  <option value="usps_first_class">USPS First Class</option>
-                  <option value="usps_standard">USPS Standard</option>
-                  <option value="usps_priority_mail">USPS Priority Mail</option>
-                  <option value="usps_priority_mail_express">Priority Mail Express</option>
-                </select>
+          <!-- ═══ STEP 3: Letter Source + Round Mapper ═══ -->
+          <div class="wizard-step" data-step="3" style="display:none;">
+            <div id="letterSourceSection">
+              <p class="text-sm font-semibold mb-3 glass-text-3d" style="color:var(--text-primary);">Where do the letters come from?</p>
+              <div class="grid grid-cols-2 gap-3 mb-4">
+                <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="source-packs-card" style="border:2px solid var(--accent);">
+                  <input type="radio" name="letter_source" value="packs" checked class="sr-only" onchange="updateLetterSourceUI()">
+                  <div class="glass-icon-well mx-auto mb-2" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
+                    {{ icons.icon_package(size=24, uid='cfg3') }}
+                  </div>
+                  <div class="text-sm font-semibold" style="color:var(--text-primary);">Prompt Packs</div>
+                  <div class="text-xs" style="color:var(--text-tertiary);">Built-in templates</div>
+                </label>
+                <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="source-custom-card" style="border:2px solid transparent;">
+                  <input type="radio" name="letter_source" value="custom" class="sr-only" onchange="updateLetterSourceUI()">
+                  <div class="glass-icon-well mx-auto mb-2" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
+                    {{ icons.icon_document(size=24, uid='cfg4') }}
+                  </div>
+                  <div class="text-sm font-semibold" style="color:var(--text-primary);">Custom Letter</div>
+                  <div class="text-xs" style="color:var(--text-tertiary);">Your uploaded templates</div>
+                </label>
               </div>
-              <div>
-                <label class="glass-label text-xs mb-1">Service Level</label>
-                <select id="mailServiceLevel" class="glass-select w-full text-sm">
-                  <option value="">Standard</option>
-                  <option value="certified">Certified Mail</option>
-                  <option value="certified_return_receipt">Certified + Return Receipt</option>
-                </select>
+
+              <!-- Round Strategy Mapper -->
+              <div id="packSelectSection" class="mb-4">
+                <p class="text-xs font-medium mb-2" style="color:var(--text-secondary);">Map your escalation strategy per round:</p>
+                <div id="roundMapperRows" class="space-y-2">
+                  {% for i in range(1, 4) %}
+                  <div class="glass-inset rounded-xl p-3 flex items-center gap-3 round-mapper-row">
+                    <span class="text-xs font-bold w-14 flex-shrink-0 glass-text-emboss" style="color:var(--text-primary);">Round {{ i }}</span>
+                    <select name="round_strategy_{{ i }}" class="round-strategy-select glass-select text-xs flex-1 !py-1.5">
+                      <option value="standard" {% if i == 1 %}selected{% endif %}>Standard</option>
+                      <option value="dual_letter" {% if i == 2 %}selected{% endif %}>Dual Letter</option>
+                      <option value="arbitration" {% if i == 3 %}selected{% endif %}>Arbitration</option>
+                    </select>
+                    <select name="round_pack_{{ i }}" class="round-pack-select glass-select text-xs flex-1 !py-1.5">
+                      <option value="default" {% if i == 1 %}selected{% endif %}>Default</option>
+                      <option value="consumer_law" {% if i == 2 %}selected{% endif %}>Consumer Law</option>
+                      <option value="ACDV_response" {% if i == 3 %}selected{% endif %}>ACDV Response</option>
+                      <option value="arbitration">Arbitration</option>
+                    </select>
+                  </div>
+                  {% endfor %}
+                </div>
+                <input type="hidden" id="roundMapperJSON" name="round_mapper">
               </div>
+
+              <div id="customLetterSelect" class="hidden mb-4">
+                <select id="custom-letter-id" class="glass-select text-sm w-full">
+                  <option value="">Select a custom letter...</option>
+                  {% for cl in custom_letters %}
+                  <option value="{{ cl.id }}">{{ cl.name }}</option>
+                  {% endfor %}
+                </select>
+                {% if not custom_letters %}
+                <p class="text-xs mt-1" style="color:var(--text-tertiary);">
+                  No custom letters yet. <a href="{{ url_for('business.list_custom_letters') }}" style="color:var(--accent);">Upload one</a>
+                </p>
+                {% endif %}
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button type="button" onclick="goToWizardStep(2)" class="glass-btn glass-btn--ghost glass-btn--pill py-2.5 px-4 text-sm">← Back</button>
+              <button type="button" onclick="goToWizardStep(4)" class="flex-1 glass-btn glass-btn--primary glass-btn--pill py-2.5 text-sm font-semibold">Next →</button>
             </div>
           </div>
 
-          <!-- Full Auto Config (hidden by default) -->
-          <div id="fullAutoConfig" class="hidden space-y-4">
+          <!-- ═══ STEP 4: Delivery Options ═══ -->
+          <div class="wizard-step" data-step="4" style="display:none;">
+            <p class="text-sm font-semibold mb-3 glass-text-3d" style="color:var(--text-primary);">Delivery settings</p>
+
+            <!-- Send To -->
+            <div id="sendToSection" class="mb-4">
+              <p class="text-xs font-medium mb-2" style="color:var(--text-secondary);">Send letters to:</p>
+              <div class="grid grid-cols-2 gap-3">
+                <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="sendto-bureaus-card" style="border:2px solid var(--accent);">
+                  <input type="radio" name="send_to" value="bureaus" checked class="sr-only" onchange="updateSendToUI()">
+                  <div class="glass-icon-well mx-auto mb-1.5" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
+                    {{ icons.icon_building(size=20, uid='cfg5') }}
+                  </div>
+                  <div class="text-xs font-semibold" style="color:var(--text-primary);">Bureaus</div>
+                </label>
+                <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="sendto-creditors-card" style="border:2px solid transparent;">
+                  <input type="radio" name="send_to" value="creditors" class="sr-only" onchange="updateSendToUI()">
+                  <div class="glass-icon-well mx-auto mb-1.5" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
+                    {{ icons.icon_briefcase(size=20, uid='cfg6') }}
+                  </div>
+                  <div class="text-xs font-semibold" style="color:var(--text-primary);">Creditors</div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Creditor Addresses -->
+            <div id="creditorSection" class="hidden mb-4">
+              <p class="text-xs font-medium mb-2" style="color:var(--text-secondary);">Creditor Addresses</p>
+              <div id="creditorRows" class="space-y-2"></div>
+              <button type="button" onclick="addCreditorRow()"
+                      class="glass-btn glass-btn--secondary glass-btn--pill text-xs px-3 py-1 mt-2">+ Add Creditor</button>
+            </div>
+
+            <!-- Batch Size -->
+            <div id="batchSizeSection" class="mb-4">
+              <p class="text-xs font-medium mb-2" style="color:var(--text-secondary);">Batch size:</p>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="glass-label text-xs mb-1">Letters per round</label>
+                  <select id="batchPerRound" class="glass-select w-full text-sm">
+                    <option value="0" selected>All at once</option>
+                    <option value="3">3 letters</option>
+                    <option value="5">5 letters</option>
+                    <option value="10">10 letters</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="glass-label text-xs mb-1">Letters per mailing</label>
+                  <select id="batchPerMailing" class="glass-select w-full text-sm">
+                    <option value="0" selected>All at once</option>
+                    <option value="3">3 per day</option>
+                    <option value="5">5 per day</option>
+                    <option value="stagger">Stagger (2 day gap)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Mail Options -->
+            <div class="mb-4">
+              <p class="text-xs font-medium mb-2" style="color:var(--text-secondary);">Mail options:</p>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="glass-label text-xs mb-1">Mail Class</label>
+                  <select id="mailClass" class="glass-select w-full text-sm">
+                    <option value="usps_first_class">USPS First Class</option>
+                    <option value="usps_standard">USPS Standard</option>
+                    <option value="usps_priority_mail">USPS Priority Mail</option>
+                    <option value="usps_priority_mail_express">Priority Mail Express</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="glass-label text-xs mb-1">Service Level</label>
+                  <select id="mailServiceLevel" class="glass-select w-full text-sm">
+                    <option value="">Standard</option>
+                    <option value="certified">Certified Mail</option>
+                    <option value="certified_return_receipt">Certified + Return Receipt</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex gap-2">
+              <button type="button" onclick="goToWizardStep(3)" class="glass-btn glass-btn--ghost glass-btn--pill py-2.5 px-4 text-sm">← Back</button>
+              <button type="button" onclick="goToWizardStep(5)" class="flex-1 glass-btn glass-btn--primary glass-btn--pill py-2.5 text-sm font-semibold">Review →</button>
+            </div>
           </div>
 
-          <!-- Submit -->
-          <button type="button" id="agentSubmitBtn" onclick="submitAgentConfig()"
-                  class="glass-btn glass-btn--primary glass-btn--full rounded-2xl mt-5 glass-shimmer-edge"
-                  style="position:relative;overflow:hidden;">
-            Start Pipeline
-          </button>
-          <div id="agentError" class="hidden mt-2 text-sm text-center" style="color:#ff3b30;"></div>
+          <!-- ═══ STEP 5: Confirm & Launch ═══ -->
+          <div class="wizard-step" data-step="5" style="display:none;">
+            <p class="text-sm font-semibold mb-3 glass-text-3d" style="color:var(--text-primary);">Review & Launch</p>
+
+            <div class="space-y-2 mb-5" id="wizardSummary">
+              <div class="glass-inset rounded-xl p-3 flex items-center justify-between">
+                <span class="text-xs" style="color:var(--text-secondary);">Mode</span>
+                <span class="text-xs font-semibold" style="color:var(--text-primary);" id="sum-mode">Supervised</span>
+              </div>
+              <div class="glass-inset rounded-xl p-3 flex items-center justify-between">
+                <span class="text-xs" style="color:var(--text-secondary);">Strategy</span>
+                <span class="text-xs font-semibold" style="color:var(--text-primary);" id="sum-strategy">Standard</span>
+              </div>
+              <div class="glass-inset rounded-xl p-3 flex items-center justify-between">
+                <span class="text-xs" style="color:var(--text-secondary);">Letter Source</span>
+                <span class="text-xs font-semibold" style="color:var(--text-primary);" id="sum-source">Prompt Packs</span>
+              </div>
+              <div class="glass-inset rounded-xl p-3 flex items-center justify-between">
+                <span class="text-xs" style="color:var(--text-secondary);">Send To</span>
+                <span class="text-xs font-semibold" style="color:var(--text-primary);" id="sum-sendto">Bureaus</span>
+              </div>
+              <div class="glass-inset rounded-xl p-3 flex items-center justify-between">
+                <span class="text-xs" style="color:var(--text-secondary);">Mail</span>
+                <span class="text-xs font-semibold" style="color:var(--text-primary);" id="sum-mail">USPS First Class</span>
+              </div>
+            </div>
+
+            <!-- Full Auto Config (hidden by default) -->
+            <div id="fullAutoConfig" class="hidden space-y-4"></div>
+
+            <div class="flex gap-2">
+              <button type="button" onclick="goToWizardStep(4)" class="glass-btn glass-btn--ghost glass-btn--pill py-2.5 px-4 text-sm">← Back</button>
+              <button type="button" id="agentSubmitBtn" onclick="submitAgentConfig()"
+                      class="flex-1 glass-btn glass-btn--primary glass-btn--pill py-2.5 text-sm font-semibold glass-shimmer-edge"
+                      style="position:relative;overflow:hidden;">
+                🚀 Start Pipeline
+              </button>
+            </div>
+            <div id="agentError" class="hidden mt-2 text-sm text-center" style="color:#ff3b30;"></div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -809,9 +874,38 @@
     updateLetterSourceUI();
   }
 
+  function goToWizardStep(step) {
+    // Hide all steps
+    document.querySelectorAll('.wizard-step').forEach(function(s) { s.style.display = 'none'; });
+    // Show target step
+    var target = document.querySelector('.wizard-step[data-step="' + step + '"]');
+    if (target) target.style.display = 'block';
+    // Update dots
+    document.querySelectorAll('.wizard-dot').forEach(function(d) {
+      d.style.background = parseInt(d.dataset.step) === step ? 'var(--accent)' : (parseInt(d.dataset.step) < step ? 'rgba(0,113,227,0.4)' : 'rgba(255,255,255,0.2)');
+      d.style.width = parseInt(d.dataset.step) === step ? '20px' : '8px';
+      d.style.borderRadius = parseInt(d.dataset.step) === step ? '4px' : '50%';
+    });
+    // Update summary on step 5
+    if (step === 5) {
+      var mode = document.querySelector('input[name="agent_mode"]:checked');
+      var strategy = document.querySelector('input[name="strategy"]:checked');
+      var source = document.querySelector('input[name="letter_source"]:checked');
+      var sendTo = document.querySelector('input[name="send_to"]:checked');
+      var mailClass = document.getElementById('mailClass');
+      document.getElementById('sum-mode').textContent = mode ? (mode.value === 'supervised' ? 'Supervised' : 'Full Auto') : '';
+      document.getElementById('sum-strategy').textContent = strategy ? ({standard:'Standard',notice:'Notice of Dispute',dual:'Dual Letter'}[strategy.value] || strategy.value) : '';
+      document.getElementById('sum-source').textContent = source ? (source.value === 'packs' ? 'Prompt Packs' : 'Custom Letter') : '';
+      document.getElementById('sum-sendto').textContent = sendTo ? (sendTo.value === 'bureaus' ? 'Bureaus' : 'Creditors') : '';
+      document.getElementById('sum-mail').textContent = mailClass ? mailClass.options[mailClass.selectedIndex].text : '';
+    }
+  }
+
   function closeAgentModal() {
     const m = document.getElementById('agentConfigModal');
     m.classList.add('hidden'); m.classList.remove('flex');
+    // Reset wizard to step 1
+    goToWizardStep(1);
   }
 
   function updateModeUI() {
@@ -820,10 +914,8 @@
     const supCard = document.getElementById('mode-supervised-card');
     const autoCard = document.getElementById('mode-fullauto-card');
     autoSection.classList.toggle('hidden', mode !== 'full_auto');
-    supCard.style.borderColor = mode === 'supervised' ? 'var(--accent)' : '';
-    supCard.style.borderWidth = mode === 'supervised' ? '2px' : '';
-    autoCard.style.borderColor = mode === 'full_auto' ? 'var(--accent)' : '';
-    autoCard.style.borderWidth = mode === 'full_auto' ? '2px' : '';
+    supCard.style.borderColor = mode === 'supervised' ? 'var(--accent)' : 'transparent';
+    autoCard.style.borderColor = mode === 'full_auto' ? 'var(--accent)' : 'transparent';
   }
 
   function updateStrategyUI() {
@@ -831,8 +923,7 @@
     ['standard', 'notice', 'dual'].forEach(function(s) {
       const card = document.getElementById('strategy-' + s + '-card');
       if (card) {
-        card.style.borderColor = strategy === s ? 'var(--accent)' : '';
-        card.style.borderWidth = strategy === s ? '2px' : '';
+        card.style.borderColor = strategy === s ? 'var(--accent)' : 'transparent';
       }
     });
 
