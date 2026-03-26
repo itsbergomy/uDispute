@@ -341,6 +341,8 @@ def get_pipeline_status(pipeline_id):
                 'docupost_letter_id': a.letter.docupost_letter_id if a.letter else None,
                 'docupost_cost': a.letter.docupost_cost if a.letter else None,
                 'delivery_status': a.letter.delivery_status if a.letter else None,
+                'quality_score': a.letter.quality_score if a.letter else None,
+                'quality_warnings': a.letter.quality_warnings if a.letter else None,
             }
             for a in accounts
         ],
@@ -788,6 +790,7 @@ def handle_generation(pipeline):
 
         # Generate the letter (API call — no DB needed)
         try:
+            qr = None  # Quality result — set by quality gate below
             if custom_body:
                 letter_text = _sanitize_letter(custom_body, context)
             else:
@@ -814,14 +817,16 @@ def handle_generation(pipeline):
                     quality_context=quality_context,
                 )
                 if qr.warnings:
-                    plog(f"[PIPELINE] Quality warnings for {ad['account_name']}/{ad['bureau']}: {qr.warnings}")
+                    logger.warning(f"Quality warnings for {ad['account_name']}/{ad['bureau']}: {qr.warnings}")
                 if not qr.passed:
-                    plog(f"[PIPELINE] Quality gate FAILED for {ad['account_name']}/{ad['bureau']} after retries: {qr.failures}")
+                    logger.error(f"Quality gate FAILED for {ad['account_name']}/{ad['bureau']} after retries: {qr.failures}")
                 letter_text = _sanitize_letter(raw_letter, context)
 
             generated_letters.append({
                 'account_id': ad['id'],
                 'letter_text': letter_text,
+                'quality_score': qr.score if qr else 100,
+                'quality_warnings': (qr.failures + qr.warnings) if qr else [],
                 'template_name': f"{ad['template_pack']} - {ad['bureau']}",
             })
             logger.info(f"Generated letter for {ad['account_name']} / {ad['bureau']}")
@@ -835,12 +840,15 @@ def handle_generation(pipeline):
 
     # ── PHASE 3: Fresh DB connection — save all letters at once ──
     for gl in generated_letters:
+        import json as _json
         letter_record = ClientDisputeLetter(
             client_id=client_id,
             letter_text=gl['letter_text'],
             status='Draft',
             template_name=gl['template_name'],
             round_number=round_number,
+            quality_score=gl.get('quality_score', 100),
+            quality_warnings=_json.dumps(gl.get('quality_warnings', [])),
         )
         db.session.add(letter_record)
         db.session.flush()

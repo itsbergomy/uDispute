@@ -311,6 +311,12 @@
               <span class="text-xs" style="color:var(--text-tertiary);">{{ a.account_number }}</span>
               <span class="text-xs" style="color:var(--text-tertiary);">· {{ a.bureau }}</span>
               <span class="text-xs px-1.5 py-0.5 rounded-full" style="background:rgba(255,255,255,0.08);color:var(--text-tertiary);">R{{ a.round_number }}</span>
+              {% if a.quality_score is not none and a.quality_score < 100 %}
+                <span class="text-xs px-1.5 py-0.5 rounded-full" title="{{ a.quality_warnings or '' }}"
+                      style="background:{% if a.quality_score >= 70 %}rgba(245,158,11,0.15);color:#f59e0b{% else %}rgba(239,68,68,0.15);color:#ef4444{% endif %};">
+                  QG {{ a.quality_score }}
+                </span>
+              {% endif %}
             </div>
             <div class="flex items-center gap-2">
               <!-- Attach Doc button -->

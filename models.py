@@ -159,6 +159,9 @@ class ClientDisputeLetter(db.Model):
     delivery_status_updated_at = db.Column(db.DateTime, nullable=True)
     tracking_number = db.Column(db.String(100), nullable=True)
     mailed_at = db.Column(db.DateTime, nullable=True)
+    # Quality gate results
+    quality_score = db.Column(db.Integer, nullable=True)  # 0-100
+    quality_warnings = db.Column(db.Text, nullable=True)  # JSON list of warning strings
     client = db.relationship('Client', backref='letters')
 
 class WorkflowSetting(db.Model):
