@@ -276,6 +276,9 @@
 
   {% block scripts %}
   <script>
+    // ─── Global CSRF Token (used by letter cards and inline editor) ───
+    var CSRF_TOKEN = (document.querySelector('meta[name="csrf-token"]') || {}).getAttribute ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '';
+
     // ─── Global CSRF Token Injection for fetch() ───
     (function() {
       var _origFetch = window.fetch;
@@ -408,6 +411,107 @@
             .then(() => loadDrawer());
         });
       });
+    }
+
+    // ─── Inline Editor Functions (used by _letter_card.html in the overlay) ───
+    function openInlineEditor(id) {
+      // Close any other open editors first
+      document.querySelectorAll('.inline-editor-panel').forEach(function(p) {
+        p.classList.remove('open');
+        p.style.display = 'none';
+      });
+
+      var panel = document.getElementById('editor-panel-' + id);
+      var textarea = document.getElementById('editorTextarea-' + id);
+      var status = document.getElementById('editorStatus-' + id);
+      if (!panel || !textarea) return;
+
+      textarea.value = 'Loading...';
+      status.textContent = '';
+
+      fetch('/api/letter/' + id)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          textarea.value = data.letter_text || '';
+        })
+        .catch(function(err) { textarea.value = 'Error loading: ' + err; });
+
+      // Show then animate open
+      panel.style.display = 'block';
+      requestAnimationFrame(function() {
+        panel.classList.add('open');
+      });
+      setTimeout(function() { panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 150);
+    }
+
+    function closeInlineEditor(id) {
+      var panel = document.getElementById('editor-panel-' + id);
+      if (panel) {
+        panel.classList.remove('open');
+        setTimeout(function() { panel.style.display = 'none'; }, 400);
+      }
+      ['editorIdFile-', 'editorSsnFile-', 'editorUtilFile-'].forEach(function(prefix) {
+        var inp = document.getElementById(prefix + id);
+        if (inp) inp.value = '';
+      });
+      var status = document.getElementById('editorStatus-' + id);
+      if (status) status.textContent = '';
+    }
+
+    function saveAndConvert(id) {
+      var textarea = document.getElementById('editorTextarea-' + id);
+      var status = document.getElementById('editorStatus-' + id);
+      if (!textarea || !textarea.value.trim()) {
+        status.textContent = 'Letter text cannot be empty.';
+        status.style.color = '#ff453a';
+        return;
+      }
+
+      status.textContent = 'Converting to PDF...';
+      status.style.color = 'var(--text-secondary)';
+
+      var formData = new FormData();
+      formData.append('letter', textarea.value);
+
+      var idFile = document.getElementById('editorIdFile-' + id);
+      var ssnFile = document.getElementById('editorSsnFile-' + id);
+      var utilFile = document.getElementById('editorUtilFile-' + id);
+      if (idFile && idFile.files[0]) formData.append('id_file', idFile.files[0]);
+      if (ssnFile && ssnFile.files[0]) formData.append('ssn_file', ssnFile.files[0]);
+      if (utilFile && utilFile.files[0]) formData.append('utility_file', utilFile.files[0]);
+
+      fetch('/api/letter/' + id + '/convert-pdf', {
+        method: 'POST',
+        body: formData
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.success) {
+          status.textContent = 'Saved!';
+          status.style.color = '#248a3d';
+          // If inside the overlay drawer, reload drawer content; otherwise redirect
+          if (drawerContent && drawerContent.contains(document.getElementById('editor-panel-' + id))) {
+            setTimeout(function() { loadDrawer(); }, 600);
+          } else {
+            setTimeout(function() { window.location.href = '/dispute-folder?tab=letters'; }, 800);
+          }
+        } else {
+          status.textContent = data.error || 'Error converting PDF.';
+          status.style.color = '#ff453a';
+        }
+      })
+      .catch(function(err) {
+        status.textContent = 'Error: ' + err;
+        status.style.color = '#ff453a';
+      });
+    }
+
+    function mailGuard(id, pdfUrl) {
+      if (pdfUrl) {
+        window.location.href = '/mail-letter?letter_id=' + id;
+      } else {
+        showToast('Convert your letter to PDF first before mailing.', 'warning');
+      }
     }
 
     // ─── Bureau filter pills (drawer) ───
