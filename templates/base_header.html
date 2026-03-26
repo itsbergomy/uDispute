@@ -551,8 +551,9 @@
         const vpH = window.innerHeight;
 
         // Center using pixel values (never percentages — avoids drag jump)
+        // Never place above header (72px)
         const centerX = Math.max(16, (vpW - winW) / 2);
-        const centerY = Math.max(16, (vpH - winH) / 2);
+        const centerY = Math.max(72, (vpH - winH) / 2);
 
         folderWin.style.left = centerX + 'px';
         folderWin.style.top = centerY + 'px';
@@ -604,11 +605,25 @@
     if (closeBtn) closeBtn.addEventListener('click', closeFolderWindow);
 
     // ─── Drag to move — lerp for loose, floaty feel ───
+    // Draggable from ALL edges (title bar + 12px border zone on all sides)
     (function() {
-      if (!titlebar || !folderWin) return;
+      if (!folderWin) return;
       let isDragging = false, startX, startY, origX, origY;
       let targetX, targetY, currentX, currentY, rafId;
       const LERP = 0.18; // 0 = frozen, 1 = rigid. 0.18 = smooth trail
+      const HEADER_HEIGHT = 72; // never overlap the site header
+      const EDGE_MARGIN = 16; // keep window on screen
+
+      function clampPosition(x, y) {
+        var winW = folderWin.offsetWidth;
+        var winH = folderWin.offsetHeight;
+        var vpW = window.innerWidth;
+        var vpH = window.innerHeight;
+        // Clamp: at least 60px visible on each side, never above header
+        x = Math.max(-winW + 60, Math.min(x, vpW - 60));
+        y = Math.max(HEADER_HEIGHT, Math.min(y, vpH - 40));
+        return { x: x, y: y };
+      }
 
       function lerpLoop() {
         if (!isDragging && Math.abs(currentX - targetX) < 0.3 && Math.abs(currentY - targetY) < 0.3) {
@@ -627,7 +642,6 @@
       function startDrag(clientX, clientY) {
         isDragging = true;
         folderWin.classList.add('is-dragging');
-        // Coords are already pixel-based (resolved on animationend)
         origX = parseFloat(folderWin.style.left) || 0;
         origY = parseFloat(folderWin.style.top) || 0;
         startX = clientX; startY = clientY;
@@ -638,8 +652,11 @@
 
       function moveDrag(clientX, clientY) {
         if (!isDragging) return;
-        targetX = origX + clientX - startX;
-        targetY = origY + clientY - startY;
+        var rawX = origX + clientX - startX;
+        var rawY = origY + clientY - startY;
+        var clamped = clampPosition(rawX, rawY);
+        targetX = clamped.x;
+        targetY = clamped.y;
         if (!rafId) rafId = requestAnimationFrame(lerpLoop);
       }
 
@@ -647,25 +664,42 @@
         if (!isDragging) return;
         isDragging = false;
         folderWin.classList.remove('is-dragging');
-        // Let lerp coast to final position
       }
 
-      titlebar.addEventListener('mousedown', e => {
+      // Check if click is on the edge zone or title bar (not on interactive content)
+      function isDragZone(e) {
+        // Always allow drag from title bar
+        if (titlebar && titlebar.contains(e.target)) return true;
+        // Check if click is within 12px of any edge of the folder window
+        var rect = folderWin.getBoundingClientRect();
+        var x = e.clientX - rect.left;
+        var y = e.clientY - rect.top;
+        var edgeZone = 12;
+        if (x < edgeZone || x > rect.width - edgeZone) return true;
+        if (y < edgeZone || y > rect.height - edgeZone) return true;
+        return false;
+      }
+
+      folderWin.addEventListener('mousedown', e => {
         if (e.target.closest('#closeFolderWindow')) return;
+        if (e.target.closest('button, a, input, textarea, select, .glass-btn, .glass-tab')) return;
+        if (!isDragZone(e)) return;
         startDrag(e.clientX, e.clientY);
         e.preventDefault();
       });
       document.addEventListener('mousemove', e => moveDrag(e.clientX, e.clientY));
       document.addEventListener('mouseup', endDrag);
 
-      titlebar.addEventListener('touchstart', e => {
+      folderWin.addEventListener('touchstart', e => {
         if (e.target.closest('#closeFolderWindow')) return;
+        if (e.target.closest('button, a, input, textarea, select, .glass-btn, .glass-tab')) return;
+        if (!isDragZone(e)) return;
         startDrag(e.touches[0].clientX, e.touches[0].clientY);
       }, { passive: true });
-      titlebar.addEventListener('touchmove', e => {
-        moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+      document.addEventListener('touchmove', e => {
+        if (isDragging) moveDrag(e.touches[0].clientX, e.touches[0].clientY);
       }, { passive: true });
-      titlebar.addEventListener('touchend', endDrag);
+      document.addEventListener('touchend', endDrag);
     })();
 
     // Pack dropdown toggle
