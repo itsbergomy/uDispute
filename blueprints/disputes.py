@@ -1281,6 +1281,19 @@ def manual_mode():
 def mail_letter():
     if request.method == 'GET':
         entity = session.get('selected_entity', '')
+
+        # Check if a specific letter was requested (from Dispute Folder mail button)
+        letter_id = request.args.get('letter_id', type=int)
+        letter = None
+        if letter_id:
+            letter = MailedLetter.query.get(letter_id)
+            if letter and letter.user_id == current_user.id:
+                # Use the letter's bureau to pre-fill recipient
+                if letter.bureau:
+                    entity = letter.bureau
+            else:
+                letter = None  # Not found or unauthorized
+
         bureau = BUREAU_ADDRESSES.get(entity, {})
         return render_template('mail_letter.html',
             from_name=session.get('user_name', ''),
@@ -1297,6 +1310,7 @@ def mail_letter():
             to_city=bureau.get('city', ''),
             to_state=bureau.get('state', ''),
             to_zip=bureau.get('zip', ''),
+            letter=letter,
         )
 
     # ── Resolve the PDF to send ──
@@ -1321,16 +1335,22 @@ def mail_letter():
             uploaded.save(save_path)
             pdf_url = generate_public_pdf_url(safe_name)
     else:
-        session_pdf = session.get('final_pdf_url', '')
-        if session_pdf:
-            if session_pdf.startswith('http'):
-                # Already a full URL (Cloudinary or external)
-                pdf_url = session_pdf
-            else:
-                pdf_filename = session_pdf.rsplit('/', 1)[-1] if '/' in session_pdf else session_pdf
-                pdf_url = generate_public_pdf_url(pdf_filename)
-        else:
-            pdf_url = None
+        # Fallback 1: letter's saved PDF (from Dispute Folder)
+        letter_id = request.form.get('letter_id', type=int)
+        if letter_id:
+            letter = MailedLetter.query.get(letter_id)
+            if letter and letter.user_id == current_user.id and letter.pdf_url:
+                pdf_url = letter.pdf_url
+
+        # Fallback 2: session URL from /convert-pdf flow
+        if not pdf_url:
+            session_pdf = session.get('final_pdf_url', '')
+            if session_pdf:
+                if session_pdf.startswith('http'):
+                    pdf_url = session_pdf
+                else:
+                    pdf_filename = session_pdf.rsplit('/', 1)[-1] if '/' in session_pdf else session_pdf
+                    pdf_url = generate_public_pdf_url(pdf_filename)
 
     if not pdf_url:
         flash("No PDF found. Please upload a PDF or generate a Dispute Package first.", "error")
@@ -1567,6 +1587,77 @@ def update_letter(letter_id):
     letter.letter_text = data.get('letter_text', letter.letter_text)
     db.session.commit()
     return jsonify({'id': letter.id, 'updated': True})
+
+
+@disputes_bp.route('/api/letter/<int:letter_id>/convert-pdf', methods=['POST'])
+@login_required
+def convert_letter_pdf(letter_id):
+    """Update an existing letter's text and generate a new PDF package."""
+    letter = MailedLetter.query.get_or_404(letter_id)
+    if letter.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    letter_text = request.form.get('letter', '').strip()
+    if not letter_text:
+        return jsonify({'error': 'Letter content is required.'}), 400
+
+    upload_folder = current_app.config['UPLOAD_FOLDER']
+    os.makedirs(upload_folder, exist_ok=True)
+
+    try:
+        # Generate letter PDF
+        letter_pdf_path = letter_to_pdf(letter_text, os.path.join(upload_folder, 'letter.pdf'))
+        pdf_paths = [letter_pdf_path]
+
+        # Convert optional supporting docs
+        for field in ('id_file', 'ssn_file', 'utility_file'):
+            file = request.files.get(field)
+            if not file or not file.filename:
+                continue
+            filename = secure_filename(file.filename)
+            raw_path = os.path.join(upload_folder, filename)
+            file.save(raw_path)
+            ext = filename.rsplit('.', 1)[-1].lower()
+            if ext in ('png', 'jpg', 'jpeg'):
+                img_pdf = image_to_pdf(raw_path, field_type=field)
+                pdf_paths.append(img_pdf)
+            elif ext == 'pdf':
+                pdf_paths.append(raw_path)
+            else:
+                return jsonify({'error': f'Unsupported file type: .{ext}. Use PNG, JPG, or PDF.'}), 400
+
+        # Merge into DisputePackage
+        final_pdf = merge_dispute_package(pdf_paths, os.path.join(upload_folder, 'DisputePackage.pdf'))
+
+        # Upload to cloud or save locally
+        import shutil
+        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        backup_name = f'DisputePackage_{timestamp}.pdf'
+
+        if cloud_configured():
+            cloud_result = upload_from_path(final_pdf, folder=f"users/{current_user.id}/packages", filename=backup_name.rsplit('.', 1)[0])
+            pdf_serve_url = cloud_result['secure_url'] if cloud_result else None
+        else:
+            user_folder = os.path.join(upload_folder, str(current_user.id))
+            os.makedirs(user_folder, exist_ok=True)
+            backup_path = os.path.join(user_folder, backup_name)
+            shutil.copy2(final_pdf, backup_path)
+            pdf_serve_url = url_for('disputes.serve_upload', filename=backup_name, _external=True)
+
+        if not pdf_serve_url:
+            return jsonify({'error': 'PDF upload failed. Please try again.'}), 500
+
+        # Update existing letter record
+        letter.letter_text = letter_text
+        letter.pdf_url = pdf_serve_url
+        db.session.commit()
+
+        return jsonify({'success': True, 'pdf_url': pdf_serve_url})
+
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"convert_letter_pdf failed for letter {letter_id}: {e}")
+        return jsonify({'error': 'Failed to generate PDF. Please try again.'}), 500
 
 
 @disputes_bp.route('/api/letter/<int:letter_id>', methods=['DELETE'])

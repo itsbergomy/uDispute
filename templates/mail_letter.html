@@ -19,11 +19,33 @@
 
     <form action="/mail-letter" method="POST" enctype="multipart/form-data" class="space-y-10">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      {% if letter and letter.id %}
+        <input type="hidden" name="letter_id" value="{{ letter.id }}"/>
+      {% endif %}
 
       <!-- Upload PDF -->
       <div class="glass-inset rounded-2xl p-6">
-        <label class="glass-label block mb-2">Upload Package PDF</label>
-        <input type="file" name="pdf_file" accept="application/pdf" required class="glass-input w-full"/>
+        {% if letter and letter.pdf_url %}
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <span class="glass-label block mb-1">Saved Dispute Package</span>
+              <a href="{{ letter.pdf_url }}" target="_blank"
+                 class="text-xs font-medium" style="color:var(--accent);">
+                Preview PDF
+              </a>
+            </div>
+            <label class="flex items-center gap-2 text-sm cursor-pointer" style="color:var(--text-primary);">
+              <input type="checkbox" id="useNewPdf" onchange="togglePdfUpload(this)" style="accent-color:var(--accent);"/>
+              Upload a different PDF
+            </label>
+          </div>
+          <div id="pdfUploadRow" style="display:none;">
+            <input type="file" name="pdf_file" accept="application/pdf" class="glass-input w-full"/>
+          </div>
+        {% else %}
+          <label class="glass-label block mb-2">Upload Package PDF</label>
+          <input type="file" name="pdf_file" accept="application/pdf" required class="glass-input w-full"/>
+        {% endif %}
       </div>
 
       <!-- Mail Service -->
@@ -232,6 +254,16 @@
 </main>
 
 <script>
+// ─── Toggle PDF upload field ───
+function togglePdfUpload(cb) {
+  var row = document.getElementById('pdfUploadRow');
+  if (row) {
+    row.style.display = cb.checked ? 'block' : 'none';
+    var input = row.querySelector('input[type="file"]');
+    if (!cb.checked && input) input.value = '';
+  }
+}
+
 // ─── Populate state dropdowns ───
 (function(){
   const states = [

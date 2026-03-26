@@ -3,6 +3,18 @@
 {% block title %}Dispute Folder{% endblock %}
 
 {% block content %}
+<style>
+  .inline-editor-panel {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
+  }
+  .inline-editor-panel.open {
+    max-height: 700px;
+    opacity: 1;
+  }
+</style>
 <main class="min-h-screen" style="padding:0;">
 
   <!-- ═══ Free-floating Desktop Window ═══ -->
@@ -432,74 +444,98 @@ document.querySelectorAll('.glass-tab').forEach(btn => {
   });
 })();
 
-// ═══ Letter Editor Modal ═══
-var editorModal = document.createElement('div');
-editorModal.id = 'letterEditorModal';
-editorModal.style.cssText = 'display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.5);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:1rem;';
-editorModal.innerHTML = '<div style="background:rgba(220,225,235,0.92);backdrop-filter:blur(40px) saturate(200%);border:1px solid rgba(255,255,255,0.45);border-radius:16px;width:100%;max-width:600px;max-height:80vh;display:flex;flex-direction:column;padding:1.25rem;box-shadow:0 24px 80px rgba(0,0,0,0.18);">' +
-  '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">' +
-    '<h3 id="editorTitle" style="font-size:0.95rem;font-weight:700;color:var(--text-primary);">Edit Letter</h3>' +
-    '<button onclick="closeLetterEditor()" style="font-size:1.2rem;cursor:pointer;color:var(--text-tertiary);background:none;border:none;">&times;</button>' +
-  '</div>' +
-  '<textarea id="editorTextarea" class="glass-input glass-textarea" style="flex:1;min-height:300px;resize:vertical;font-size:0.85rem;line-height:1.6;font-family:var(--font-mono);"></textarea>' +
-  '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.75rem;">' +
-    '<span id="editorStatus" style="font-size:0.75rem;color:var(--text-tertiary);"></span>' +
-    '<div style="display:flex;gap:0.5rem;">' +
-      '<button onclick="closeLetterEditor()" class="glass-btn glass-btn--pill px-4 py-2 text-xs" style="background:rgba(255,255,255,0.1);">Cancel</button>' +
-      '<button onclick="saveLetterEdit()" class="glass-btn glass-btn--primary glass-btn--pill px-5 py-2 text-sm font-semibold">Save</button>' +
-    '</div>' +
-  '</div>' +
-'</div>';
-document.body.appendChild(editorModal);
+// ═══ Inline Letter Editor ═══
 
-var currentEditId = null;
+function openInlineEditor(id) {
+  // Close any other open editors first
+  document.querySelectorAll('.inline-editor-panel.open').forEach(function(p) { p.classList.remove('open'); });
 
-function openLetterEditor(id) {
-  currentEditId = id;
-  var modal = document.getElementById('letterEditorModal');
-  var textarea = document.getElementById('editorTextarea');
-  var status = document.getElementById('editorStatus');
+  var panel = document.getElementById('editor-panel-' + id);
+  var textarea = document.getElementById('editorTextarea-' + id);
+  var status = document.getElementById('editorStatus-' + id);
+  if (!panel || !textarea) return;
+
   textarea.value = 'Loading...';
   status.textContent = '';
-  modal.style.display = 'flex';
 
   fetch('/api/letter/' + id)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       textarea.value = data.letter_text || '';
-      document.getElementById('editorTitle').textContent = 'Edit — ' + (data.account_name || 'Letter') + ' · ' + (data.bureau || '');
     })
     .catch(function(err) { textarea.value = 'Error loading: ' + err; });
+
+  panel.classList.add('open');
+  setTimeout(function() { panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
 }
 
-function closeLetterEditor() {
-  document.getElementById('letterEditorModal').style.display = 'none';
-  currentEditId = null;
+function closeInlineEditor(id) {
+  var panel = document.getElementById('editor-panel-' + id);
+  if (panel) panel.classList.remove('open');
+  // Clear file inputs
+  ['editorIdFile-', 'editorSsnFile-', 'editorUtilFile-'].forEach(function(prefix) {
+    var inp = document.getElementById(prefix + id);
+    if (inp) inp.value = '';
+  });
+  var status = document.getElementById('editorStatus-' + id);
+  if (status) status.textContent = '';
 }
 
-function saveLetterEdit() {
-  if (!currentEditId) return;
-  var status = document.getElementById('editorStatus');
-  status.textContent = 'Saving...';
+function saveAndConvert(id) {
+  var textarea = document.getElementById('editorTextarea-' + id);
+  var status = document.getElementById('editorStatus-' + id);
+  if (!textarea || !textarea.value.trim()) {
+    status.textContent = 'Letter text cannot be empty.';
+    status.style.color = '#ff453a';
+    return;
+  }
+
+  status.textContent = 'Converting to PDF...';
   status.style.color = 'var(--text-secondary)';
 
-  fetch('/api/letter/' + currentEditId, {
-    method: 'PUT',
-    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
-    body: JSON.stringify({ letter_text: document.getElementById('editorTextarea').value })
+  var formData = new FormData();
+  formData.append('letter', textarea.value);
+
+  var idFile = document.getElementById('editorIdFile-' + id);
+  var ssnFile = document.getElementById('editorSsnFile-' + id);
+  var utilFile = document.getElementById('editorUtilFile-' + id);
+  if (idFile && idFile.files[0]) formData.append('id_file', idFile.files[0]);
+  if (ssnFile && ssnFile.files[0]) formData.append('ssn_file', ssnFile.files[0]);
+  if (utilFile && utilFile.files[0]) formData.append('utility_file', utilFile.files[0]);
+
+  fetch('/api/letter/' + id + '/convert-pdf', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': CSRF_TOKEN },
+    body: formData
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    if (data.updated) {
-      status.textContent = 'Saved!';
+    if (data.success) {
+      status.textContent = 'Saved! Reloading...';
       status.style.color = '#248a3d';
-      setTimeout(function() { window.location.href='/dispute-folder?tab=letters'; }, 800);
+      setTimeout(function() { window.location.href = '/dispute-folder?tab=letters'; }, 800);
     } else {
-      status.textContent = data.error || 'Error';
+      status.textContent = data.error || 'Error converting PDF.';
       status.style.color = '#ff453a';
     }
   })
-  .catch(function(err) { status.textContent = 'Error: ' + err; status.style.color = '#ff453a'; });
+  .catch(function(err) {
+    status.textContent = 'Error: ' + err;
+    status.style.color = '#ff453a';
+  });
+}
+
+function mailGuard(id, pdfUrl) {
+  if (pdfUrl) {
+    window.location.href = '/mail-letter?letter_id=' + id;
+  } else {
+    // Show toast warning
+    var toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999;padding:0.75rem 1.5rem;border-radius:16px;background:rgba(245,158,11,0.95);color:#fff;font-size:0.85rem;font-weight:600;backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,0.15);transition:opacity 0.3s ease;';
+    toast.textContent = 'Convert your letter to PDF first before mailing.';
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.style.opacity = '0'; setTimeout(function() { toast.remove(); }, 300); }, 3000);
+  }
 }
 
 // ═══ Select Mode + Batch Delete ═══
