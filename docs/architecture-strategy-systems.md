@@ -290,6 +290,147 @@ For FULL AUTO: Pipeline loops until:
 
 ---
 
+## SYSTEM 3: Letter Quality Gate
+
+### Problem
+Auto mode generates letters without human review. Bad letters damage credibility —
+fabricated evidence, wrong legal citations, missing dispute points, FDCPA cited
+against original creditors. Need a quality check before any letter is sent.
+
+### Design
+```
+Letter Generated (o3)
+    ↓
+┌──────────────────────────────────────────────────────┐
+│           QUALITY GATE                                │
+│           services/letter_quality_gate.py              │
+│                                                       │
+│  Rule 1: Account Accuracy                             │
+│  ├── Account name appears in letter body              │
+│  ├── Account number appears in letter body            │
+│  └── Bureau/creditor name matches recipient           │
+│                                                       │
+│  Rule 2: Dispute Structure                            │
+│  ├── Contains at least 3 labeled DISPUTE POINTs       │
+│  ├── References Metro 2 field names + numbers         │
+│  └── Letter length between 400-3000 words             │
+│                                                       │
+│  Rule 3: Evidence Integrity                           │
+│  ├── Does NOT mention "1099-C" unless user provided   │
+│  ├── Does NOT mention "attached chat log"             │
+│  ├── Does NOT reference "payment receipts" unprovided │
+│  └── Does NOT claim "see attached" for phantom docs   │
+│                                                       │
+│  Rule 4: Legal Citation Accuracy                      │
+│  ├── FDCPA (§1692) NOT cited against original creditor│
+│  │   (check against known originals: Capital One,     │
+│  │    Chase, Discover, Amex, Wells Fargo, etc.)       │
+│  ├── FCRA sections cited correctly (611, 623, etc.)   │
+│  └── Case law names formatted properly                │
+│                                                       │
+│  Rule 5: Strategy Alignment                           │
+│  ├── Arbitration pack → mentions arbitration clause   │
+│  ├── Consumer Law pack → cites consumer statutes      │
+│  ├── ACDV Response → demands verification method      │
+│  └── Default pack → standard FCRA dispute structure   │
+│                                                       │
+│  Rule 6: Escalation Continuity (Round 2+)             │
+│  ├── References prior dispute attempt                 │
+│  ├── Mentions prior response/outcome if available     │
+│  └── Escalation language present (stronger tone)      │
+│                                                       │
+│  Rule 7: Tone & Professionalism                       │
+│  ├── No threats of physical action                    │
+│  ├── No profanity or slurs                            │
+│  ├── No demands for money/damages (unless arbitration)│
+│  └── Professional closing                             │
+│                                                       │
+│  Rule 8: Recipient Accuracy                           │
+│  ├── Bureau letter addressed to CRA (not creditor)    │
+│  ├── Furnisher letter addressed to creditor           │
+│  └── Address block present                            │
+└──────────────────────────────────────────────────────┘
+    ↓
+┌──────────────┐          ┌──────────────────┐
+│  ALL PASS    │          │  RULE(S) FAILED  │
+│              │          │                  │
+│  Letter      │          │  Auto mode:      │
+│  approved    │          │  Regenerate with │
+│  → continues │          │  failure reason  │
+│  in pipeline │          │  injected into   │
+│              │          │  prompt (max 2   │
+│              │          │  retries)        │
+│              │          │                  │
+│              │          │  Supervised mode: │
+│              │          │  Flag letter with │
+│              │          │  specific warnings│
+│              │          │  user can override│
+└──────────────┘          └──────────────────┘
+```
+
+### Implementation
+```
+┌─────────────────────────────────────────────────────┐
+│  services/letter_quality_gate.py  [NEW FILE]        │
+│                                                     │
+│  check_letter_quality(                              │
+│      letter_text: str,                              │
+│      account_name: str,                             │
+│      account_number: str,                           │
+│      bureau: str,                                   │
+│      prompt_pack: str,                              │
+│      round_number: int,                             │
+│      is_original_creditor: bool,                    │
+│      user_provided_docs: list = [],                 │
+│  ) → QualityResult                                  │
+│                                                     │
+│  class QualityResult:                               │
+│      passed: bool                                   │
+│      score: int  (0-100)                            │
+│      failures: list[str]  (rule descriptions)       │
+│      warnings: list[str]  (non-blocking issues)     │
+│                                                     │
+│  No API calls — pure Python regex/keyword checks    │
+│  Runs in <50ms per letter                           │
+│  Zero cost                                          │
+└─────────────────────────────────────────────────────┘
+
+Integration points:
+  pipeline_engine.py → handle_generation()
+    After letter is generated, run quality gate
+    If failed + auto mode: regenerate (max 2 retries)
+    If failed + supervised: attach warnings to letter record
+
+  blueprints/disputes.py → generate_process()
+    After Pro plan letter generation, run quality gate
+    Show warnings on review page if any rules failed
+
+  Pro Auto Mode → autopilot route
+    Run quality gate on each letter before dropping into folder
+    Flag letters that need user attention
+```
+
+### Known Original Creditors List (for FDCPA guard)
+```
+CAPITAL ONE, CHASE, JP MORGAN CHASE, DISCOVER, AMERICAN EXPRESS,
+AMEX, WELLS FARGO, BANK OF AMERICA, CITIBANK, CITI, US BANK,
+BARCLAYS, SYNCHRONY, NAVY FEDERAL, USAA, PNC, TD BANK,
+REGIONS, TRUIST, FIFTH THIRD, ALLY, SOFI, MARCUS,
+GEORGIAS OWN, BRIDGECREST, EDFINANCIAL, NELNET, NAVIENT,
+GREAT LAKES, MOHELA, SALLIE MAE
+```
+
+### Known Debt Collectors (FDCPA applies)
+```
+LVNV FUNDING, MIDLAND CREDIT, PORTFOLIO RECOVERY, PRA GROUP,
+CONVERGENT, ENHANCED RECOVERY, IC SYSTEM, TRANSWORLD,
+AFNI, ALLIED INTERSTATE, ASSET ACCEPTANCE, CAVALRY,
+CREDIT CORP, ENCORE CAPITAL, FIRST SOURCE ADVANTAGE,
+JEFFERSON CAPITAL, RESURGENT CAPITAL, UNIFIN
+```
+
+---
+
 ## IMPLEMENTATION PRIORITY
 
 ### Phase A: CFPB AI Narratives (2-3 hours)
@@ -302,7 +443,19 @@ For FULL AUTO: Pipeline loops until:
    - Pass AI narratives with static fallback
 3. No template changes needed
 
-### Phase B: Agentic Response System (1-2 hours)
+### Phase B: Letter Quality Gate (1-2 hours)
+1. Create `services/letter_quality_gate.py` (~150 lines)
+   - 8 rule categories, pure Python regex/keyword checks
+   - Returns QualityResult with pass/fail, score, failures, warnings
+   - Known creditor/collector lists for FDCPA guard
+2. Integrate into `pipeline_engine.py` handle_generation()
+   - Auto-retry on failure (max 2 retries with failure reason in prompt)
+3. Integrate into `blueprints/disputes.py` generate_process()
+   - Show warnings on review page
+4. Integrate into Pro Auto Mode autopilot route
+   - Flag letters needing user attention
+
+### Phase C: Agentic Response System (1-2 hours)
 1. Modify `handle_response_received()` in `pipeline_engine.py` (~15 lines)
    - Add mode check for full_auto
    - Auto-increment round, recommend packs, return 'strategy'
@@ -310,7 +463,7 @@ For FULL AUTO: Pipeline loops until:
    - Auto-approve in full_auto mode
 3. No new files needed — all infrastructure exists
 
-### Phase C: Verification
+### Phase D: Verification
 1. Pro user: Open CFPB wizard → verify AI narratives are personalized
 2. Business user (supervised): Run pipeline → upload responses → verify round_review pause
 3. Business user (full_auto): Run pipeline → upload responses → verify auto-escalation loops
@@ -334,5 +487,6 @@ For FULL AUTO: Pipeline loops until:
 - `services/pipeline_engine.py` — handle_response_received() + handle_review()
 - `blueprints/disputes.py` — /cfpb-wizard route
 
-### New File:
+### New Files:
 - `services/cfpb_narrative_generator.py` — AI narrative generation
+- `services/letter_quality_gate.py` — Pre-send letter validation (8 rules, no API cost)
