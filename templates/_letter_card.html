@@ -70,7 +70,7 @@
       {% endif %}
 
       {# ── Delete Button ── #}
-      <button onclick="if(confirm('Delete this letter?')){fetch('/api/letter/{{ L.id }}',{method:'DELETE',headers:{'Content-Type':'application/json'}}).then(function(){window.location.href='{{ url_for('disputes.dispute_folder') }}?tab=letters'})}"
+      <button onclick="if(confirm('Delete this letter?')){fetch('/api/letter/{{ L.id }}',{method:'DELETE',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF_TOKEN}}).then(function(){window.location.href='{{ url_for('disputes.dispute_folder') }}?tab=letters'})}"
          class="glass-btn glass-btn--pill text-xs px-3 py-1.5 flex items-center gap-1"
          style="background:rgba(239,68,68,0.08);color:#ef4444;white-space:nowrap;">
         <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">

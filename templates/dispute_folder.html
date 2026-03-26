@@ -335,6 +335,7 @@
 {% block scripts %}
 {{ super() }}
 <script>
+var CSRF_TOKEN = '{{ csrf_token() }}';
 /* ── Tab switching ── */
 document.querySelectorAll('.glass-tab').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -484,7 +485,7 @@ function saveLetterEdit() {
 
   fetch('/api/letter/' + currentEditId, {
     method: 'PUT',
-    headers: {'Content-Type': 'application/json'},
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
     body: JSON.stringify({ letter_text: document.getElementById('editorTextarea').value })
   })
   .then(function(r) { return r.json(); })
@@ -544,7 +545,7 @@ function batchDeleteLetters() {
 
   fetch('/api/letters/batch-delete', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
     body: JSON.stringify({ ids: ids })
   })
   .then(function(r) { return r.json(); })
