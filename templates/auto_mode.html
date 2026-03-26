@@ -95,8 +95,8 @@
         <div>
           <label class="glass-label text-xs font-semibold mb-1 block" style="color:var(--text-secondary);">Prompt Pack</label>
           <select id="autoPack" class="glass-select w-full text-sm">
-            {% for key, info in packs.items() %}
-            <option value="{{ key }}" {{ 'selected' if key == 'default' else '' }}>{{ info.name }}</option>
+            {% for pack in packs %}
+            <option value="{{ pack.key }}" {{ 'selected' if pack.key == 'default' else '' }}>{{ pack.name }}</option>
             {% endfor %}
           </select>
         </div>
