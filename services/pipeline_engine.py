@@ -544,9 +544,9 @@ def handle_strategy(pipeline):
             rec = recommend_escalation(pipeline.user_id, first_account_name, round_number - 1, prev_outcome)
             if rec and rec.get('confidence', 0) > 0.4 and rec.get('source') != 'default_ladder':
                 pack = rec['pack']
-                plog(f"[PIPELINE] Smart escalation: {first_account_name} → {pack} (confidence: {rec['confidence']}, source: {rec['source']})")
+                logger.info(f"[PIPELINE] Smart escalation: {first_account_name} → {pack} (confidence: {rec['confidence']}, source: {rec['source']})")
         except Exception as e:
-            plog(f"[PIPELINE] Smart escalation check failed: {e}")
+            logger.warning(f"[PIPELINE] Smart escalation check failed: {e}")
 
     if send_to == 'creditors':
         creditor_addresses = agent_config.get('creditor_addresses', [])
@@ -1128,7 +1128,7 @@ def handle_response_received(pipeline):
                     template_pack=acct.template_pack,
                 )
     except Exception as e:
-        plog(f"[PIPELINE] Creditor intelligence update failed: {e}")
+        logger.warning(f"[PIPELINE] Creditor intelligence update failed: {e}")
         try:
             db.session.rollback()
         except Exception:
@@ -1165,10 +1165,10 @@ def handle_response_received(pipeline):
         if rules_result:
             pipeline_refreshed = DisputePipeline.query.get(pipeline.id)
             if pipeline_refreshed and pipeline_refreshed.state == 'strategy':
-                plog(f"[PIPELINE] Rules engine auto-escalated pipeline {pipeline.id}")
+                logger.info(f"[PIPELINE] Rules engine auto-escalated pipeline {pipeline.id}")
                 return 'strategy'
     except Exception as e:
-        plog(f"[PIPELINE] Rules engine evaluation failed: {e}")
+        logger.warning(f"[PIPELINE] Rules engine evaluation failed: {e}")
         try:
             db.session.rollback()
         except Exception:
