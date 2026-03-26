@@ -34,6 +34,9 @@ disputes_bp = Blueprint('disputes', __name__)
 # ── Temp letter storage (avoids cookie 4KB limit for dual letters) ──
 _letter_store = {}
 
+# ── Auto Mode state store (Pro Plan autopilot) ──
+_auto_runs = {}  # run_id -> { user_id, accounts, config, current_index, state, results, current_detected }
+
 # ── Bureau dispute mailing addresses (verified March 2026) ──
 BUREAU_ADDRESSES = {
     'Equifax': {
@@ -285,6 +288,244 @@ SOLUTION_CARDS = [
 def select_account():
     items = session.get('negative_items', [])
     return render_template('select_negative.html', negative_items=items)
+
+
+# ═══════════════════════════════════════════════════════════
+#  Auto Mode — Pro Plan Autopilot
+# ═══════════════════════════════════════════════════════════
+
+def _detect_issues(account):
+    """Auto-detect issue keys from an account's inaccuracies. Reusable helper."""
+    detected = set()
+    for inac_text in account.get('inaccuracies', []):
+        text = inac_text.lower()
+        if 'status' in text and ('contradict' in text or 'paying as agreed' in text):
+            detected.add('status_contradicts_history')
+        if 'account type' in text and ('mismatch' in text or 'open account' in text):
+            detected.add('account_type_mismatch')
+        if 'original creditor' in text and 'does not reflect' in text:
+            detected.add('original_creditor_not_reflected')
+        if 'closed' in text and 'balance' in text and 'should report' in text:
+            detected.add('closed_account_with_balance')
+        if 'charge-off' in text and 'status' in text and 'inconsistent' in text:
+            detected.add('chargeoff_not_in_status')
+        if 'exceeds' in text and 'limit' in text:
+            detected.add('balance_exceeds_limit')
+        if 'double' in text or 'duplicat' in text:
+            detected.add('double_reporting')
+        if 'missing' in text and 'due date' in text:
+            detected.add('missing_due_date')
+        if 'missing' in text and 'payment amount' in text:
+            detected.add('missing_payment_amount')
+        if 'late payment entries' in text and 'demand verification' in text:
+            detected.add('unverified_late_payments')
+        if 'collection' in text and 'validate' in text:
+            detected.add('unvalidated_collection')
+        if 'charge-off status' in text and 'demand verification' in text:
+            detected.add('unverified_chargeoff')
+    return list(detected)
+
+
+@disputes_bp.route('/auto-mode')
+@login_required
+@require_pro_or_business
+def auto_mode():
+    """Auto Mode config page — user picks accounts, bureaus, pack, dual letter."""
+    items = session.get('negative_items', [])
+    if not items:
+        flash("No accounts found. Please upload a credit report first.", "error")
+        return redirect(url_for('disputes.upload_pdf'))
+
+    return render_template('auto_mode.html',
+        negative_items=items,
+        packs=PACK_INFO,
+        issue_cards=ISSUE_CARDS,
+        solution_cards=SOLUTION_CARDS,
+    )
+
+
+@disputes_bp.route('/auto-mode/run', methods=['POST'])
+@login_required
+@require_pro_or_business
+def auto_mode_run():
+    """Start an auto-mode run. Returns run_id for polling."""
+    data = request.get_json()
+    selected_numbers = data.get('accounts', [])
+    pack_key = data.get('pack', 'default')
+    dual_letter = data.get('dual_letter', False)
+    bureaus = data.get('bureaus', ['Equifax', 'TransUnion', 'Experian'])
+
+    items = session.get('negative_items', [])
+    accounts = [i for i in items if i.get('account_number') in selected_numbers]
+    if not accounts:
+        return jsonify({'error': 'No accounts selected'}), 400
+
+    # Build the full task list: each account × each bureau
+    tasks = []
+    for acct in accounts:
+        for bureau in bureaus:
+            tasks.append({'account': acct, 'bureau': bureau})
+
+    # Clean up old runs for this user
+    old_keys = [k for k, v in _auto_runs.items() if v.get('user_id') == current_user.id]
+    for k in old_keys:
+        del _auto_runs[k]
+
+    run_id = str(uuid.uuid4())
+    first_acct = tasks[0]['account'] if tasks else {}
+    _auto_runs[run_id] = {
+        'user_id': current_user.id,
+        'tasks': tasks,
+        'config': {'pack': pack_key, 'dual_letter': dual_letter, 'bureaus': bureaus},
+        'current_index': 0,
+        'state': 'awaiting_action',
+        'results': [],
+        'current_detected': _detect_issues(first_acct),
+    }
+    session['auto_run_id'] = run_id
+    return jsonify({'run_id': run_id, 'total': len(tasks)})
+
+
+@disputes_bp.route('/auto-mode/status')
+@login_required
+@require_pro_or_business
+def auto_mode_status():
+    """AJAX poll — returns current progress and action prompt data."""
+    run_id = session.get('auto_run_id')
+    run = _auto_runs.get(run_id)
+    if not run or run['user_id'] != current_user.id:
+        return jsonify({'error': 'No active auto run'}), 404
+
+    current_account = None
+    current_bureau = None
+    detected_issues = []
+
+    if run['state'] == 'awaiting_action' and run['current_index'] < len(run['tasks']):
+        task = run['tasks'][run['current_index']]
+        acct = task['account']
+        current_account = {
+            'account_name': acct.get('account_name', ''),
+            'account_number': acct.get('account_number', ''),
+            'status': acct.get('status', ''),
+            'inaccuracies': acct.get('inaccuracies', []),
+        }
+        current_bureau = task['bureau']
+        detected_issues = run['current_detected']
+
+    return jsonify({
+        'state': run['state'],
+        'current_index': run['current_index'],
+        'total': len(run['tasks']),
+        'current_account': current_account,
+        'current_bureau': current_bureau,
+        'detected_issues': detected_issues,
+        'results': run['results'],
+    })
+
+
+@disputes_bp.route('/auto-mode/action', methods=['POST'])
+@login_required
+@require_pro_or_business
+def auto_mode_action():
+    """User picks issues/solutions for current account → generate letter → advance."""
+    run_id = session.get('auto_run_id')
+    run = _auto_runs.get(run_id)
+    if not run or run['user_id'] != current_user.id:
+        return jsonify({'error': 'No active auto run'}), 404
+
+    data = request.get_json()
+    selected_issues = data.get('issues', [])
+    selected_solutions = data.get('solutions', [])
+
+    task = run['tasks'][run['current_index']]
+    acct = task['account']
+    bureau = task['bureau']
+    config = run['config']
+
+    run['state'] = 'generating'
+
+    # Build issue/action text from cards
+    issue_text = '; '.join(c['name'] for c in ISSUE_CARDS if c['key'] in selected_issues) or 'Inaccurate reporting'
+    action_text = '; '.join(c['name'] for c in SOLUTION_CARDS if c['key'] in selected_solutions) or 'Remove this account'
+
+    # Build prompt data
+    prompt_data = {
+        'action': action_text,
+        'issue': issue_text,
+        'entity': bureau,
+        'account_name': acct.get('account_name', ''),
+        'account_number': acct.get('account_number', ''),
+        'marks': acct.get('status', ''),
+    }
+
+    pack_key = config['pack']
+    relevant_accounts = [acct] if acct.get('inaccuracies') else []
+
+    try:
+        if config['dual_letter']:
+            cra_prompt, furnisher_prompt, has_inac, has_legal = build_dual_prompts(
+                pack_key, prompt_data, parsed_accounts=relevant_accounts)
+            cra_letter, furnisher_letter = generate_dual_letters(
+                cra_prompt, furnisher_prompt, has_inaccuracies=has_inac, has_legal_research=has_legal)
+            letter_text = cra_letter
+
+            # Save furnisher letter too
+            ml_furnisher = MailedLetter(
+                user_id=current_user.id,
+                letter_text=furnisher_letter,
+                bureau=acct.get('account_name', bureau),
+                round_number=session.get('current_round', 1),
+                account_name=acct.get('account_name', ''),
+                account_number=acct.get('account_number', ''),
+                tier='furnisher_direct',
+            )
+            db.session.add(ml_furnisher)
+        else:
+            prompt, has_inac, has_legal = build_prompt(pack_key, 0, prompt_data, parsed_accounts=relevant_accounts)
+            letter_text = generate_letter(prompt, has_inaccuracies=has_inac, has_legal_research=has_legal)
+
+        # Save to MailedLetter (dispute folder)
+        ml = MailedLetter(
+            user_id=current_user.id,
+            letter_text=letter_text,
+            bureau=bureau,
+            round_number=session.get('current_round', 1),
+            account_name=acct.get('account_name', ''),
+            account_number=acct.get('account_number', ''),
+            tier='inaccuracy',
+        )
+        db.session.add(ml)
+        db.session.commit()
+
+        run['results'].append({
+            'account_name': acct.get('account_name', ''),
+            'bureau': bureau,
+            'letter_id': ml.id,
+            'status': 'generated',
+        })
+    except Exception as e:
+        run['results'].append({
+            'account_name': acct.get('account_name', ''),
+            'bureau': bureau,
+            'letter_id': None,
+            'status': f'error: {str(e)[:100]}',
+        })
+
+    # Advance to next task
+    run['current_index'] += 1
+    if run['current_index'] >= len(run['tasks']):
+        run['state'] = 'complete'
+    else:
+        next_task = run['tasks'][run['current_index']]
+        run['current_detected'] = _detect_issues(next_task['account'])
+        run['state'] = 'awaiting_action'
+
+    return jsonify({
+        'status': 'ok',
+        'state': run['state'],
+        'current_index': run['current_index'],
+        'total': len(run['tasks']),
+    })
 
 
 # ─── Tier 1: Notice of Dispute ───

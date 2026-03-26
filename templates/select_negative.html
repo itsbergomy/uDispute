@@ -35,6 +35,27 @@
       </div>
     </div>
 
+    {# ── Auto Mode CTA (Pro/Business) ── #}
+    {% if current_user.plan in ('pro', 'business') %}
+    <div class="glass-inset rounded-xl p-4 mb-5">
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex-1 min-w-0">
+          <p style="font-size:0.85rem;font-weight:600;color:var(--text-primary);margin-bottom:2px;">
+            ⚡ Auto Mode
+          </p>
+          <p style="font-size:0.75rem;color:var(--text-tertiary);">
+            Process all accounts automatically &mdash; you make the decisions, the agent handles the rest.
+          </p>
+        </div>
+        <a href="{{ url_for('disputes.auto_mode') }}"
+           class="glass-btn glass-btn--pill glass-shimmer-edge px-5 py-2 text-xs font-semibold flex-shrink-0"
+           style="position:relative;overflow:hidden;background:linear-gradient(135deg,#6e5ce6,#af52de);color:#fff;">
+          Auto Mode
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
     <p style="color:var(--text-tertiary);font-size:0.75rem;text-align:center;margin-bottom:1rem;">
       Or select an account below for a Bureau Assault &mdash; detailed inaccuracy dispute
     </p>

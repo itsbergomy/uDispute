@@ -1,0 +1,465 @@
+{% extends "base_header.html" %}
+{% import '_icons.html' as icons %}
+{% block title %}Auto Mode{% endblock %}
+
+{% block content %}
+<main class="px-4 py-10 max-w-3xl mx-auto">
+
+  {# ── Back Button ── #}
+  <a href="{{ url_for('disputes.select_account') }}"
+     class="inline-flex items-center gap-2 mb-6 glass-btn glass-btn--ghost px-4 py-2 rounded-full text-sm"
+     style="color:var(--text-secondary);">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+    Back to Accounts
+  </a>
+
+  {# ── Header ── #}
+  <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in text-center">
+    <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
+      {{ icons.icon_agent(size=28, uid='autohdr') if icons.icon_agent is defined else icons.icon_check(size=28, uid='autohdr') }}
+    </div>
+
+    <span style="
+      display:inline-block;
+      font-size:0.65rem;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:0.1em;
+      padding:4px 12px;
+      border-radius:100px;
+      background:linear-gradient(135deg, #6e5ce6, #af52de);
+      color:#fff;
+      margin-bottom:0.75rem;
+      box-shadow:0 3px 10px rgba(110,92,230,0.25), inset 0 1px 0 rgba(255,255,255,0.3);
+    ">Auto Mode</span>
+
+    <h2 class="text-2xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">
+      Autopilot Dispute Engine
+    </h2>
+    <p style="color:var(--text-tertiary);font-size:0.85rem;">
+      Process accounts automatically. You make the strategic decisions — the agent handles the rest.
+    </p>
+  </div>
+
+  {# ══════════════════════════════════════════
+     PHASE 1: Configuration
+     ══════════════════════════════════════════ #}
+  <div id="configPhase">
+
+    {# ── Select Accounts ── #}
+    <h3 class="text-lg font-semibold mb-3 glass-text-emboss" style="color:var(--text-primary);">
+      Select Accounts to Dispute
+    </h3>
+    <p style="color:var(--text-tertiary);font-size:0.8rem;margin-bottom:1rem;">
+      Choose which negative accounts to process. Auto Mode will generate a letter for each account per bureau.
+    </p>
+
+    <div class="space-y-2 mb-6">
+      <label class="glass-card glass-card--heavy glass-p rounded-2xl cursor-pointer flex items-center gap-3 hover:scale-[1.005] transition-all"
+             style="border:2px solid var(--accent);">
+        <input type="checkbox" id="selectAll" checked onchange="toggleSelectAll()" class="sr-only">
+        <div class="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 select-all-check"
+             style="background:var(--accent);border:2px solid var(--accent);">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <span class="text-sm font-bold" style="color:var(--text-primary);">Select All ({{ negative_items|length }} accounts)</span>
+      </label>
+
+      {% for item in negative_items %}
+      <label class="glass-card glass-card--heavy glass-p rounded-2xl cursor-pointer flex items-center gap-3 hover:scale-[1.005] transition-all acct-label"
+             style="border:2px solid transparent;">
+        <input type="checkbox" name="account" value="{{ item.account_number }}" checked class="sr-only acct-checkbox"
+               onchange="updateAccountBorder(this)">
+        <div class="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 acct-check"
+             style="background:var(--accent);border:2px solid var(--accent);">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <span class="text-sm font-semibold" style="color:var(--text-primary);">{{ item.account_name }}</span>
+          <span class="text-xs ml-2" style="color:var(--text-tertiary);">{{ item.account_number }}</span>
+          {% if item.inaccuracies %}
+          <span class="glass-badge glass-badge--warning text-xs ml-2">{{ item.inaccuracies|length }} issues</span>
+          {% endif %}
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+
+    {# ── Configuration Options ── #}
+    <div class="glass-card glass-card--heavy glass-p rounded-2xl mb-6 glass-animate-in" style="animation-delay:.05s">
+      <h3 class="text-sm font-bold mb-4 glass-text-emboss" style="color:var(--text-primary);">Configuration</h3>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="glass-label text-xs font-semibold mb-1 block" style="color:var(--text-secondary);">Prompt Pack</label>
+          <select id="autoPack" class="glass-select w-full text-sm">
+            {% for key, info in packs.items() %}
+            <option value="{{ key }}" {{ 'selected' if key == 'default' else '' }}>{{ info.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="glass-label text-xs font-semibold mb-1 block" style="color:var(--text-secondary);">Send To Bureaus</label>
+          <div class="flex gap-2 mt-1">
+            <label class="flex items-center gap-1.5 text-xs cursor-pointer" style="color:var(--text-primary);">
+              <input type="checkbox" name="bureau" value="Experian" checked style="accent-color:var(--accent);"> Experian
+            </label>
+            <label class="flex items-center gap-1.5 text-xs cursor-pointer" style="color:var(--text-primary);">
+              <input type="checkbox" name="bureau" value="TransUnion" checked style="accent-color:var(--accent);"> TransUnion
+            </label>
+            <label class="flex items-center gap-1.5 text-xs cursor-pointer" style="color:var(--text-primary);">
+              <input type="checkbox" name="bureau" value="Equifax" checked style="accent-color:var(--accent);"> Equifax
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {# ── Dual Letter Toggle ── #}
+      <div class="flex items-center gap-3 cursor-pointer glass-inset rounded-xl p-3"
+           id="autoDualCard" onclick="toggleAutoDual()">
+        <div style="flex-shrink:0;width:36px;height:20px;border-radius:10px;position:relative;
+                    background:var(--glass-bg-tertiary);transition:background 0.2s;" id="autoDualTrack">
+          <div style="width:16px;height:16px;border-radius:8px;position:absolute;top:2px;left:2px;
+                      background:#fff;transition:transform 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"
+               id="autoDualKnob"></div>
+        </div>
+        <div>
+          <span class="text-sm font-semibold" style="color:var(--text-primary);">Dual-Letter Strategy</span>
+          <span class="text-xs block" style="color:var(--text-tertiary);">Also send direct to furnisher (bypasses e-OSCAR)</span>
+        </div>
+      </div>
+    </div>
+
+    {# ── Start Button ── #}
+    <button onclick="startAutoMode()" id="startBtn"
+            class="w-full glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge py-3 text-sm font-semibold"
+            style="position:relative;overflow:hidden;">
+      Start Auto Mode
+    </button>
+  </div>
+
+  {# ══════════════════════════════════════════
+     PHASE 2: Progress + Action Picker
+     ══════════════════════════════════════════ #}
+  <div id="progressPhase" class="hidden">
+
+    {# ── Progress Bar ── #}
+    <div class="glass-card glass-card--heavy glass-p rounded-2xl mb-6">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-bold" style="color:var(--text-primary);" id="progressLabel">Processing account 1 of 1...</span>
+        <span class="glass-badge glass-badge--info text-xs" id="progressBadge">0%</span>
+      </div>
+      <div class="glass-inset rounded-full h-2 overflow-hidden">
+        <div id="progressBar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--accent),#6e5ce6);border-radius:100px;transition:width 0.5s ease;"></div>
+      </div>
+    </div>
+
+    {# ── Current Account Action Card ── #}
+    <div id="actionCard" class="hidden">
+      <div class="glass-card glass-card--heavy glass-p rounded-2xl mb-4">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="glass-badge glass-badge--info text-xs" id="actionBureau">Experian</span>
+        </div>
+        <h3 class="text-lg font-bold glass-text-3d mb-1" id="actionAccountName" style="color:var(--text-primary);">Account Name</h3>
+        <p class="text-xs mb-3" style="color:var(--text-tertiary);" id="actionAccountNumber">Account Number</p>
+
+        {# ── Detected Inaccuracies ── #}
+        <div id="actionInaccuracies" class="mb-4">
+          <p class="text-xs font-semibold mb-2" style="color:var(--text-secondary);">Detected inaccuracies:</p>
+          <div id="inaccuracyList" class="space-y-1"></div>
+        </div>
+      </div>
+
+      {# ── Issue Selection ── #}
+      <h3 class="text-sm font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">What action should be taken?</h3>
+
+      <div class="space-y-2 mb-4" id="issueCheckboxes">
+        {% for card in issue_cards %}
+        <label class="glass-card glass-card--heavy glass-p rounded-xl cursor-pointer flex items-center gap-3 text-sm issue-label"
+               style="border:2px solid transparent;padding:0.65rem 0.85rem;">
+          <input type="checkbox" name="auto_issue" value="{{ card.key }}" class="sr-only issue-check"
+                 onchange="updateIssueBorder(this)">
+          <div class="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 issue-box"
+               style="border:2px solid var(--glass-bg-tertiary);transition:all 0.2s;">
+          </div>
+          <span style="color:var(--text-primary);">{{ card.name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+
+      {# ── Solution Selection ── #}
+      <h3 class="text-sm font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Resolution</h3>
+
+      <div class="space-y-2 mb-6" id="solutionCheckboxes">
+        {% for card in solution_cards %}
+        <label class="glass-card glass-card--heavy glass-p rounded-xl cursor-pointer flex items-center gap-3 text-sm solution-label"
+               style="border:2px solid transparent;padding:0.65rem 0.85rem;">
+          <input type="checkbox" name="auto_solution" value="{{ card.key }}" class="sr-only solution-check"
+                 onchange="updateSolutionBorder(this)">
+          <div class="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 solution-box"
+               style="border:2px solid var(--glass-bg-tertiary);transition:all 0.2s;">
+          </div>
+          <span style="color:var(--text-primary);">{{ card.name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+
+      <button onclick="submitAction()" id="continueBtn"
+              class="w-full glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge py-3 text-sm font-semibold"
+              style="position:relative;overflow:hidden;">
+        Continue
+      </button>
+    </div>
+
+    {# ── Generating Spinner ── #}
+    <div id="generatingCard" class="hidden">
+      <div class="glass-card glass-card--heavy glass-p rounded-2xl text-center py-8">
+        <div class="animate-spin mx-auto mb-4" style="width:32px;height:32px;">
+          <svg viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="var(--accent)" stroke-width="4"/>
+            <path class="opacity-75" fill="var(--accent)" d="M4 12a8 8 0 018-8v4A4 4 0 008 12H4z"/>
+          </svg>
+        </div>
+        <p class="text-sm font-semibold" style="color:var(--text-primary);">Generating letter...</p>
+        <p class="text-xs mt-1" style="color:var(--text-tertiary);">This may take 10-15 seconds per letter.</p>
+      </div>
+    </div>
+
+    {# ── Complete Summary ── #}
+    <div id="completeCard" class="hidden">
+      <div class="glass-card glass-card--heavy glass-p rounded-2xl text-center mb-6">
+        <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#34c759" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <h3 class="text-xl font-bold glass-text-3d mb-2" style="color:var(--text-primary);">Auto Mode Complete</h3>
+        <p class="text-sm" style="color:var(--text-tertiary);" id="completeSummary">0 letters generated.</p>
+      </div>
+
+      <div id="completeResults" class="space-y-2 mb-6"></div>
+
+      <a href="{{ url_for('disputes.dispute_folder') }}"
+         class="block w-full glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge py-3 text-sm font-semibold text-center"
+         style="position:relative;overflow:hidden;text-decoration:none;">
+        View Dispute Folder
+      </a>
+    </div>
+  </div>
+
+</main>
+
+<script>
+var autoDualOn = false;
+var autoRunId = null;
+var pollInterval = null;
+
+// ── Config Phase ──
+
+function toggleSelectAll() {
+  var all = document.getElementById('selectAll').checked;
+  document.querySelectorAll('.acct-checkbox').forEach(function(cb) {
+    cb.checked = all;
+    updateAccountBorder(cb);
+  });
+  var allCheck = document.querySelector('.select-all-check');
+  allCheck.style.background = all ? 'var(--accent)' : 'transparent';
+  allCheck.innerHTML = all ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>' : '';
+}
+
+function updateAccountBorder(cb) {
+  var label = cb.closest('.acct-label');
+  var check = label.querySelector('.acct-check');
+  label.style.borderColor = cb.checked ? 'var(--accent)' : 'transparent';
+  check.style.background = cb.checked ? 'var(--accent)' : 'transparent';
+  check.innerHTML = cb.checked ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>' : '';
+}
+
+function toggleAutoDual() {
+  autoDualOn = !autoDualOn;
+  document.getElementById('autoDualTrack').style.background = autoDualOn ? 'linear-gradient(135deg,#6e5ce6,#af52de)' : 'var(--glass-bg-tertiary)';
+  document.getElementById('autoDualKnob').style.transform = autoDualOn ? 'translateX(16px)' : 'translateX(0)';
+}
+
+function updateIssueBorder(cb) {
+  var label = cb.closest('.issue-label');
+  var box = label.querySelector('.issue-box');
+  label.style.borderColor = cb.checked ? 'var(--accent)' : 'transparent';
+  box.style.background = cb.checked ? 'var(--accent)' : 'transparent';
+  box.style.borderColor = cb.checked ? 'var(--accent)' : 'var(--glass-bg-tertiary)';
+  box.innerHTML = cb.checked ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>' : '';
+}
+
+function updateSolutionBorder(cb) {
+  var label = cb.closest('.solution-label');
+  var box = label.querySelector('.solution-box');
+  label.style.borderColor = cb.checked ? 'var(--accent)' : 'transparent';
+  box.style.background = cb.checked ? 'var(--accent)' : 'transparent';
+  box.style.borderColor = cb.checked ? 'var(--accent)' : 'var(--glass-bg-tertiary)';
+  box.innerHTML = cb.checked ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>' : '';
+}
+
+// ── Start Auto Mode ──
+
+function startAutoMode() {
+  var accounts = [];
+  document.querySelectorAll('.acct-checkbox:checked').forEach(function(cb) {
+    accounts.push(cb.value);
+  });
+  if (!accounts.length) { alert('Select at least one account.'); return; }
+
+  var bureaus = [];
+  document.querySelectorAll('input[name="bureau"]:checked').forEach(function(cb) {
+    bureaus.push(cb.value);
+  });
+  if (!bureaus.length) { alert('Select at least one bureau.'); return; }
+
+  var btn = document.getElementById('startBtn');
+  btn.textContent = 'Starting...';
+  btn.disabled = true;
+
+  fetch('{{ url_for("disputes.auto_mode_run") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      accounts: accounts,
+      bureaus: bureaus,
+      pack: document.getElementById('autoPack').value,
+      dual_letter: autoDualOn,
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.error) { alert(data.error); btn.textContent = 'Start Auto Mode'; btn.disabled = false; return; }
+    autoRunId = data.run_id;
+    document.getElementById('configPhase').classList.add('hidden');
+    document.getElementById('progressPhase').classList.remove('hidden');
+    pollStatus();
+  })
+  .catch(function(err) { alert('Error: ' + err); btn.textContent = 'Start Auto Mode'; btn.disabled = false; });
+}
+
+// ── Poll Status ──
+
+function pollStatus() {
+  fetch('{{ url_for("disputes.auto_mode_status") }}')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) return;
+
+      var pct = data.total > 0 ? Math.round((data.current_index / data.total) * 100) : 0;
+      document.getElementById('progressBar').style.width = pct + '%';
+      document.getElementById('progressBadge').textContent = pct + '%';
+
+      if (data.state === 'awaiting_action') {
+        document.getElementById('progressLabel').textContent = 'Account ' + (data.current_index + 1) + ' of ' + data.total;
+        document.getElementById('generatingCard').classList.add('hidden');
+        document.getElementById('completeCard').classList.add('hidden');
+        showActionCard(data);
+      } else if (data.state === 'generating') {
+        document.getElementById('actionCard').classList.add('hidden');
+        document.getElementById('generatingCard').classList.remove('hidden');
+        setTimeout(pollStatus, 1500);
+      } else if (data.state === 'complete') {
+        document.getElementById('progressBar').style.width = '100%';
+        document.getElementById('progressBadge').textContent = '100%';
+        document.getElementById('progressLabel').textContent = 'Complete!';
+        document.getElementById('actionCard').classList.add('hidden');
+        document.getElementById('generatingCard').classList.add('hidden');
+        showComplete(data);
+      }
+    });
+}
+
+function showActionCard(data) {
+  var card = document.getElementById('actionCard');
+  card.classList.remove('hidden');
+
+  document.getElementById('actionAccountName').textContent = data.current_account.account_name;
+  document.getElementById('actionAccountNumber').textContent = data.current_account.account_number + ' \u00B7 ' + (data.current_account.status || '');
+  document.getElementById('actionBureau').textContent = data.current_bureau;
+
+  // Show inaccuracies
+  var inacList = document.getElementById('inaccuracyList');
+  var inacs = data.current_account.inaccuracies || [];
+  if (inacs.length) {
+    document.getElementById('actionInaccuracies').classList.remove('hidden');
+    inacList.innerHTML = inacs.map(function(t) {
+      return '<p class="text-xs glass-inset rounded-lg p-2" style="color:var(--text-secondary);">' + t + '</p>';
+    }).join('');
+  } else {
+    document.getElementById('actionInaccuracies').classList.add('hidden');
+  }
+
+  // Pre-check detected issues
+  var detected = data.detected_issues || [];
+  document.querySelectorAll('.issue-check').forEach(function(cb) {
+    cb.checked = detected.indexOf(cb.value) >= 0;
+    updateIssueBorder(cb);
+  });
+
+  // Pre-check "Remove Account" solution by default
+  document.querySelectorAll('.solution-check').forEach(function(cb) {
+    cb.checked = (cb.value === 'remove');
+    updateSolutionBorder(cb);
+  });
+
+  window.scrollTo({top: document.getElementById('actionCard').offsetTop - 100, behavior: 'smooth'});
+}
+
+function showComplete(data) {
+  var card = document.getElementById('completeCard');
+  card.classList.remove('hidden');
+
+  var generated = data.results.filter(function(r) { return r.status === 'generated'; }).length;
+  var errors = data.results.filter(function(r) { return r.status !== 'generated'; }).length;
+  document.getElementById('completeSummary').textContent = generated + ' letter' + (generated !== 1 ? 's' : '') + ' generated.' + (errors ? ' ' + errors + ' error(s).' : '');
+
+  var resultsHtml = data.results.map(function(r) {
+    var statusClass = r.status === 'generated' ? 'glass-badge--success' : 'glass-badge--danger';
+    return '<div class="glass-list-item glass-raised flex items-center justify-between" style="box-shadow:2px 2px 8px rgba(0,0,0,0.06),-1px -1px 5px rgba(255,255,255,0.3);">' +
+      '<div><span class="text-sm font-medium" style="color:var(--text-primary);">' + r.account_name + '</span>' +
+      '<span class="text-xs ml-2" style="color:var(--text-tertiary);">' + r.bureau + '</span></div>' +
+      '<span class="glass-badge ' + statusClass + ' text-xs">' + (r.status === 'generated' ? 'Generated' : 'Error') + '</span>' +
+    '</div>';
+  }).join('');
+  document.getElementById('completeResults').innerHTML = resultsHtml;
+}
+
+// ── Submit Action ──
+
+function submitAction() {
+  var issues = [];
+  document.querySelectorAll('.issue-check:checked').forEach(function(cb) { issues.push(cb.value); });
+  var solutions = [];
+  document.querySelectorAll('.solution-check:checked').forEach(function(cb) { solutions.push(cb.value); });
+
+  if (!issues.length && !solutions.length) { alert('Select at least one issue or solution.'); return; }
+
+  var btn = document.getElementById('continueBtn');
+  btn.textContent = 'Generating...';
+  btn.disabled = true;
+
+  document.getElementById('actionCard').classList.add('hidden');
+  document.getElementById('generatingCard').classList.remove('hidden');
+
+  fetch('{{ url_for("disputes.auto_mode_action") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ issues: issues, solutions: solutions })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    btn.textContent = 'Continue';
+    btn.disabled = false;
+    pollStatus();
+  })
+  .catch(function(err) {
+    alert('Error: ' + err);
+    btn.textContent = 'Continue';
+    btn.disabled = false;
+    pollStatus();
+  });
+}
+</script>
+{% endblock %}
