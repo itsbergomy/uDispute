@@ -701,6 +701,67 @@ def generate_letter(prompt, model="o3", has_inaccuracies=False,
     return response.choices[0].message.content
 
 
+def generate_letter_with_quality_gate(
+    prompt, model="o3", has_inaccuracies=False, has_legal_research=False,
+    is_notice=False, quality_context=None, max_retries=2,
+):
+    """
+    Generate a letter and run it through the quality gate.
+    If the gate fails, regenerate with failure feedback (up to max_retries).
+
+    Args:
+        prompt: The filled-in prompt template.
+        model: OpenAI model to use.
+        quality_context: Dict with keys for check_letter_quality():
+            account_name, account_number, bureau, prompt_pack,
+            round_number, client_full_name, client_address,
+            parsed_balance, parsed_dofd, user_provided_docs
+        max_retries: Max regeneration attempts on quality failure.
+
+    Returns:
+        (letter_text, quality_result) tuple
+    """
+    from services.letter_quality_gate import check_letter_quality, format_failures_for_retry
+
+    ctx = quality_context or {}
+    current_prompt = prompt
+
+    for attempt in range(1 + max_retries):
+        letter_text = generate_letter(
+            current_prompt, model=model,
+            has_inaccuracies=has_inaccuracies,
+            has_legal_research=has_legal_research,
+            is_notice=is_notice,
+        )
+
+        result = check_letter_quality(
+            letter_text=letter_text,
+            account_name=ctx.get('account_name', ''),
+            account_number=ctx.get('account_number', ''),
+            bureau=ctx.get('bureau', ''),
+            prompt_pack=ctx.get('prompt_pack', 'default'),
+            round_number=ctx.get('round_number', 1),
+            client_full_name=ctx.get('client_full_name', ''),
+            client_address=ctx.get('client_address', ''),
+            parsed_balance=ctx.get('parsed_balance'),
+            parsed_dofd=ctx.get('parsed_dofd'),
+            user_provided_docs=ctx.get('user_provided_docs', []),
+        )
+
+        if result.passed:
+            return letter_text, result
+
+        # If last attempt, return what we have with failures attached
+        if attempt >= max_retries:
+            return letter_text, result
+
+        # Inject failure feedback into prompt for retry
+        failure_feedback = format_failures_for_retry(result)
+        current_prompt = f"{failure_feedback}\n\n{prompt}"
+
+    return letter_text, result
+
+
 def build_prompt(template_pack, template_index, context, parsed_accounts=None,
                  legal_research_context=None):
     """

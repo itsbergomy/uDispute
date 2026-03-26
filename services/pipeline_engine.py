@@ -21,8 +21,8 @@ from services.strategy import (
     select_accounts_for_dispute, get_escalation_config, build_dispute_reason
 )
 from services.letter_generator import (
-    PACKS, generate_letter, build_prompt, letter_to_pdf,
-    image_to_pdf, merge_dispute_package
+    PACKS, generate_letter, generate_letter_with_quality_gate,
+    build_prompt, letter_to_pdf, image_to_pdf, merge_dispute_package
 )
 from services.delivery import mail_letter_via_docupost
 
@@ -796,10 +796,28 @@ def handle_generation(pipeline):
                     parsed_accounts=relevant_accounts,
                     legal_research_context=legal_context,
                 )
-                letter_text = _sanitize_letter(
-                    generate_letter(prompt, has_inaccuracies=has_inaccuracies, has_legal_research=has_legal),
-                    context,
+                # Run through quality gate with auto-retry
+                quality_context = {
+                    'account_name': ad.get('account_name', ''),
+                    'account_number': ad.get('account_number', ''),
+                    'bureau': ad.get('bureau', ''),
+                    'prompt_pack': ad.get('template_pack', 'default'),
+                    'round_number': ad.get('round_number', 1),
+                    'client_full_name': context.get('client_full_name', ''),
+                    'client_address': context.get('client_address', ''),
+                    'parsed_balance': ad.get('balance'),
+                    'parsed_dofd': ad.get('dofd'),
+                }
+                raw_letter, qr = generate_letter_with_quality_gate(
+                    prompt, has_inaccuracies=has_inaccuracies,
+                    has_legal_research=has_legal,
+                    quality_context=quality_context,
                 )
+                if qr.warnings:
+                    plog(f"[PIPELINE] Quality warnings for {ad['account_name']}/{ad['bureau']}: {qr.warnings}")
+                if not qr.passed:
+                    plog(f"[PIPELINE] Quality gate FAILED for {ad['account_name']}/{ad['bureau']} after retries: {qr.failures}")
+                letter_text = _sanitize_letter(raw_letter, context)
 
             generated_letters.append({
                 'account_id': ad['id'],
