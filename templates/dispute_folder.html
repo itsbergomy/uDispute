@@ -346,6 +346,16 @@ document.querySelectorAll('.glass-tab').forEach(btn => {
   });
 });
 
+/* ── Auto-select tab from URL param ── */
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var tab = params.get('tab');
+  if (tab) {
+    var btn = document.querySelector('.glass-tab[data-tab="' + tab + '"]');
+    if (btn) btn.click();
+  }
+})();
+
 /* ── Drag to move ── */
 (function() {
   const win = document.getElementById('folder-window');
@@ -482,7 +492,7 @@ function saveLetterEdit() {
     if (data.updated) {
       status.textContent = 'Saved!';
       status.style.color = '#248a3d';
-      setTimeout(function() { window.location.href='/dispute-folder'; }, 800);
+      setTimeout(function() { window.location.href='/dispute-folder?tab=letters'; }, 800);
     } else {
       status.textContent = data.error || 'Error';
       status.style.color = '#ff453a';
@@ -539,7 +549,7 @@ function batchDeleteLetters() {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    if (data.deleted) { window.location.href='/dispute-folder'; }
+    if (data.deleted) { window.location.href='/dispute-folder?tab=letters'; }
     else { alert(data.error || 'Error deleting'); }
   })
   .catch(function(err) { alert('Error: ' + err); });
