@@ -120,7 +120,7 @@ def generate_cfpb_narratives(
         response = client.chat.completions.create(
             model="o3-mini",
             messages=[
-                {"role": "system", "content": CFPB_NARRATIVE_SYSTEM_PROMPT},
+                {"role": "developer", "content": CFPB_NARRATIVE_SYSTEM_PROMPT},
                 {"role": "user", "content": context},
             ],
         )
@@ -154,10 +154,11 @@ def _parse_narratives(raw_text, account_name, account_number):
 
         # Try to extract title from first line if it matches pattern
         if lines[0].upper().startswith('NARRATIVE'):
-            # "NARRATIVE 1: Investigation Failure"
-            title_part = lines[0].split(':', 1)
-            if len(title_part) > 1:
-                title = title_part[1].strip()
+            # "NARRATIVE 1: Investigation Failure" — title is after the number colon
+            import re
+            match = re.match(r'NARRATIVE\s*\d+\s*:\s*(.*)', lines[0], re.IGNORECASE)
+            if match:
+                title = match.group(1).strip()
             body = lines[1].strip() if len(lines) > 1 else ''
         elif ':' in lines[0] and len(lines[0]) < 80:
             title = lines[0].rstrip(':').strip()

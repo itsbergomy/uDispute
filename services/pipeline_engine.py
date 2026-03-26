@@ -1233,7 +1233,7 @@ def handle_response_received(pipeline):
                     rec = recommend_escalation(
                         business_user_id=pipeline.user_id,
                         account_name=acct.account_name,
-                        current_round=pipeline.round_number - 1,
+                        current_round=pipeline.round_number - 1,  # The round that just completed (before increment)
                         outcome=acct.outcome or 'verified',
                     )
                     # Create new dispute account for the next round
@@ -1252,6 +1252,10 @@ def handle_response_received(pipeline):
                     db.session.add(new_acct)
             except Exception as e:
                 logger.warning(f"[PIPELINE] Escalation engine failed, using default packs: {e}")
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
                 for acct in unresolved:
                     new_acct = DisputeAccount(
                         pipeline_id=pipeline.id,
