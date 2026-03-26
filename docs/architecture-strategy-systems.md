@@ -349,6 +349,23 @@ Letter Generated (o3)
 │  ├── Bureau letter addressed to CRA (not creditor)    │
 │  ├── Furnisher letter addressed to creditor           │
 │  └── Address block present                            │
+│                                                       │
+│  Rule 9: No Blank Placeholders                        │
+│  ├── No "$____" or "$___" patterns (blank balances)   │
+│  ├── No "____/____" patterns (blank dates/DOFD)       │
+│  ├── No "[AMOUNT]", "[DATE]", "[BALANCE]", "[DOFD]"   │
+│  ├── No "___" runs of 3+ underscores anywhere         │
+│  ├── No "[INSERT", "[YOUR", "[ACCOUNT" brackets       │
+│  └── If balance/DOFD not available from parser,       │
+│      letter must rephrase without citing blanks        │
+│      e.g. "does not match my records" NOT "$____"     │
+│                                                       │
+│  Rule 10: Signature Block Validation                  │
+│  ├── Client's full name appears at end of letter      │
+│  ├── Client address block present in signature area   │
+│  ├── Date present in signature area                   │
+│  ├── No "[SIGNATURE]" or "[YOUR NAME]" placeholders   │
+│  └── No "____" blank lines in signature section       │
 └──────────────────────────────────────────────────────┘
     ↓
 ┌──────────────┐          ┌──────────────────┐
@@ -381,6 +398,10 @@ Letter Generated (o3)
 │      prompt_pack: str,                              │
 │      round_number: int,                             │
 │      is_original_creditor: bool,                    │
+│      client_full_name: str,                         │
+│      client_address: str,                           │
+│      parsed_balance: str = None,                    │
+│      parsed_dofd: str = None,                       │
 │      user_provided_docs: list = [],                 │
 │  ) → QualityResult                                  │
 │                                                     │
@@ -443,9 +464,9 @@ JEFFERSON CAPITAL, RESURGENT CAPITAL, UNIFIN
    - Pass AI narratives with static fallback
 3. No template changes needed
 
-### Phase B: Letter Quality Gate (1-2 hours)
-1. Create `services/letter_quality_gate.py` (~150 lines)
-   - 8 rule categories, pure Python regex/keyword checks
+### Phase B: Letter Quality Gate (2-3 hours)
+1. Create `services/letter_quality_gate.py` (~200 lines)
+   - 10 rule categories, pure Python regex/keyword checks
    - Returns QualityResult with pass/fail, score, failures, warnings
    - Known creditor/collector lists for FDCPA guard
 2. Integrate into `pipeline_engine.py` handle_generation()
