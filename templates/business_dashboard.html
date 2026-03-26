@@ -672,14 +672,47 @@
 </main>
 
 <!-- ═══ Add Client Modal — Full CRM Intake ═══ -->
-<div id="addClientModal" class="hidden fixed inset-0 z-50 bg-black/10 backdrop-blur-md">
+<div id="addClientModal" class="hidden fixed inset-0 z-50" style="background:rgba(0,0,0,0.45);backdrop-filter:blur(32px);-webkit-backdrop-filter:blur(32px);">
   <div class="absolute inset-0 overflow-y-auto flex items-center justify-center py-8">
-    <div class="glass-card glass-card--heavy rounded-3xl w-full max-w-2xl mx-4 glass-animate-in" style="padding:1.25rem 1.5rem;">
+    <div class="glass-card glass-card--heavy rounded-3xl w-full max-w-2xl mx-4 glass-animate-in" style="padding:1.5rem 1.75rem;background:rgba(220,225,235,0.88);backdrop-filter:blur(40px) saturate(200%) brightness(1.05);-webkit-backdrop-filter:blur(40px) saturate(200%) brightness(1.05);border:1px solid rgba(255,255,255,0.45);">
 
-      <!-- Header with close -->
-      <div class="flex justify-between items-center mb-3">
-        <h3 class="text-lg font-bold">New Client</h3>
-        <button onclick="closeModal()" class="w-8 h-8 rounded-full flex items-center justify-center text-xl font-bold hover:bg-white/15 transition">&times;</button>
+      <!-- Header — tier2_issues pattern -->
+      <div class="text-center mb-5 relative">
+        <button onclick="closeModal()" style="
+          position:absolute;top:0;right:0;
+          width:14px;height:14px;border-radius:50%;
+          background:linear-gradient(135deg,#ff6058,#e0443e);
+          border:1px solid rgba(0,0,0,0.12);
+          display:flex;align-items:center;justify-content:center;
+          cursor:pointer;transition:all 0.2s ease;
+        " title="Close"
+           onmouseenter="this.style.boxShadow='0 0 6px rgba(255,96,88,0.4)'"
+           onmouseleave="this.style.boxShadow='none'">
+        </button>
+
+        <div class="glass-icon-well mx-auto mb-3" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </div>
+
+        <span style="
+          display:inline-block;
+          font-size:0.65rem;
+          font-weight:700;
+          text-transform:uppercase;
+          letter-spacing:0.1em;
+          padding:4px 12px;
+          border-radius:100px;
+          background:linear-gradient(135deg, #6e5ce6, #af52de);
+          color:#fff;
+          margin-bottom:0.75rem;
+          box-shadow:0 3px 10px rgba(110,92,230,0.25), inset 0 1px 0 rgba(255,255,255,0.3);
+        ">Business</span>
+
+        <h2 class="text-2xl font-bold mb-1 glass-text-3d" style="color:var(--text-primary);">New Client</h2>
+        <p style="color:var(--text-tertiary);font-size:0.85rem;">Add a client to your dashboard</p>
       </div>
 
       <form method="POST" action="{{ url_for('business.create_client') }}" enctype="multipart/form-data">
@@ -774,7 +807,7 @@
           </div>
         </div>
 
-        <button type="submit" class="glass-btn glass-btn--primary glass-btn--full rounded-2xl">
+        <button type="submit" class="glass-btn glass-btn--primary glass-btn--full rounded-2xl glass-shimmer-edge" style="position:relative;overflow:hidden;">
           Create Client
         </button>
       </form>
