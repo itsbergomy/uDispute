@@ -18,7 +18,7 @@ from models import (
     db, Client, ClientReportAnalysis, ClientDisputeLetter,
     WorkflowSetting, CustomLetter, MessageThread, Message,
     Correspondence, DisputePipeline, ClientPortalToken, SupportingDoc,
-    PipelineTask, DisputeAccount, BureauResponse
+    PipelineTask, DisputeAccount, BureauResponse, BusinessRule
 )
 from services.pdf_parser import extract_negative_items_from_pdf
 from services.report_analyzer import run_report_analysis
@@ -1192,6 +1192,124 @@ def get_portal_link(client_id):
 
 
 # ─── Helper ───
+
+# ═══════════════════════════════════════════════════════════
+#  Playbook — Business Rules CRUD
+# ═══════════════════════════════════════════════════════════
+
+PRESET_RULE_NAMES = {
+    'Auto-escalate verified accounts',
+    'Pause on stall letters',
+    'Send to creditor after Round 2 verification',
+}
+
+@business_bp.route('/rules', methods=['GET'])
+@login_required
+def list_rules():
+    """List all business rules for the current user. Auto-creates presets on first load."""
+    rules = BusinessRule.query.filter_by(user_id=current_user.id).order_by(BusinessRule.created_at).all()
+
+    if not rules:
+        from services.rules_engine import create_preset_rules
+        create_preset_rules(current_user.id)
+        rules = BusinessRule.query.filter_by(user_id=current_user.id).all()
+
+    return jsonify([{
+        'id': r.id,
+        'name': r.name,
+        'trigger': r.trigger,
+        'conditions': json.loads(r.conditions_json or '{}'),
+        'action': r.action,
+        'action_config': json.loads(r.action_config_json or '{}'),
+        'enabled': r.enabled,
+        'is_preset': r.name in PRESET_RULE_NAMES,
+    } for r in rules])
+
+
+@business_bp.route('/rules/<int:rule_id>/toggle', methods=['PUT'])
+@login_required
+def toggle_rule(rule_id):
+    """Toggle a business rule on/off."""
+    rule = BusinessRule.query.get(rule_id)
+    if not rule or rule.user_id != current_user.id:
+        return jsonify({'error': 'Rule not found'}), 404
+
+    rule.enabled = not rule.enabled
+    db.session.commit()
+    return jsonify({'id': rule.id, 'enabled': rule.enabled})
+
+
+@business_bp.route('/rules', methods=['POST'])
+@login_required
+def create_rule():
+    """Create a custom business rule."""
+    data = request.get_json()
+
+    name = (data.get('name') or '').strip()
+    trigger = data.get('trigger', '')
+    conditions = data.get('conditions', {})
+    action = data.get('action', '')
+    action_config = data.get('action_config', {})
+
+    valid_triggers = ('response_received', 'round_completed', 'no_response_30d', 'all_responses_in')
+    valid_actions = ('auto_escalate', 'pause_pipeline', 'send_to_creditor', 'file_cfpb')
+
+    if not name or trigger not in valid_triggers or action not in valid_actions:
+        return jsonify({'error': 'Invalid rule configuration'}), 400
+
+    rule = BusinessRule(
+        user_id=current_user.id,
+        name=name,
+        trigger=trigger,
+        conditions_json=json.dumps(conditions),
+        action=action,
+        action_config_json=json.dumps(action_config),
+        enabled=True,
+    )
+    db.session.add(rule)
+    db.session.commit()
+
+    return jsonify({'id': rule.id, 'name': rule.name}), 201
+
+
+@business_bp.route('/rules/<int:rule_id>', methods=['PUT'])
+@login_required
+def update_rule(rule_id):
+    """Update an existing business rule."""
+    rule = BusinessRule.query.get(rule_id)
+    if not rule or rule.user_id != current_user.id:
+        return jsonify({'error': 'Rule not found'}), 404
+
+    data = request.get_json()
+    if 'name' in data:
+        rule.name = data['name']
+    if 'trigger' in data:
+        rule.trigger = data['trigger']
+    if 'conditions' in data:
+        rule.conditions_json = json.dumps(data['conditions'])
+    if 'action' in data:
+        rule.action = data['action']
+    if 'action_config' in data:
+        rule.action_config_json = json.dumps(data['action_config'])
+    if 'enabled' in data:
+        rule.enabled = data['enabled']
+
+    db.session.commit()
+    return jsonify({'id': rule.id, 'updated': True})
+
+
+@business_bp.route('/rules/<int:rule_id>', methods=['DELETE'])
+@login_required
+def delete_rule(rule_id):
+    """Delete a business rule."""
+    rule = BusinessRule.query.get(rule_id)
+    if not rule or rule.user_id != current_user.id:
+        return jsonify({'error': 'Rule not found'}), 404
+
+    db.session.delete(rule)
+    db.session.commit()
+    return jsonify({'deleted': True})
+
 
 def _send_analysis_email(client, analysis):
     """Send analysis results email to client."""

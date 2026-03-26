@@ -217,6 +217,107 @@
   </div>
 
 
+  <!-- ═══ Playbook — Business Rules ═══ -->
+  <div class="glass-bezel glass-animate-in" style="animation-delay:.2s">
+  <div class="glass-metric-panel glass-p space-y-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="text-xl font-bold glass-text-3d">Playbook</h2>
+        <p class="text-xs mt-1" style="color:var(--text-tertiary);">Automation rules that control how your pipeline handles responses and escalation.</p>
+      </div>
+      <button onclick="openRuleBuilder()" class="glass-btn glass-btn--primary glass-btn--pill px-4 py-2 text-xs font-semibold inline-flex items-center gap-1.5">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        New Rule
+      </button>
+    </div>
+
+    <!-- Rules List -->
+    <div id="rules-list" class="space-y-2">
+      <div class="glass-empty">
+        <div class="glass-empty__icon">⚙️</div>
+        <p class="glass-empty__title">Loading rules...</p>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ═══ Rule Builder Modal ═══ -->
+  <div id="ruleBuilderModal" class="hidden fixed inset-0 z-50" style="background:rgba(0,0,0,0.5);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);">
+    <div class="absolute inset-0 overflow-y-auto flex items-start justify-center pt-12 pb-8">
+      <div class="glass-card glass-card--heavy rounded-3xl w-full max-w-lg mx-4 glass-animate-in" style="padding:1.5rem;background:rgba(220,225,235,0.85);backdrop-filter:blur(40px) saturate(200%) brightness(1.05);-webkit-backdrop-filter:blur(40px) saturate(200%) brightness(1.05);border:1px solid rgba(255,255,255,0.45);">
+
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-bold glass-text-3d" id="ruleBuilderTitle">New Rule</h3>
+          <button onclick="closeRuleBuilder()" class="w-8 h-8 rounded-full flex items-center justify-center text-xl font-bold hover:bg-white/15 transition">&times;</button>
+        </div>
+
+        <input type="hidden" id="ruleEditId" value="">
+
+        <div class="space-y-4">
+          <!-- Rule Name -->
+          <div>
+            <label class="glass-label text-xs font-semibold mb-1 block" style="color:var(--text-secondary);">Rule Name</label>
+            <input id="ruleName" class="glass-input w-full text-sm" placeholder="e.g. Escalate verified accounts to arbitration">
+          </div>
+
+          <!-- Trigger -->
+          <div>
+            <label class="glass-label text-xs font-semibold mb-1 block" style="color:var(--text-secondary);">When (Trigger)</label>
+            <select id="ruleTrigger" class="glass-select w-full text-sm">
+              <option value="response_received">Response Received</option>
+              <option value="round_completed">Round Completed</option>
+              <option value="no_response_30d">No Response (30 days)</option>
+              <option value="all_responses_in">All Responses In</option>
+            </select>
+          </div>
+
+          <!-- Conditions -->
+          <div>
+            <label class="glass-label text-xs font-semibold mb-1 block" style="color:var(--text-secondary);">If (Conditions)</label>
+            <div class="grid grid-cols-1 gap-2">
+              <select id="ruleCondOutcome" class="glass-select w-full text-sm">
+                <option value="">Any outcome</option>
+                <option value="verified">Verified</option>
+                <option value="removed">Removed</option>
+                <option value="updated">Updated</option>
+                <option value="stall">Stall Letter</option>
+                <option value="no_response">No Response</option>
+              </select>
+              <input id="ruleCondCreditor" class="glass-input w-full text-sm" placeholder="Creditor pattern (e.g. MIDLAND*)">
+              <input id="ruleCondRound" type="number" min="1" max="5" class="glass-input w-full text-sm" placeholder="Minimum round #">
+            </div>
+          </div>
+
+          <!-- Action -->
+          <div>
+            <label class="glass-label text-xs font-semibold mb-1 block" style="color:var(--text-secondary);">Then (Action)</label>
+            <select id="ruleAction" class="glass-select w-full text-sm" onchange="toggleActionConfig()">
+              <option value="auto_escalate">Auto-Escalate (next round)</option>
+              <option value="pause_pipeline">Pause Pipeline</option>
+              <option value="send_to_creditor">Send to Creditor (dual letter)</option>
+              <option value="file_cfpb">Flag for CFPB Complaint</option>
+            </select>
+          </div>
+
+          <!-- Action Config (conditional) -->
+          <div id="actionConfigEscalate">
+            <label class="glass-label text-xs font-semibold mb-1 block" style="color:var(--text-secondary);">Escalation Pack</label>
+            <select id="ruleEscalatePack" class="glass-select w-full text-sm">
+              <option value="consumer_law">Consumer Law</option>
+              <option value="ACDV_response">ACDV Response</option>
+              <option value="arbitration">Arbitration</option>
+            </select>
+          </div>
+
+          <button onclick="saveRule()" class="w-full glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge py-2.5 text-sm font-semibold" style="position:relative;overflow:hidden;">
+            Save Rule
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
   <!-- ═══ Agent Config Modal ═══ -->
   <div id="agentConfigModal" class="hidden fixed inset-0 z-50" style="background:rgba(0,0,0,0.5);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);">
     <div class="absolute inset-0 overflow-y-auto flex items-start justify-center pt-8 pb-8">
@@ -1093,5 +1194,150 @@
       GlassTour.start(tourSteps, { key: 'udispute_tour_biz_dashboard' });
     }, 1200);
   });
+
+  // ═══ Playbook — Rules Engine ═══
+
+  function loadRules() {
+    fetch('/rules')
+      .then(r => r.json())
+      .then(rules => {
+        var container = document.getElementById('rules-list');
+        if (!rules.length) {
+          container.innerHTML = '<div class="glass-empty"><div class="glass-empty__icon">⚙️</div><p class="glass-empty__title">No rules yet</p><p class="glass-empty__desc">Create automation rules to control how your pipeline responds to bureau replies.</p></div>';
+          return;
+        }
+        container.innerHTML = rules.map(function(r) {
+          var triggerLabel = r.trigger.replace(/_/g, ' ').replace(/\b\w/g, function(c){return c.toUpperCase();});
+          var actionLabel = r.action.replace(/_/g, ' ').replace(/\b\w/g, function(c){return c.toUpperCase();});
+          var condSummary = '';
+          if (r.conditions.outcome) condSummary += 'If ' + (Array.isArray(r.conditions.outcome) ? r.conditions.outcome.join('/') : r.conditions.outcome);
+          if (r.conditions.round_gte) condSummary += ' · Round ≥ ' + r.conditions.round_gte;
+          if (r.conditions.creditor_pattern) condSummary += ' · ' + r.conditions.creditor_pattern;
+
+          return '<div class="glass-list-item glass-raised flex items-center justify-between" style="transition:box-shadow 0.2s;box-shadow:2px 2px 8px rgba(0,0,0,0.06),-1px -1px 5px rgba(255,255,255,0.3);">' +
+            '<div class="flex-1 min-w-0">' +
+              '<div class="text-sm font-semibold" style="color:var(--text-primary);">' + r.name + (r.is_preset ? ' <span class="glass-badge text-xs" style="background:rgba(255,255,255,0.1);color:var(--text-tertiary);">Preset</span>' : '') + '</div>' +
+              '<div class="text-xs mt-0.5" style="color:var(--text-tertiary);">When: ' + triggerLabel + ' → ' + actionLabel + (condSummary ? ' · ' + condSummary : '') + '</div>' +
+            '</div>' +
+            '<div class="flex items-center gap-2 flex-shrink-0">' +
+              '<div class="cursor-pointer" style="position:relative;width:36px;height:20px;" onclick="toggleRule(' + r.id + ', this)">' +
+                '<div style="position:absolute;inset:0;border-radius:10px;background:' + (r.enabled ? 'linear-gradient(135deg,#34c759,#30d158)' : 'var(--glass-bg-tertiary)') + ';transition:background 0.3s;"></div>' +
+                '<div style="position:absolute;top:2px;left:' + (r.enabled ? '18px' : '2px') + ';width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);transition:left 0.3s;"></div>' +
+              '</div>' +
+              '<button onclick="editRule(' + r.id + ')" class="glass-btn glass-btn--ghost glass-btn--pill text-xs px-2 py-1">Edit</button>' +
+              '<button onclick="deleteRule(' + r.id + ')" class="glass-btn glass-btn--ghost glass-btn--pill text-xs px-2 py-1" style="color:#ef4444;">✕</button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      })
+      .catch(function() {
+        document.getElementById('rules-list').innerHTML = '<p class="text-sm" style="color:var(--text-tertiary);">Failed to load rules.</p>';
+      });
+  }
+
+  function toggleRule(id, el) {
+    fetch('/rules/' + id + '/toggle', { method: 'PUT', headers: {'Content-Type':'application/json'} })
+      .then(r => r.json())
+      .then(function(data) {
+        // Update toggle visuals
+        var track = el.querySelector('div:first-child');
+        var knob = el.querySelector('div:last-child');
+        track.style.background = data.enabled ? 'linear-gradient(135deg,#34c759,#30d158)' : 'var(--glass-bg-tertiary)';
+        knob.style.left = data.enabled ? '18px' : '2px';
+      });
+  }
+
+  function openRuleBuilder() {
+    document.getElementById('ruleEditId').value = '';
+    document.getElementById('ruleBuilderTitle').textContent = 'New Rule';
+    document.getElementById('ruleName').value = '';
+    document.getElementById('ruleTrigger').value = 'response_received';
+    document.getElementById('ruleCondOutcome').value = '';
+    document.getElementById('ruleCondCreditor').value = '';
+    document.getElementById('ruleCondRound').value = '';
+    document.getElementById('ruleAction').value = 'auto_escalate';
+    document.getElementById('ruleEscalatePack').value = 'consumer_law';
+    toggleActionConfig();
+    document.getElementById('ruleBuilderModal').classList.remove('hidden');
+  }
+
+  function closeRuleBuilder() {
+    document.getElementById('ruleBuilderModal').classList.add('hidden');
+  }
+
+  function toggleActionConfig() {
+    var action = document.getElementById('ruleAction').value;
+    document.getElementById('actionConfigEscalate').style.display = action === 'auto_escalate' ? 'block' : 'none';
+  }
+
+  function editRule(id) {
+    fetch('/rules')
+      .then(r => r.json())
+      .then(function(rules) {
+        var rule = rules.find(function(r) { return r.id === id; });
+        if (!rule) return;
+        document.getElementById('ruleEditId').value = id;
+        document.getElementById('ruleBuilderTitle').textContent = 'Edit Rule';
+        document.getElementById('ruleName').value = rule.name;
+        document.getElementById('ruleTrigger').value = rule.trigger;
+        document.getElementById('ruleCondOutcome').value = rule.conditions.outcome || '';
+        document.getElementById('ruleCondCreditor').value = rule.conditions.creditor_pattern || '';
+        document.getElementById('ruleCondRound').value = rule.conditions.round_gte || '';
+        document.getElementById('ruleAction').value = rule.action;
+        if (rule.action_config.pack) document.getElementById('ruleEscalatePack').value = rule.action_config.pack;
+        toggleActionConfig();
+        document.getElementById('ruleBuilderModal').classList.remove('hidden');
+      });
+  }
+
+  function saveRule() {
+    var conditions = {};
+    var outcome = document.getElementById('ruleCondOutcome').value;
+    if (outcome) conditions.outcome = outcome;
+    var creditor = document.getElementById('ruleCondCreditor').value.trim();
+    if (creditor) conditions.creditor_pattern = creditor;
+    var round = document.getElementById('ruleCondRound').value;
+    if (round) conditions.round_gte = parseInt(round);
+
+    var action = document.getElementById('ruleAction').value;
+    var action_config = {};
+    if (action === 'auto_escalate') {
+      action_config.pack = document.getElementById('ruleEscalatePack').value;
+    }
+
+    var payload = {
+      name: document.getElementById('ruleName').value.trim(),
+      trigger: document.getElementById('ruleTrigger').value,
+      conditions: conditions,
+      action: action,
+      action_config: action_config,
+    };
+
+    var editId = document.getElementById('ruleEditId').value;
+    var url = editId ? '/rules/' + editId : '/rules';
+    var method = editId ? 'PUT' : 'POST';
+
+    fetch(url, {
+      method: method,
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(function() {
+      closeRuleBuilder();
+      loadRules();
+    })
+    .catch(function() { alert('Error saving rule'); });
+  }
+
+  function deleteRule(id) {
+    if (!confirm('Delete this rule?')) return;
+    fetch('/rules/' + id, { method: 'DELETE' })
+      .then(function() { loadRules(); })
+      .catch(function() { alert('Error deleting rule'); });
+  }
+
+  // Load rules on page load
+  loadRules();
 </script>
 {% endblock %}
