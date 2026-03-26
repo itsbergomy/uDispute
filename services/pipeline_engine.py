@@ -232,6 +232,10 @@ def advance_pipeline(pipeline_id):
             next_state = handler(pipeline)
 
             # Handler may have killed the session — get fresh everything
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
             db.session.remove()
             pipeline = DisputePipeline.query.get(pipeline_id)
             task = PipelineTask.query.get(task_id)
@@ -1125,6 +1129,10 @@ def handle_response_received(pipeline):
                 )
     except Exception as e:
         plog(f"[PIPELINE] Creditor intelligence update failed: {e}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
 
     all_resolved = all(a.outcome in ('removed', 'updated') for a in accounts)
 
@@ -1161,6 +1169,10 @@ def handle_response_received(pipeline):
                 return 'strategy'
     except Exception as e:
         plog(f"[PIPELINE] Rules engine evaluation failed: {e}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
 
     # Hard pause — user reviews outcomes and decides whether to start next round
     return 'round_review'
