@@ -1540,6 +1540,65 @@ def add_letter():
     return render_template('add_letter.html')
 
 
+@disputes_bp.route('/api/letter/<int:letter_id>', methods=['GET'])
+@login_required
+def get_letter_text(letter_id):
+    """Return letter text for editing."""
+    letter = MailedLetter.query.get_or_404(letter_id)
+    if letter.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    return jsonify({
+        'id': letter.id,
+        'letter_text': letter.letter_text or '',
+        'bureau': letter.bureau or '',
+        'account_name': letter.account_name or '',
+        'round_number': letter.round_number or 1,
+    })
+
+
+@disputes_bp.route('/api/letter/<int:letter_id>', methods=['PUT'])
+@login_required
+def update_letter(letter_id):
+    """Update letter text."""
+    letter = MailedLetter.query.get_or_404(letter_id)
+    if letter.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.get_json()
+    letter.letter_text = data.get('letter_text', letter.letter_text)
+    db.session.commit()
+    return jsonify({'id': letter.id, 'updated': True})
+
+
+@disputes_bp.route('/api/letter/<int:letter_id>', methods=['DELETE'])
+@login_required
+def delete_letter(letter_id):
+    """Delete a single letter."""
+    letter = MailedLetter.query.get_or_404(letter_id)
+    if letter.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    db.session.delete(letter)
+    db.session.commit()
+    return jsonify({'deleted': True})
+
+
+@disputes_bp.route('/api/letters/batch-delete', methods=['POST'])
+@login_required
+def batch_delete_letters():
+    """Delete multiple letters at once."""
+    data = request.get_json()
+    ids = data.get('ids', [])
+    if not ids:
+        return jsonify({'error': 'No letters selected'}), 400
+    deleted = 0
+    for lid in ids:
+        letter = MailedLetter.query.get(lid)
+        if letter and letter.user_id == current_user.id:
+            db.session.delete(letter)
+            deleted += 1
+    db.session.commit()
+    return jsonify({'deleted': deleted})
+
+
 @disputes_bp.route('/upload-doc', methods=['GET', 'POST'])
 @login_required
 def upload_doc():

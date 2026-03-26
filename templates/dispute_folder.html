@@ -112,6 +112,23 @@
 
       <!-- Mailed Letters — Sorted by Bureau → Date → Round -->
       <div id="panel-letters" class="tab-panel hidden">
+        {# ── Select Mode Toolbar ── #}
+        <div class="flex items-center justify-between mb-3">
+          <button onclick="toggleSelectMode()" id="selectModeBtn"
+                  class="glass-btn glass-btn--pill text-xs px-3 py-1.5 font-semibold"
+                  style="background:rgba(255,255,255,0.08);color:var(--text-secondary);">
+            Select
+          </button>
+          <div id="selectActions" class="hidden flex items-center gap-2">
+            <span id="selectedCount" class="text-xs" style="color:var(--text-tertiary);">0 selected</span>
+            <button onclick="batchDeleteLetters()"
+                    class="glass-btn glass-btn--pill text-xs px-3 py-1.5 font-semibold"
+                    style="background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.2);">
+              Delete Selected
+            </button>
+          </div>
+        </div>
+
         {% set bureaus = ['Equifax', 'TransUnion', 'Experian'] %}
         {% set has_letters = letters | length > 0 %}
 
@@ -403,5 +420,130 @@ document.querySelectorAll('.glass-tab').forEach(btn => {
     win.classList.remove('is-dragging');
   });
 })();
+
+// ═══ Letter Editor Modal ═══
+var editorModal = document.createElement('div');
+editorModal.id = 'letterEditorModal';
+editorModal.className = 'hidden';
+editorModal.style.cssText = 'position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.5);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:1rem;';
+editorModal.innerHTML = '<div style="background:rgba(220,225,235,0.92);backdrop-filter:blur(40px) saturate(200%);border:1px solid rgba(255,255,255,0.45);border-radius:16px;width:100%;max-width:600px;max-height:80vh;display:flex;flex-direction:column;padding:1.25rem;box-shadow:0 24px 80px rgba(0,0,0,0.18);">' +
+  '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">' +
+    '<h3 id="editorTitle" style="font-size:0.95rem;font-weight:700;color:var(--text-primary);">Edit Letter</h3>' +
+    '<button onclick="closeLetterEditor()" style="font-size:1.2rem;cursor:pointer;color:var(--text-tertiary);background:none;border:none;">&times;</button>' +
+  '</div>' +
+  '<textarea id="editorTextarea" class="glass-input glass-textarea" style="flex:1;min-height:300px;resize:vertical;font-size:0.85rem;line-height:1.6;font-family:var(--font-mono);"></textarea>' +
+  '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.75rem;">' +
+    '<span id="editorStatus" style="font-size:0.75rem;color:var(--text-tertiary);"></span>' +
+    '<div style="display:flex;gap:0.5rem;">' +
+      '<button onclick="closeLetterEditor()" class="glass-btn glass-btn--pill px-4 py-2 text-xs" style="background:rgba(255,255,255,0.1);">Cancel</button>' +
+      '<button onclick="saveLetterEdit()" class="glass-btn glass-btn--primary glass-btn--pill px-5 py-2 text-sm font-semibold">Save</button>' +
+    '</div>' +
+  '</div>' +
+'</div>';
+document.body.appendChild(editorModal);
+
+var currentEditId = null;
+
+function openLetterEditor(id) {
+  currentEditId = id;
+  var modal = document.getElementById('letterEditorModal');
+  var textarea = document.getElementById('editorTextarea');
+  var status = document.getElementById('editorStatus');
+  textarea.value = 'Loading...';
+  status.textContent = '';
+  modal.classList.remove('hidden');
+
+  fetch('/api/letter/' + id)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      textarea.value = data.letter_text || '';
+      document.getElementById('editorTitle').textContent = 'Edit — ' + (data.account_name || 'Letter') + ' · ' + (data.bureau || '');
+    })
+    .catch(function(err) { textarea.value = 'Error loading: ' + err; });
+}
+
+function closeLetterEditor() {
+  document.getElementById('letterEditorModal').classList.add('hidden');
+  currentEditId = null;
+}
+
+function saveLetterEdit() {
+  if (!currentEditId) return;
+  var status = document.getElementById('editorStatus');
+  status.textContent = 'Saving...';
+  status.style.color = 'var(--text-secondary)';
+
+  fetch('/api/letter/' + currentEditId, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ letter_text: document.getElementById('editorTextarea').value })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.updated) {
+      status.textContent = 'Saved!';
+      status.style.color = '#248a3d';
+      setTimeout(function() { location.reload(); }, 800);
+    } else {
+      status.textContent = data.error || 'Error';
+      status.style.color = '#ff453a';
+    }
+  })
+  .catch(function(err) { status.textContent = 'Error: ' + err; status.style.color = '#ff453a'; });
+}
+
+// ═══ Select Mode + Batch Delete ═══
+var selectMode = false;
+
+function toggleSelectMode() {
+  selectMode = !selectMode;
+  var btn = document.getElementById('selectModeBtn');
+  var actions = document.getElementById('selectActions');
+  var checkboxes = document.querySelectorAll('.letter-select-cb');
+
+  if (selectMode) {
+    btn.textContent = 'Cancel';
+    btn.style.background = 'rgba(239,68,68,0.12)';
+    btn.style.color = '#ef4444';
+    actions.classList.remove('hidden');
+    checkboxes.forEach(function(cb) { cb.classList.remove('hidden'); cb.checked = false; });
+  } else {
+    btn.textContent = 'Select';
+    btn.style.background = 'rgba(255,255,255,0.08)';
+    btn.style.color = 'var(--text-secondary)';
+    actions.classList.add('hidden');
+    checkboxes.forEach(function(cb) { cb.classList.add('hidden'); cb.checked = false; });
+    document.getElementById('selectedCount').textContent = '0 selected';
+  }
+}
+
+// Update count on checkbox change
+document.addEventListener('change', function(e) {
+  if (e.target.classList.contains('letter-select-cb')) {
+    var count = document.querySelectorAll('.letter-select-cb:checked').length;
+    document.getElementById('selectedCount').textContent = count + ' selected';
+  }
+});
+
+function batchDeleteLetters() {
+  var checked = document.querySelectorAll('.letter-select-cb:checked');
+  if (!checked.length) { alert('No letters selected.'); return; }
+  if (!confirm('Delete ' + checked.length + ' letter(s)? This cannot be undone.')) return;
+
+  var ids = [];
+  checked.forEach(function(cb) { ids.push(parseInt(cb.value)); });
+
+  fetch('/api/letters/batch-delete', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ ids: ids })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.deleted) { location.reload(); }
+    else { alert(data.error || 'Error deleting'); }
+  })
+  .catch(function(err) { alert('Error: ' + err); });
+}
 </script>
 {% endblock %}
