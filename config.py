@@ -159,6 +159,8 @@ def create_app():
                     'service_level': 'VARCHAR(50)',
                     'delivery_status_updated_at': 'DATETIME',
                     'tracking_number': 'VARCHAR(100)',
+                    'quality_score': 'INTEGER',
+                    'quality_warnings': 'TEXT',
                 }
                 for col_name, col_type in new_cols.items():
                     if col_name not in existing:
