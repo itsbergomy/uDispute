@@ -323,19 +323,32 @@
     <div class="absolute inset-0 overflow-y-auto flex items-start justify-center pt-8 pb-8">
       <div class="glass-card glass-card--heavy rounded-3xl w-full max-w-lg mx-4 glass-animate-in" style="padding:1.5rem;background:rgba(220,225,235,0.85);backdrop-filter:blur(40px) saturate(200%) brightness(1.05);-webkit-backdrop-filter:blur(40px) saturate(200%) brightness(1.05);border:1px solid rgba(255,255,255,0.45);">
 
-        <div class="flex justify-between items-center mb-4">
+        <div class="flex justify-between items-start mb-5">
           <div>
-            <h3 class="text-lg font-bold">Configure Agent</h3>
+            <span style="
+              display:inline-block;
+              font-size:0.6rem;
+              font-weight:700;
+              text-transform:uppercase;
+              letter-spacing:0.1em;
+              padding:3px 10px;
+              border-radius:100px;
+              background:linear-gradient(135deg, #6e5ce6, #af52de);
+              color:#fff;
+              margin-bottom:0.5rem;
+              box-shadow:0 3px 10px rgba(110,92,230,0.25), inset 0 1px 0 rgba(255,255,255,0.3);
+            ">AI Agent</span>
+            <h3 class="text-lg font-bold glass-text-3d" style="color:var(--text-primary);">Configure Pipeline</h3>
             <p class="text-xs mt-0.5" style="color:var(--text-tertiary);" id="agentClientName"></p>
           </div>
-          <button onclick="closeAgentModal()" class="w-8 h-8 rounded-full flex items-center justify-center text-xl font-bold hover:bg-white/15 transition">&times;</button>
+          <button onclick="closeAgentModal()" class="w-8 h-8 rounded-full flex items-center justify-center text-xl font-bold hover:bg-white/15 transition" style="color:var(--text-tertiary);">&times;</button>
         </div>
 
         <div id="agentConfigForm">
           <!-- Mode Selection -->
           <p class="text-sm font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Mode</p>
           <div class="grid grid-cols-2 gap-3 mb-4">
-            <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="mode-supervised-card">
+            <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="mode-supervised-card">
               <input type="radio" name="agent_mode" value="supervised" checked class="sr-only" onchange="updateModeUI()">
               <div class="glass-icon-well mx-auto mb-2" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
                 {{ icons.icon_eye(size=24, uid='cfg1') }}
@@ -343,7 +356,7 @@
               <div class="text-sm font-semibold">Supervised</div>
               <div class="text-xs" style="color:var(--text-tertiary);">Pauses for your review</div>
             </label>
-            <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="mode-fullauto-card">
+            <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="mode-fullauto-card">
               <input type="radio" name="agent_mode" value="full_auto" class="sr-only" onchange="updateModeUI()">
               <div class="glass-icon-well mx-auto mb-2" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
                 {{ icons.icon_pipeline(size=24, uid='cfg2') }}
@@ -356,7 +369,7 @@
           <!-- Strategy -->
           <p class="text-sm font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Strategy</p>
           <div class="grid grid-cols-3 gap-2 mb-4">
-            <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="strategy-standard-card">
+            <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="strategy-standard-card">
               <input type="radio" name="strategy" value="standard" checked class="sr-only" onchange="updateStrategyUI()">
               <div class="glass-icon-well mx-auto mb-2" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
                 {{ icons.icon_letter_sent(size=20, uid='cfgS1') }}
@@ -364,7 +377,7 @@
               <div class="text-xs font-semibold">Standard</div>
               <div class="text-xs" style="color:var(--text-tertiary);line-height:1.3;">1 letter per account</div>
             </label>
-            <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="strategy-notice-card">
+            <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="strategy-notice-card">
               <input type="radio" name="strategy" value="notice" class="sr-only" onchange="updateStrategyUI()">
               <div class="glass-icon-well mx-auto mb-2" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
                 {{ icons.icon_document(size=20, uid='cfgS2') }}
@@ -372,7 +385,7 @@
               <div class="text-xs font-semibold">Notice of Dispute</div>
               <div class="text-xs" style="color:var(--text-tertiary);line-height:1.3;">1 letter per bureau</div>
             </label>
-            <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="strategy-dual-card">
+            <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="strategy-dual-card">
               <input type="radio" name="strategy" value="dual" class="sr-only" onchange="updateStrategyUI()">
               <div class="glass-icon-well mx-auto mb-2" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
                 {{ icons.icon_clients(size=20, uid='cfgS3') }}
@@ -386,7 +399,7 @@
           <div id="letterSourceSection" style="transition:opacity 0.3s;">
           <p class="text-sm font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Letter Source</p>
           <div class="grid grid-cols-2 gap-3 mb-2">
-            <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="source-packs-card">
+            <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="source-packs-card">
               <input type="radio" name="letter_source" value="packs" checked class="sr-only" onchange="updateLetterSourceUI()">
               <div class="glass-icon-well mx-auto mb-2" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
                 {{ icons.icon_package(size=24, uid='cfg3') }}
@@ -394,7 +407,7 @@
               <div class="text-sm font-semibold">Prompt Packs</div>
               <div class="text-xs" style="color:var(--text-tertiary);">Built-in templates</div>
             </label>
-            <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="source-custom-card">
+            <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="source-custom-card">
               <input type="radio" name="letter_source" value="custom" class="sr-only" onchange="updateLetterSourceUI()">
               <div class="glass-icon-well mx-auto mb-2" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
                 {{ icons.icon_document(size=24, uid='cfg4') }}
@@ -447,14 +460,14 @@
           <div id="sendToSection" class="mb-4" style="transition:opacity 0.3s;">
             <p class="text-sm font-semibold mb-2 glass-text-emboss" style="color:var(--text-primary);">Send Letters To</p>
             <div class="grid grid-cols-2 gap-3">
-              <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="sendto-bureaus-card">
+              <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="sendto-bureaus-card">
                 <input type="radio" name="send_to" value="bureaus" checked class="sr-only" onchange="updateSendToUI()">
                 <div class="glass-icon-well mx-auto mb-1.5" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
                   {{ icons.icon_building(size=20, uid='cfg5') }}
                 </div>
                 <div class="text-xs font-semibold">Bureaus</div>
               </label>
-              <label class="glass-card glass-card--light rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="sendto-creditors-card">
+              <label class="glass-card glass-card--heavy rounded-xl p-3 cursor-pointer text-center transition-all duration-200 hover:scale-[1.02]" id="sendto-creditors-card">
                 <input type="radio" name="send_to" value="creditors" class="sr-only" onchange="updateSendToUI()">
                 <div class="glass-icon-well mx-auto mb-1.5" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
                   {{ icons.icon_briefcase(size=20, uid='cfg6') }}

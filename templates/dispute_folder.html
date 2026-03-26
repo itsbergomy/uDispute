@@ -8,11 +8,11 @@
   <!-- ═══ Free-floating Desktop Window ═══ -->
   <div id="folder-window" style="
     position: fixed;
-    top: 50%; left: 50%;
+    top: 54%; left: 50%;
     transform: translate(-50%, -50%) scale(0.85);
     width: 680px;
     max-width: 94vw;
-    max-height: 88vh;
+    max-height: 82vh;
     display: flex;
     flex-direction: column;
     background: rgba(255,255,255,0.13);
@@ -297,7 +297,7 @@
 
 <style>
   @keyframes folder-open {
-    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+    0%   { opacity: 0; transform: translate(-50%, -54%) scale(0.85); }
     60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.02); }
     100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   }
@@ -424,8 +424,7 @@ document.querySelectorAll('.glass-tab').forEach(btn => {
 // ═══ Letter Editor Modal ═══
 var editorModal = document.createElement('div');
 editorModal.id = 'letterEditorModal';
-editorModal.className = 'hidden';
-editorModal.style.cssText = 'position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.5);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:1rem;';
+editorModal.style.cssText = 'display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.5);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:1rem;';
 editorModal.innerHTML = '<div style="background:rgba(220,225,235,0.92);backdrop-filter:blur(40px) saturate(200%);border:1px solid rgba(255,255,255,0.45);border-radius:16px;width:100%;max-width:600px;max-height:80vh;display:flex;flex-direction:column;padding:1.25rem;box-shadow:0 24px 80px rgba(0,0,0,0.18);">' +
   '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">' +
     '<h3 id="editorTitle" style="font-size:0.95rem;font-weight:700;color:var(--text-primary);">Edit Letter</h3>' +
@@ -451,7 +450,7 @@ function openLetterEditor(id) {
   var status = document.getElementById('editorStatus');
   textarea.value = 'Loading...';
   status.textContent = '';
-  modal.classList.remove('hidden');
+  modal.style.display = 'flex';
 
   fetch('/api/letter/' + id)
     .then(function(r) { return r.json(); })
@@ -463,7 +462,7 @@ function openLetterEditor(id) {
 }
 
 function closeLetterEditor() {
-  document.getElementById('letterEditorModal').classList.add('hidden');
+  document.getElementById('letterEditorModal').style.display = 'none';
   currentEditId = null;
 }
 
