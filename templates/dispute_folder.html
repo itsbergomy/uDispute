@@ -444,7 +444,11 @@ document.querySelectorAll('.glass-tab').forEach(btn => {
   });
 })();
 
-// ═══ Inline Letter Editor ═══
+// ═══ Inline Letter Editor — defined globally below ═══
+</script>
+<script>
+// Separate script block so inline editor functions are always available
+// even if other JS above throws an error
 
 function openInlineEditor(id) {
   // Close any other open editors first
