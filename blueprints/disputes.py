@@ -1246,7 +1246,7 @@ def generate_process():
 @disputes_bp.route('/final-review')
 def final_review():
     sid = request.args.get('sid')
-    data = _letter_store.pop(sid, {}) if sid else {}
+    data = _letter_store.get(sid, {}) if sid else {}
     letter = data.get('letter', session.get('generated_letter'))
     return render_template('final_review.html', letter=letter)
 
@@ -1254,7 +1254,7 @@ def final_review():
 @disputes_bp.route('/dual-review')
 def dual_review():
     sid = request.args.get('sid')
-    letters = _letter_store.pop(sid, {}) if sid else {}
+    letters = _letter_store.get(sid, {}) if sid else {}
     cra_letter = letters.get('cra_letter', session.get('generated_letter'))
     furnisher_letter = letters.get('furnisher_letter', session.get('furnisher_letter'))
     return render_template('dual_review.html',
