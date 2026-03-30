@@ -31,8 +31,21 @@ from services.cloud_storage import upload_file, upload_from_path, get_file_url, 
 
 disputes_bp = Blueprint('disputes', __name__)
 
-# ── Temp letter storage (avoids cookie 4KB limit for dual letters) ──
-_letter_store = {}
+# ── DB-backed temp letter storage (survives worker restarts) ──
+def _store_letters(store_id, data):
+    """Save letter data to DB temp store."""
+    from models import db, TempLetterStore
+    entry = TempLetterStore(id=store_id, data_json=json.dumps(data))
+    db.session.add(entry)
+    db.session.commit()
+
+def _get_letters(store_id):
+    """Retrieve letter data from DB temp store."""
+    from models import TempLetterStore
+    entry = TempLetterStore.query.get(store_id)
+    if entry:
+        return json.loads(entry.data_json)
+    return {}
 
 # ── Auto Mode state store (Pro Plan autopilot) ──
 _auto_runs = {}  # run_id -> { user_id, accounts, config, current_index, state, results, current_detected }
@@ -1221,12 +1234,12 @@ def generate_process():
             cra_prompt, furnisher_prompt,
             has_inaccuracies=has_inaccuracies, has_legal_research=has_legal
         )
-        # Store in memory (too large for cookie session's 4KB limit)
+        # Store in DB (survives worker restarts, avoids cookie 4KB limit)
         store_id = str(uuid.uuid4())
-        _letter_store[store_id] = {
+        _store_letters(store_id, {
             'cra_letter': cra_letter,
             'furnisher_letter': furnisher_letter,
-        }
+        })
         return redirect(url_for('disputes.dual_review', sid=store_id))
     elif relevant_accounts:
         # Use build_prompt to inject inaccuracy details with FCRA citations
@@ -1237,16 +1250,16 @@ def generate_process():
         prompt = template.format(**data)
         letter_text = generate_letter(prompt)
 
-    # Store in memory (avoids cookie 4KB limit)
+    # Store in DB (survives worker restarts, avoids cookie 4KB limit)
     store_id = str(uuid.uuid4())
-    _letter_store[store_id] = {'letter': letter_text}
+    _store_letters(store_id, {'letter': letter_text})
     return redirect(url_for('disputes.final_review', sid=store_id))
 
 
 @disputes_bp.route('/final-review')
 def final_review():
     sid = request.args.get('sid')
-    data = _letter_store.get(sid, {}) if sid else {}
+    data = _get_letters(sid) if sid else {}
     letter = data.get('letter', session.get('generated_letter'))
     return render_template('final_review.html', letter=letter)
 
@@ -1254,7 +1267,7 @@ def final_review():
 @disputes_bp.route('/dual-review')
 def dual_review():
     sid = request.args.get('sid')
-    letters = _letter_store.get(sid, {}) if sid else {}
+    letters = _get_letters(sid) if sid else {}
     cra_letter = letters.get('cra_letter', session.get('generated_letter'))
     furnisher_letter = letters.get('furnisher_letter', session.get('furnisher_letter'))
     return render_template('dual_review.html',

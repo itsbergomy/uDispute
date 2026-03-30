@@ -417,3 +417,11 @@ class ClientPortalToken(db.Model):
     @staticmethod
     def generate_token():
         return secrets.token_urlsafe(32)
+
+
+class TempLetterStore(db.Model):
+    """Temporary DB-backed letter storage — survives worker restarts and multi-worker setups."""
+    __tablename__ = 'temp_letter_store'
+    id = db.Column(db.String(36), primary_key=True)  # UUID
+    data_json = db.Column(db.Text, nullable=False)    # JSON blob of letter(s)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
