@@ -511,14 +511,21 @@ def client_file(client_id, filetype):
         'pdf': c.pdf_filename
     }
     fn = mapping.get(filetype)
+    print(f"[CLIENT_FILE] client={client_id} type={filetype} fn={fn!r}", flush=True)
     if not fn:
         abort(404)
 
-    # If it's a Cloudinary URL, redirect to it directly.
-    # The unsigned secure_url from upload works for inline display.
+    # If it's a Cloudinary URL, redirect to it.
+    # Raw resources (PDFs) need signed URLs — Cloudinary restricts unsigned raw access.
     if fn.startswith('http'):
         if not is_cloudinary_url(fn):
-            abort(403)  # Unknown host — refuse to redirect (SSRF guard)
+            print(f"[CLIENT_FILE] SSRF BLOCK: {fn}", flush=True)
+            abort(403)
+        if '/raw/upload/' in fn:
+            signed = get_signed_url(fn, inline=False)
+            print(f"[CLIENT_FILE] Raw → signed redirect: {signed}", flush=True)
+            return redirect(signed)
+        print(f"[CLIENT_FILE] Image → direct redirect: {fn}", flush=True)
         return redirect(fn)
 
     # Files are saved in client-specific subdirectories; fall back to root for legacy files
