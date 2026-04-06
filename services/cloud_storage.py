@@ -194,7 +194,11 @@ def get_file_url(public_id_or_url, resource_type="raw", inline=False):
             "sign_url": True,
             "type": "upload",
         }
-        if inline:
+        # fl_attachment:false only works on image/video resources.
+        # On raw resources, Cloudinary misinterprets it as filename="false.pdf"
+        # which forces a download instead of inline display. Raw resources
+        # already serve inline by default, so we skip the flag entirely.
+        if inline and resource_type != "raw":
             opts["flags"] = "attachment:false"
 
         url = cloudinary.utils.cloudinary_url(public_id_or_url, **opts)
