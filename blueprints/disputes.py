@@ -27,7 +27,11 @@ from services.letter_generator import (
 )
 from services.delivery import mail_letter_via_docupost, get_docupost_token
 from services.report_analyzer import run_report_analysis
-from services.cloud_storage import upload_file, upload_from_path, get_file_url, download_to_temp, delete_file, is_configured as cloud_configured
+from services.cloud_storage import (
+    upload_file, upload_from_path, get_file_url, get_signed_url,
+    download_to_temp, delete_file, is_configured as cloud_configured,
+    is_cloudinary_url,
+)
 
 disputes_bp = Blueprint('disputes', __name__)
 
@@ -1782,12 +1786,9 @@ def serve_upload(filename):
     # Check if the filename is actually a Cloudinary URL stored in a Correspondence record
     doc = Correspondence.query.filter_by(user_id=current_user.id, filename=filename).first()
     if doc and doc.file_url and doc.file_url.startswith('http'):
-        from urllib.parse import urlparse
-        parsed = urlparse(doc.file_url)
-        ALLOWED_HOSTS = {'res.cloudinary.com', 'cloudinary.com'}
-        if parsed.hostname and any(parsed.hostname.endswith(h) for h in ALLOWED_HOSTS):
-            return redirect(doc.file_url)
-        abort(403)  # Unknown host — refuse to proxy
+        if not is_cloudinary_url(doc.file_url):
+            abort(403)
+        return redirect(get_signed_url(doc.file_url, inline=True))
 
     upload_base = current_app.config.get('UPLOAD_FOLDER', 'uploads')
     user_folder = os.path.join(upload_base, str(current_user.id))

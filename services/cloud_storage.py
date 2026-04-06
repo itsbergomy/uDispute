@@ -1,27 +1,37 @@
 """
 Cloud Storage Service — Cloudinary integration for uDispute.
 
-Handles all file uploads, downloads, and deletions via Cloudinary.
+Handles all file uploads, downloads, URL signing, and deletions via Cloudinary.
 Replaces local filesystem storage so files persist across deploys.
 
+Every URL returned by this module is **signed** — this bypasses Cloudinary's
+'Restrict unsigned raw access' setting and ensures files are always accessible.
+
 Usage:
-    from services.cloud_storage import upload_file, get_file_url, delete_file, download_to_temp
+    from services.cloud_storage import (
+        upload_file, get_file_url, get_signed_url,
+        download_to_temp, delete_file, is_configured
+    )
 
     # Upload a Flask FileStorage object
-    result = upload_file(file_obj, folder="clients/5")
-    # result = { 'public_id': 'udispute/clients/5/report.pdf', 'url': 'https://...', 'secure_url': 'https://...' }
+    result = upload_file(file_obj, folder="clients/5", resource_type="raw")
+    # result = { 'public_id': '...', 'secure_url': 'https://...' }
 
-    # Get a URL for a stored file
-    url = get_file_url(public_id)
+    # Get a signed URL for browser display (inline for PDFs)
+    url = get_signed_url(result['secure_url'], inline=True)
+
+    # Get a signed URL for download
+    url = get_file_url(public_id_or_url)
 
     # Download to a temp file for processing (e.g., PDF parsing)
     temp_path = download_to_temp(public_id_or_url)
 
-    # Delete
-    delete_file(public_id)
+    # Delete (works with both public_id and full URL)
+    delete_file(public_id_or_url)
 """
 
 import os
+import re
 import tempfile
 import requests as http_requests
 import cloudinary
@@ -39,6 +49,58 @@ cloudinary.config(
 ROOT_FOLDER = "udispute"
 
 
+# ═══════════════════════════════════════════════════════════
+#  Internal Utilities
+# ═══════════════════════════════════════════════════════════
+
+def _parse_cloudinary_url(url):
+    """
+    Extract (public_id, resource_type) from a Cloudinary URL.
+
+    Handles:
+        https://res.cloudinary.com/{cloud}/raw/upload/v{ver}/{public_id}
+        https://res.cloudinary.com/{cloud}/image/upload/{public_id}
+
+    Returns:
+        (public_id, resource_type) on success
+        (None, None) if the URL can't be parsed or isn't a Cloudinary URL
+    """
+    if not url or not url.startswith('http'):
+        return None, None
+
+    # Detect resource_type from the URL path segment
+    resource_type = 'raw'
+    if '/image/upload/' in url:
+        resource_type = 'image'
+    elif '/video/upload/' in url:
+        resource_type = 'video'
+
+    # Primary: /v{digits}/{public_id} at the end
+    m = re.search(r'/v\d+/(.+)$', url)
+    if not m:
+        # Fallback: everything after /upload/
+        m = re.search(r'/upload/(.+)$', url)
+    if m:
+        return m.group(1), resource_type
+
+    return None, None
+
+
+def _is_cloudinary_host(url):
+    """Check if a URL points to a known Cloudinary domain (SSRF guard)."""
+    if not url:
+        return False
+    from urllib.parse import urlparse
+    hostname = urlparse(url).hostname
+    if not hostname:
+        return False
+    return hostname.endswith('res.cloudinary.com') or hostname.endswith('cloudinary.com')
+
+
+# ═══════════════════════════════════════════════════════════
+#  Upload
+# ═══════════════════════════════════════════════════════════
+
 def upload_file(file_obj, folder="", filename=None, resource_type="auto"):
     """
     Upload a file to Cloudinary.
@@ -50,8 +112,8 @@ def upload_file(file_obj, folder="", filename=None, resource_type="auto"):
         resource_type: "auto", "image", or "raw" (use "raw" for PDFs/docs)
 
     Returns:
-        dict with 'public_id', 'url', 'secure_url', 'resource_type'
-        or None on failure
+        dict with 'public_id', 'url', 'secure_url', 'resource_type', 'format',
+        'original_filename' — or None on failure
     """
     try:
         full_folder = f"{ROOT_FOLDER}/{folder}" if folder else ROOT_FOLDER
@@ -66,14 +128,10 @@ def upload_file(file_obj, folder="", filename=None, resource_type="auto"):
         if filename:
             upload_opts["public_id"] = filename
 
-        # Handle different input types
-        if isinstance(file_obj, str):
-            # It's a file path
-            result = cloudinary.uploader.upload(file_obj, **upload_opts)
-        elif hasattr(file_obj, 'read'):
-            # Flask FileStorage or file-like object
+        if isinstance(file_obj, str) or hasattr(file_obj, 'read'):
             result = cloudinary.uploader.upload(file_obj, **upload_opts)
         else:
+            print(f"[CloudStorage] Unsupported file_obj type: {type(file_obj)}")
             return None
 
         return {
@@ -95,52 +153,90 @@ def upload_from_path(file_path, folder="", filename=None):
     return upload_file(file_path, folder=folder, filename=filename, resource_type="raw")
 
 
+# ═══════════════════════════════════════════════════════════
+#  URL Generation (always signed)
+# ═══════════════════════════════════════════════════════════
+
 def get_file_url(public_id_or_url, resource_type="raw", inline=False):
     """
-    Get the public URL for a stored file.
+    Get a **signed** Cloudinary URL for a stored file.
 
-    If it's already a full URL (starts with http), return as-is.
-    Otherwise, build a signed Cloudinary URL from the public_id.
-    Signed URLs bypass the "restrict unsigned raw access" security setting.
+    Accepts either a bare public_id or a full Cloudinary URL.
+    Full URLs are parsed to extract the public_id, then re-signed.
+    This ensures access even when 'Restrict unsigned raw access' is enabled.
 
     Args:
-        inline: If True, adds fl_attachment:false so browsers display inline (for PDFs in new tabs)
+        public_id_or_url: Cloudinary public_id string or full https:// URL
+        resource_type: "raw", "image", "video". Auto-detected if input is a URL.
+        inline: If True, adds fl_attachment:false so browsers display
+                the file inline (PDFs render in-tab instead of downloading).
+
+    Returns:
+        Signed HTTPS URL string, or None on failure.
     """
     if not public_id_or_url:
         return None
 
-    if public_id_or_url.startswith("http"):
-        return public_id_or_url
+    # If it's a full URL, extract the public_id so we can re-sign it
+    if public_id_or_url.startswith('http'):
+        parsed_id, parsed_type = _parse_cloudinary_url(public_id_or_url)
+        if parsed_id:
+            public_id_or_url = parsed_id
+            resource_type = parsed_type
+        else:
+            # Not a Cloudinary URL or unparseable — return as-is
+            return public_id_or_url
 
     try:
         opts = {
             "resource_type": resource_type,
             "secure": True,
             "sign_url": True,
+            "type": "upload",
         }
         if inline:
             opts["flags"] = "attachment:false"
 
         url = cloudinary.utils.cloudinary_url(public_id_or_url, **opts)
         return url[0] if isinstance(url, tuple) else url
+
     except Exception as e:
         print(f"[CloudStorage] URL generation error: {e}")
         return None
 
 
+def get_signed_url(url_or_public_id, resource_type=None, inline=True):
+    """
+    Convenience wrapper — returns a signed URL with inline display by default.
+
+    Use this when serving files to the browser (PDFs, images in new tabs).
+    The `inline=True` default adds fl_attachment:false so PDFs render
+    in the browser instead of triggering a download.
+    """
+    return get_file_url(
+        url_or_public_id,
+        resource_type=resource_type or "raw",
+        inline=inline,
+    )
+
+
+# ═══════════════════════════════════════════════════════════
+#  Download (server-side)
+# ═══════════════════════════════════════════════════════════
+
 def download_to_temp(public_id_or_url, suffix=".pdf"):
     """
     Download a Cloudinary file to a temporary local file for processing.
-    Returns the temp file path. Caller is responsible for cleanup.
+    Returns the temp file path, or None on failure.
+    Caller is responsible for cleanup (os.unlink).
 
-    Use this when services need a local file path (PDF parsing, image conversion, etc.)
+    Uses signed URLs internally — works regardless of Cloudinary access settings.
     """
     url = get_file_url(public_id_or_url)
     if not url:
         return None
 
     # Sanitize suffix — must be a short extension like .pdf, .png, .jpg
-    # Callers sometimes pass mangled Cloudinary URL fragments as suffix
     if suffix and (len(suffix) > 10 or '/' in suffix):
         suffix = '.pdf'
     if suffix and not suffix.startswith('.'):
@@ -155,42 +251,55 @@ def download_to_temp(public_id_or_url, suffix=".pdf"):
         tmp.close()
         return tmp.name
 
+    except http_requests.RequestException as e:
+        print(f"[CloudStorage] Download failed ({resp.status_code if 'resp' in dir() else '?'}): {e}")
+        return None
     except Exception as e:
         print(f"[CloudStorage] Download error: {e}")
         return None
 
 
-def delete_file(public_id, resource_type="raw"):
+# ═══════════════════════════════════════════════════════════
+#  Delete
+# ═══════════════════════════════════════════════════════════
+
+def delete_file(public_id_or_url, resource_type="raw"):
     """
     Delete a file from Cloudinary.
 
-    Args:
-        public_id: The Cloudinary public_id of the file
-        resource_type: "raw", "image", or "video"
+    Accepts either a bare public_id or a full Cloudinary URL.
+    URLs are parsed to extract the public_id before deletion.
 
     Returns:
         True on success, False on failure
     """
-    if not public_id:
+    if not public_id_or_url:
         return False
 
-    # If it's a URL, don't try to delete
-    if public_id.startswith("http"):
-        return False
+    # Extract public_id from URL if needed
+    if public_id_or_url.startswith('http'):
+        parsed_id, parsed_type = _parse_cloudinary_url(public_id_or_url)
+        if not parsed_id:
+            print(f"[CloudStorage] Cannot extract public_id for deletion: {public_id_or_url}")
+            return False
+        public_id_or_url = parsed_id
+        resource_type = parsed_type
 
     try:
-        result = cloudinary.uploader.destroy(public_id, resource_type=resource_type)
+        result = cloudinary.uploader.destroy(public_id_or_url, resource_type=resource_type)
         return result.get("result") == "ok"
     except Exception as e:
         print(f"[CloudStorage] Delete error: {e}")
         return False
 
 
+# ═══════════════════════════════════════════════════════════
+#  Helpers
+# ═══════════════════════════════════════════════════════════
+
 def is_cloudinary_url(url):
     """Check if a URL is a Cloudinary URL."""
-    if not url:
-        return False
-    return "cloudinary" in url or "res.cloudinary.com" in url
+    return _is_cloudinary_host(url)
 
 
 def is_configured():
