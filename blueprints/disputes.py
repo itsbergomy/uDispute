@@ -1788,7 +1788,7 @@ def serve_upload(filename):
     if doc and doc.file_url and doc.file_url.startswith('http'):
         if not is_cloudinary_url(doc.file_url):
             abort(403)
-        return redirect(get_signed_url(doc.file_url, inline=True))
+        return redirect(doc.file_url)
 
     upload_base = current_app.config.get('UPLOAD_FOLDER', 'uploads')
     user_folder = os.path.join(upload_base, str(current_user.id))

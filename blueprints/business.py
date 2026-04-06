@@ -330,12 +330,12 @@ def view_correspondence_file(client_id, filename):
     if client.business_user_id != current_user.id:
         abort(403)
 
-    # Check if this correspondence has a Cloudinary URL — serve signed + inline
+    # Check if this correspondence has a Cloudinary URL
     corr = Correspondence.query.filter_by(client_id=client_id, filename=filename).first()
     if corr and corr.file_url and corr.file_url.startswith('http'):
         if not is_cloudinary_url(corr.file_url):
             abort(403)
-        return redirect(get_signed_url(corr.file_url, inline=True))
+        return redirect(corr.file_url)
 
     corr_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(client_id), 'correspondence')
     return send_from_directory(corr_dir, filename)
@@ -514,13 +514,12 @@ def client_file(client_id, filetype):
     if not fn:
         abort(404)
 
-    # If it's a Cloudinary URL, serve a signed URL with inline display.
-    # Signed URLs bypass 'Restrict unsigned raw access' settings.
-    # fl_attachment:false ensures PDFs render in-browser instead of downloading.
+    # If it's a Cloudinary URL, redirect to it directly.
+    # The unsigned secure_url from upload works for inline display.
     if fn.startswith('http'):
         if not is_cloudinary_url(fn):
             abort(403)  # Unknown host — refuse to redirect (SSRF guard)
-        return redirect(get_signed_url(fn, inline=True))
+        return redirect(fn)
 
     # Files are saved in client-specific subdirectories; fall back to root for legacy files
     upload_dir = current_app.config['UPLOAD_FOLDER']
