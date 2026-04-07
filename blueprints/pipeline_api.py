@@ -521,6 +521,56 @@ def start_next_round(pipeline_id):
     })
 
 
+@pipeline_bp.route('/pipeline/<int:pipeline_id>/retry', methods=['POST'])
+@login_required
+def retry_pipeline(pipeline_id):
+    """
+    Retry a stuck or failed pipeline from its current state.
+    Re-kicks the advance loop in a background thread.
+    """
+    pipeline = DisputePipeline.query.get(pipeline_id)
+    if not pipeline:
+        return jsonify({'error': 'Pipeline not found'}), 404
+    if pipeline.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    current = pipeline.state
+    if current in ('completed',):
+        return jsonify({'error': 'Pipeline already completed'}), 400
+
+    # If it's in a failed state, reset to the last known good state
+    if current == 'failed':
+        # Try to resume from the last failed task's state
+        last_task = PipelineTask.query.filter_by(
+            pipeline_id=pipeline_id, state='failed'
+        ).order_by(PipelineTask.created_at.desc()).first()
+        if last_task:
+            current = last_task.task_type
+            pipeline.state = current
+            pipeline.error_message = None
+            last_task.state = 'pending'
+            last_task.error_message = None
+            last_task.completed_at = None
+            db.session.commit()
+
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[RETRY] Pipeline {pipeline_id} — retrying from state '{current}'")
+
+    thread = threading.Thread(
+        target=_run_pipeline_bg,
+        args=(pipeline.id,),
+        daemon=True,
+    )
+    thread.start()
+
+    return jsonify({
+        'message': f'Pipeline retrying from "{current}"',
+        'pipeline_id': pipeline.id,
+        'state': current,
+    })
+
+
 @pipeline_bp.route('/pipeline/<int:pipeline_id>/rounds', methods=['GET'])
 @login_required
 def get_pipeline_rounds(pipeline_id):
