@@ -458,6 +458,7 @@ def handle_strategy(pipeline):
     """Dispute ALL extracted accounts — every negative item gets a letter."""
     # ── PHASE 1: Read everything from DB into plain Python variables ──
     pipeline_id = pipeline.id
+    user_id = pipeline.user_id
     round_number = pipeline.round_number
     strategy_data = json.loads(pipeline.strategy_json or '{}')
     negative_items = strategy_data.get('negative_items', [])
@@ -467,8 +468,9 @@ def handle_strategy(pipeline):
     if not negative_items:
         raise ValueError("No negative items found to dispute — run Extract Accounts first")
 
-    # For round > 1, read unresolved accounts into plain dicts
+    # For round > 1, read unresolved accounts AND previous outcomes into plain dicts
     unresolved_dicts = []
+    prev_outcome_map = {}
     if round_number > 1:
         unresolved = DisputeAccount.query.filter(
             DisputeAccount.pipeline_id == pipeline_id,
@@ -479,12 +481,18 @@ def handle_strategy(pipeline):
             {'account_name': a.account_name, 'account_number': a.account_number}
             for a in unresolved
         ]
+        # Cache previous round outcomes for smart escalation
+        prev_all = DisputeAccount.query.filter_by(
+            pipeline_id=pipeline_id,
+            round_number=round_number - 1,
+        ).all()
+        prev_outcome_map = {a.account_name: a.outcome for a in prev_all if a.outcome}
 
-    # ── PHASE 2: Release DB connection before any API calls ──
+    # ── PHASE 2: Release DB connection before any compute ──
     db.session.expunge_all()
     db.session.remove()
 
-    # ── PHASE 3: Do all the thinking (API calls) with NO db connection ──
+    # ── PHASE 3: Do all the thinking with NO db connection ──
     if round_number > 1:
         decisions = [
             {
@@ -533,18 +541,9 @@ def handle_strategy(pipeline):
     if round_number > 1 and negative_items:
         try:
             from services.escalation_engine import recommend_escalation
-            # Use first account's outcome to drive recommendation
             first_account_name = negative_items[0].get('account_name', '')
-            prev_accounts = DisputeAccount.query.filter_by(
-                pipeline_id=pipeline_id,
-                round_number=round_number - 1,
-            ).all()
-            prev_outcome = 'verified'
-            for pa in prev_accounts:
-                if pa.account_name == first_account_name and pa.outcome:
-                    prev_outcome = pa.outcome
-                    break
-            rec = recommend_escalation(pipeline.user_id, first_account_name, round_number - 1, prev_outcome)
+            prev_outcome = prev_outcome_map.get(first_account_name, 'verified')
+            rec = recommend_escalation(user_id, first_account_name, round_number - 1, prev_outcome)
             if rec and rec.get('confidence', 0) > 0.4 and rec.get('source') != 'default_ladder':
                 pack = rec['pack']
                 logger.info(f"[PIPELINE] Smart escalation: {first_account_name} → {pack} (confidence: {rec['confidence']}, source: {rec['source']})")
