@@ -557,12 +557,9 @@ def retry_pipeline(pipeline_id):
     logger = logging.getLogger(__name__)
     logger.info(f"[RETRY] Pipeline {pipeline_id} — retrying from state '{current}'")
 
-    thread = threading.Thread(
-        target=_run_pipeline_bg,
-        args=(pipeline.id,),
-        daemon=True,
-    )
-    thread.start()
+    # _run_pipeline_bg already spawns its own thread — call it directly
+    # so it can capture current_app from the request context
+    _run_pipeline_bg(pipeline.id)
 
     return jsonify({
         'message': f'Pipeline retrying from "{current}"',

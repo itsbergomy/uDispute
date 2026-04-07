@@ -456,6 +456,7 @@ def handle_analysis(pipeline):
 
 def handle_strategy(pipeline):
     """Dispute ALL extracted accounts — every negative item gets a letter."""
+    logger.info(f"[STRATEGY] Starting handle_strategy for pipeline {pipeline.id}, round {pipeline.round_number}")
     # ── PHASE 1: Read everything from DB into plain Python variables ──
     pipeline_id = pipeline.id
     user_id = pipeline.user_id
@@ -464,6 +465,8 @@ def handle_strategy(pipeline):
     negative_items = strategy_data.get('negative_items', [])
     analysis = strategy_data.get('analysis', {})
     agent_config = strategy_data.get('agent_config', {})
+
+    logger.info(f"[STRATEGY] negative_items count: {len(negative_items)}")
 
     if not negative_items:
         raise ValueError("No negative items found to dispute — run Extract Accounts first")
@@ -487,6 +490,8 @@ def handle_strategy(pipeline):
             round_number=round_number - 1,
         ).all()
         prev_outcome_map = {a.account_name: a.outcome for a in prev_all if a.outcome}
+
+    logger.info(f"[STRATEGY] Round {round_number}: unresolved={len(unresolved_dicts)}, prev_outcomes={len(prev_outcome_map)}")
 
     # ── PHASE 2: Release DB connection before any compute ──
     db.session.expunge_all()
@@ -578,6 +583,7 @@ def handle_strategy(pipeline):
             db.session.add(account)
 
     db.session.commit()
+    logger.info(f"[STRATEGY] Done. Created {len(decisions) * len(targets)} DisputeAccount records. Advancing to generation.")
     return 'generation'
 
 
