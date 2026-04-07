@@ -4,8 +4,9 @@ Extracted from dispute_ui.py — handles prompt packs and GPT letter generation.
 """
 
 import os
+import asyncio
 import tempfile
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
 from dotenv import load_dotenv
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.units import inch
@@ -19,6 +20,7 @@ from PIL import Image
 load_dotenv()
 
 openai_client = OpenAI()
+async_openai_client = AsyncOpenAI()
 
 # ─── FCRA Inaccuracy Mapping ───
 
@@ -760,6 +762,149 @@ def generate_letter_with_quality_gate(
         current_prompt = f"{failure_feedback}\n\n{prompt}"
 
     return letter_text, result
+
+
+# ═══════════════════════════════════════════════════════════
+#  Async / Parallel Letter Generation
+# ═══════════════════════════════════════════════════════════
+
+async def generate_letter_async(prompt, model="o3", has_inaccuracies=False,
+                                has_legal_research=False, is_notice=False):
+    """Async version of generate_letter — uses AsyncOpenAI client."""
+    if is_notice:
+        system_prompt = SYSTEM_PROMPT_NOTICE_OF_DISPUTE
+    elif has_legal_research:
+        system_prompt = SYSTEM_PROMPT_WITH_LEGAL_RESEARCH
+    elif has_inaccuracies:
+        system_prompt = SYSTEM_PROMPT_WITH_INACCURACIES
+    else:
+        system_prompt = SYSTEM_PROMPT_BASE
+
+    response = await async_openai_client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return response.choices[0].message.content
+
+
+async def generate_letter_with_quality_gate_async(
+    prompt, model="o3", has_inaccuracies=False, has_legal_research=False,
+    is_notice=False, quality_context=None, max_retries=2,
+):
+    """Async version of generate_letter_with_quality_gate."""
+    from services.letter_quality_gate import check_letter_quality, format_failures_for_retry
+
+    ctx = quality_context or {}
+    current_prompt = prompt
+
+    for attempt in range(1 + max_retries):
+        letter_text = await generate_letter_async(
+            current_prompt, model=model,
+            has_inaccuracies=has_inaccuracies,
+            has_legal_research=has_legal_research,
+            is_notice=is_notice,
+        )
+
+        result = check_letter_quality(
+            letter_text=letter_text,
+            account_name=ctx.get('account_name', ''),
+            account_number=ctx.get('account_number', ''),
+            bureau=ctx.get('bureau', ''),
+            prompt_pack=ctx.get('prompt_pack', 'default'),
+            round_number=ctx.get('round_number', 1),
+            client_full_name=ctx.get('client_full_name', ''),
+            client_address=ctx.get('client_address', ''),
+            parsed_balance=ctx.get('parsed_balance'),
+            parsed_dofd=ctx.get('parsed_dofd'),
+            user_provided_docs=ctx.get('user_provided_docs', []),
+        )
+
+        if result.passed or attempt >= max_retries:
+            return letter_text, result
+
+        failure_feedback = format_failures_for_retry(result)
+        current_prompt = f"{failure_feedback}\n\n{prompt}"
+
+    return letter_text, result
+
+
+async def generate_letters_batch(tasks):
+    """
+    Generate multiple letters concurrently using asyncio.gather().
+
+    Args:
+        tasks: List of dicts, each with keys:
+            - prompt (str): The filled prompt
+            - has_inaccuracies (bool)
+            - has_legal_research (bool)
+            - is_notice (bool)
+            - quality_context (dict, optional)
+            - account_id: Passed through for tracking
+
+    Returns:
+        List of dicts with keys:
+            - account_id: From input
+            - letter_text: Generated letter
+            - quality_result: Quality gate result object
+            - error: Error message if generation failed, else None
+    """
+    async def _run_one(task):
+        try:
+            letter_text, qr = await generate_letter_with_quality_gate_async(
+                prompt=task['prompt'],
+                has_inaccuracies=task.get('has_inaccuracies', False),
+                has_legal_research=task.get('has_legal_research', False),
+                is_notice=task.get('is_notice', False),
+                quality_context=task.get('quality_context'),
+            )
+            return {
+                'account_id': task.get('account_id'),
+                'letter_text': letter_text,
+                'quality_result': qr,
+                'error': None,
+            }
+        except Exception as e:
+            return {
+                'account_id': task.get('account_id'),
+                'letter_text': None,
+                'quality_result': None,
+                'error': str(e),
+            }
+
+    results = await asyncio.gather(*[_run_one(t) for t in tasks])
+    return list(results)
+
+
+async def generate_dual_letters_async(cra_prompt, furnisher_prompt, model="o3",
+                                      has_inaccuracies=False, has_legal_research=False):
+    """Async version of generate_dual_letters — both letters generated concurrently."""
+    if has_legal_research:
+        cra_system = SYSTEM_PROMPT_WITH_LEGAL_RESEARCH
+    elif has_inaccuracies:
+        cra_system = SYSTEM_PROMPT_WITH_INACCURACIES
+    else:
+        cra_system = SYSTEM_PROMPT_BASE
+
+    cra_task = async_openai_client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": cra_system},
+            {"role": "user", "content": cra_prompt}
+        ]
+    )
+    furnisher_task = async_openai_client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT_FURNISHER_DIRECT},
+            {"role": "user", "content": furnisher_prompt}
+        ]
+    )
+
+    cra_response, furnisher_response = await asyncio.gather(cra_task, furnisher_task)
+    return cra_response.choices[0].message.content, furnisher_response.choices[0].message.content
 
 
 def build_prompt(template_pack, template_index, context, parsed_accounts=None,

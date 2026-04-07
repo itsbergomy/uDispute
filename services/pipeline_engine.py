@@ -22,6 +22,7 @@ from services.strategy import (
 )
 from services.letter_generator import (
     PACKS, generate_letter, generate_letter_with_quality_gate,
+    generate_letters_batch,
     build_prompt, letter_to_pdf, image_to_pdf, merge_dispute_package
 )
 from services.delivery import mail_letter_via_docupost
@@ -747,14 +748,17 @@ def handle_generation(pipeline):
     db.session.expunge_all()
     db.session.remove()
 
-    generated_letters = []  # Collect results to save later
+    # ── PHASE 2a: Build all prompts (sync, fast — no API calls) ──
+    import asyncio
+    import time as _time
+
+    batch_tasks = []       # Tasks for async batch generation
+    custom_letters = []    # Custom body letters (no API needed)
 
     for ad in accounts_data:
         if ad['bureau'] == 'cfpb':
             logger.info(f"[PIPELINE] Skipping letter generation for {ad['account_name']} — flagged for CFPB complaint")
             continue
-
-        logger.info(f"Generating letter for {ad['account_name']} / {ad['bureau']}")
 
         # Build recipient
         if send_to == 'creditors':
@@ -766,7 +770,6 @@ def handle_generation(pipeline):
             recipient = BUREAU_ADDRESSES.get(ad['bureau'].lower(), {'name': ad['bureau'].title()})
 
         # Build context from plain dicts (no ORM objects)
-        # Reconstruct a minimal account-like dict for _get_client_context
         class _Obj:
             pass
         account_obj = _Obj()
@@ -777,6 +780,16 @@ def handle_generation(pipeline):
             setattr(client_obj, k, v)
 
         context = _get_client_context(client_obj, account_obj, recipient)
+
+        if custom_body:
+            custom_letters.append({
+                'account_id': ad['id'],
+                'letter_text': _sanitize_letter(custom_body, context),
+                'quality_score': 100,
+                'quality_warnings': [],
+                'template_name': f"{ad['template_pack']} - {ad['bureau']}",
+            })
+            continue
 
         relevant_accounts = [
             a for a in parsed_accounts
@@ -797,52 +810,68 @@ def handle_generation(pipeline):
             except Exception as e:
                 logger.warning(f"Legal research failed for {ad['account_name']}: {e}")
 
-        # Generate the letter (API call — no DB needed)
-        try:
-            qr = None  # Quality result — set by quality gate below
-            if custom_body:
-                letter_text = _sanitize_letter(custom_body, context)
-            else:
-                prompt, has_inaccuracies, has_legal = build_prompt(
-                    ad['template_pack'], 0, context,
-                    parsed_accounts=relevant_accounts,
-                    legal_research_context=legal_context,
-                )
-                # Run through quality gate with auto-retry
-                quality_context = {
-                    'account_name': ad.get('account_name', ''),
-                    'account_number': ad.get('account_number', ''),
-                    'bureau': ad.get('bureau', ''),
-                    'prompt_pack': ad.get('template_pack', 'default'),
-                    'round_number': ad.get('round_number', 1),
-                    'client_full_name': context.get('client_full_name', ''),
-                    'client_address': context.get('client_address', ''),
-                    'parsed_balance': ad.get('balance'),
-                    'parsed_dofd': ad.get('dofd'),
-                }
-                raw_letter, qr = generate_letter_with_quality_gate(
-                    prompt, has_inaccuracies=has_inaccuracies,
-                    has_legal_research=has_legal,
-                    quality_context=quality_context,
-                )
-                if qr.warnings:
-                    logger.warning(f"Quality warnings for {ad['account_name']}/{ad['bureau']}: {qr.warnings}")
-                if not qr.passed:
-                    logger.error(f"Quality gate FAILED for {ad['account_name']}/{ad['bureau']} after retries: {qr.failures}")
-                letter_text = _sanitize_letter(raw_letter, context)
+        prompt, has_inaccuracies, has_legal = build_prompt(
+            ad['template_pack'], 0, context,
+            parsed_accounts=relevant_accounts,
+            legal_research_context=legal_context,
+        )
+
+        batch_tasks.append({
+            'account_id': ad['id'],
+            'account_name': ad['account_name'],
+            'bureau': ad['bureau'],
+            'prompt': prompt,
+            'has_inaccuracies': has_inaccuracies,
+            'has_legal_research': has_legal,
+            'quality_context': {
+                'account_name': ad.get('account_name', ''),
+                'account_number': ad.get('account_number', ''),
+                'bureau': ad.get('bureau', ''),
+                'prompt_pack': ad.get('template_pack', 'default'),
+                'round_number': ad.get('round_number', 1),
+                'client_full_name': context.get('client_full_name', ''),
+                'client_address': context.get('client_address', ''),
+                'parsed_balance': ad.get('balance'),
+                'parsed_dofd': ad.get('dofd'),
+            },
+            'context': context,
+            'template_name': f"{ad['template_pack']} - {ad['bureau']}",
+        })
+
+    # ── PHASE 2b: Fire all API calls concurrently ──
+    generated_letters = list(custom_letters)  # Start with custom body letters
+
+    if batch_tasks:
+        n = len(batch_tasks)
+        logger.info(f"[PIPELINE] Generating {n} letters in parallel via asyncio.gather()...")
+        t_start = _time.time()
+
+        batch_results = asyncio.run(generate_letters_batch(batch_tasks))
+
+        elapsed = _time.time() - t_start
+        logger.info(f"[PIPELINE] Batch generation complete: {n} letters in {elapsed:.1f}s ({elapsed/n:.1f}s avg)")
+
+        for br, task in zip(batch_results, batch_tasks):
+            if br['error']:
+                logger.error(f"Failed to generate letter for {task['account_name']} / {task['bureau']}: {br['error']}")
+                continue
+
+            qr = br['quality_result']
+            if qr and qr.warnings:
+                logger.warning(f"Quality warnings for {task['account_name']}/{task['bureau']}: {qr.warnings}")
+            if qr and not qr.passed:
+                logger.error(f"Quality gate FAILED for {task['account_name']}/{task['bureau']} after retries: {qr.failures}")
+
+            letter_text = _sanitize_letter(br['letter_text'], task['context'])
 
             generated_letters.append({
-                'account_id': ad['id'],
+                'account_id': task['account_id'],
                 'letter_text': letter_text,
                 'quality_score': qr.score if qr else 100,
                 'quality_warnings': (qr.failures + qr.warnings) if qr else [],
-                'template_name': f"{ad['template_pack']} - {ad['bureau']}",
+                'template_name': task['template_name'],
             })
-            logger.info(f"Generated letter for {ad['account_name']} / {ad['bureau']}")
-
-        except Exception as e:
-            logger.error(f"Failed to generate letter for {ad['account_name']} / {ad['bureau']}: {e}")
-            continue
+            logger.info(f"Generated letter for {task['account_name']} / {task['bureau']}")
 
     if not generated_letters:
         raise ValueError("Failed to generate any letters — all API calls failed")
