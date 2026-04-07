@@ -516,16 +516,38 @@ def client_file(client_id, filetype):
         abort(404)
 
     # If it's a Cloudinary URL, redirect to it.
-    # Raw resources (PDFs) need signed URLs — Cloudinary restricts unsigned raw access.
     if fn.startswith('http'):
         if not is_cloudinary_url(fn):
-            print(f"[CLIENT_FILE] SSRF BLOCK: {fn}", flush=True)
             abort(403)
+
+        # Raw resources (PDFs/docs): Cloudinary may strip the file extension
+        # during upload, causing it to serve as application/octet-stream.
+        # Browsers then download the file instead of displaying it.
+        # Fix: proxy through Flask with the correct Content-Type header.
         if '/raw/upload/' in fn:
             signed = get_signed_url(fn, inline=False)
-            print(f"[CLIENT_FILE] Raw → signed redirect: {signed}", flush=True)
-            return redirect(signed)
-        print(f"[CLIENT_FILE] Image → direct redirect: {fn}", flush=True)
+            try:
+                import requests as http_req
+                resp = http_req.get(signed, timeout=30, stream=True)
+                if resp.status_code != 200:
+                    abort(resp.status_code)
+                # Detect content type from extension or default to PDF
+                ext = fn.rsplit('/', 1)[-1].rsplit('.', 1)
+                if len(ext) == 2:
+                    ctype = resp.headers.get('content-type', 'application/pdf')
+                else:
+                    ctype = 'application/pdf'
+                from flask import Response
+                return Response(
+                    resp.iter_content(chunk_size=8192),
+                    content_type=ctype,
+                    headers={'Content-Disposition': 'inline'}
+                )
+            except Exception as e:
+                print(f"[CLIENT_FILE] Proxy error: {e}", flush=True)
+                return redirect(fn)  # Fallback to direct redirect
+
+        # Image resources work fine with direct redirect
         return redirect(fn)
 
     # Files are saved in client-specific subdirectories; fall back to root for legacy files

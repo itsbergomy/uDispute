@@ -123,6 +123,8 @@ def upload_file(file_obj, folder="", filename=None, resource_type="auto"):
             "resource_type": resource_type,
             "overwrite": True,
             "invalidate": True,
+            "use_filename": True,
+            "unique_filename": True,
         }
 
         if filename:
