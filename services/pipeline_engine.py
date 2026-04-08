@@ -482,7 +482,7 @@ def handle_strategy(pipeline):
             DisputeAccount.round_number == round_number - 1,
         ).all()
         unresolved_dicts = [
-            {'account_name': a.account_name, 'account_number': a.account_number}
+            {'account_name': a.account_name, 'account_number': a.account_number, 'bureau': a.bureau}
             for a in unresolved
         ]
         # Cache previous round outcomes for smart escalation
@@ -504,6 +504,7 @@ def handle_strategy(pipeline):
             {
                 'account_name': d['account_name'],
                 'account_number': d['account_number'],
+                'bureau': d.get('bureau', 'experian'),
                 'reason': f'Previous dispute was verified/no response. Escalating to round {round_number}.',
                 'legal_basis': '',
             }
@@ -566,14 +567,18 @@ def handle_strategy(pipeline):
     pipeline = DisputePipeline.query.get(pipeline_id)
     pipeline.strategy_json = json.dumps(strategy_data)
 
-    for decision in decisions:
-        for target in targets:
+    created_count = 0
+    if round_number > 1:
+        # Round 2+: create 1 DisputeAccount per unresolved account-bureau pair
+        # (only the specific bureau that returned verified/no_response/stall)
+        for decision in decisions:
+            bureau = decision.get('bureau', 'experian')
             action, issue = build_dispute_reason(decision, round_number)
             account = DisputeAccount(
                 pipeline_id=pipeline_id,
                 account_name=decision.get('account_name', ''),
                 account_number=decision.get('account_number', ''),
-                bureau=target,
+                bureau=bureau,
                 status=decision.get('reason', ''),
                 issue=issue,
                 template_pack=pack,
@@ -582,9 +587,29 @@ def handle_strategy(pipeline):
                 round_number=round_number,
             )
             db.session.add(account)
+            created_count += 1
+    else:
+        # Round 1: every account × every bureau
+        for decision in decisions:
+            for target in targets:
+                action, issue = build_dispute_reason(decision, round_number)
+                account = DisputeAccount(
+                    pipeline_id=pipeline_id,
+                    account_name=decision.get('account_name', ''),
+                    account_number=decision.get('account_number', ''),
+                    bureau=target,
+                    status=decision.get('reason', ''),
+                    issue=issue,
+                    template_pack=pack,
+                    dispute_reason=decision.get('legal_basis', ''),
+                    escalation_level=level,
+                    round_number=round_number,
+                )
+                db.session.add(account)
+                created_count += 1
 
     db.session.commit()
-    logger.info(f"[STRATEGY] Done. Created {len(decisions) * len(targets)} DisputeAccount records. Advancing to generation.")
+    logger.info(f"[STRATEGY] Done. Created {created_count} DisputeAccount records. Advancing to generation.")
     return 'generation'
 
 
