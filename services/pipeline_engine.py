@@ -23,7 +23,8 @@ from services.strategy import (
 from services.letter_generator import (
     PACKS, generate_letter, generate_letter_with_quality_gate,
     generate_letters_batch,
-    build_prompt, letter_to_pdf, image_to_pdf, merge_dispute_package
+    build_prompt, build_prompt_multi,
+    letter_to_pdf, image_to_pdf, merge_dispute_package
 )
 from services.delivery import mail_letter_via_docupost
 
@@ -477,7 +478,7 @@ def handle_strategy(pipeline):
     if round_number > 1:
         unresolved = DisputeAccount.query.filter(
             DisputeAccount.pipeline_id == pipeline_id,
-            DisputeAccount.outcome.in_(['verified', 'no_response']),
+            DisputeAccount.outcome.in_(['verified', 'no_response', 'stall']),
             DisputeAccount.round_number == round_number - 1,
         ).all()
         unresolved_dicts = [
@@ -585,6 +586,166 @@ def handle_strategy(pipeline):
     db.session.commit()
     logger.info(f"[STRATEGY] Done. Created {len(decisions) * len(targets)} DisputeAccount records. Advancing to generation.")
     return 'generation'
+
+
+def _generate_consolidated_round2(pipeline_id, client_id, client_data, accounts_data,
+                                   parsed_accounts, round_number, agent_config, legal_data,
+                                   send_to, creditor_addresses, prev_outcomes):
+    """
+    Round 2+ consolidated letter generation: 1 letter per bureau.
+
+    Groups all unresolved accounts by bureau and generates a single escalation
+    letter per bureau referencing all accounts for that bureau.
+    """
+    import asyncio
+    import time as _time
+    from collections import defaultdict
+
+    # Group accounts by bureau (skip CFPB)
+    bureau_groups = defaultdict(list)
+    for ad in accounts_data:
+        if ad['bureau'] == 'cfpb':
+            logger.info(f"[PIPELINE] Skipping {ad['account_name']} — flagged for CFPB complaint")
+            continue
+        bureau_groups[ad['bureau']].append(ad)
+
+    if not bureau_groups:
+        raise ValueError("No accounts to generate letters for (all CFPB or empty)")
+
+    logger.info(f"[PIPELINE] Round {round_number} consolidated: {len(bureau_groups)} bureau(s), "
+                f"{sum(len(v) for v in bureau_groups.values())} total accounts")
+
+    # Release DB before API calls
+    db.session.expunge_all()
+    db.session.remove()
+
+    # Build 1 task per bureau
+    batch_tasks = []
+    for bureau, group in bureau_groups.items():
+        # Build recipient
+        if send_to == 'creditors':
+            recipient = next(
+                (c for c in creditor_addresses if c['name'] == bureau),
+                {'name': bureau}
+            )
+        else:
+            recipient = BUREAU_ADDRESSES.get(bureau.lower(), {'name': bureau.title()})
+
+        # Build client context (same for all accounts)
+        class _Obj:
+            pass
+        client_obj = _Obj()
+        for k, v in client_data.items():
+            setattr(client_obj, k, v)
+        # Use first account for the _get_client_context call
+        account_obj = _Obj()
+        for k, v in group[0].items():
+            setattr(account_obj, k, v)
+        context = _get_client_context(client_obj, account_obj, recipient)
+        context['round_number'] = round_number
+
+        # Build accounts_list for the consolidated prompt
+        accounts_list = []
+        account_ids = []
+        for ad in group:
+            prev_outcome = prev_outcomes.get((ad['account_name'], bureau), 'verified')
+            accounts_list.append({
+                'account_name': ad.get('account_name', ''),
+                'account_number': ad.get('account_number', ''),
+                'status': ad.get('status', ''),
+                'issue': ad.get('issue', ''),
+                'dispute_reason': ad.get('dispute_reason', ''),
+                'prev_outcome': prev_outcome,
+            })
+            account_ids.append(ad['id'])
+
+        # Aggregate legal research for all accounts in this bureau group
+        legal_parts = []
+        for ad in group:
+            if ad['id'] in legal_data:
+                legal_parts.append(legal_data[ad['id']])
+        combined_legal = "\n\n---\n\n".join(legal_parts) if legal_parts else None
+
+        # Build consolidated prompt
+        pack = group[0].get('template_pack', 'default')
+        prompt, has_inaccuracies, has_legal = build_prompt_multi(
+            pack, context, accounts_list,
+            parsed_accounts=parsed_accounts,
+            legal_research_context=combined_legal,
+        )
+
+        batch_tasks.append({
+            'account_ids': account_ids,
+            'bureau': bureau,
+            'prompt': prompt,
+            'has_inaccuracies': has_inaccuracies,
+            'has_legal_research': has_legal,
+            'quality_context': {
+                'account_name': ', '.join(a['account_name'] for a in accounts_list),
+                'account_number': accounts_list[0].get('account_number', ''),
+                'bureau': bureau,
+                'prompt_pack': pack,
+                'round_number': round_number,
+                'client_full_name': context.get('client_full_name', ''),
+                'client_address': context.get('client_address', ''),
+            },
+            'context': context,
+            'template_name': f"{pack} - {bureau} (Round {round_number} consolidated)",
+        })
+
+    # Fire all bureau letters concurrently
+    n = len(batch_tasks)
+    logger.info(f"[PIPELINE] Generating {n} consolidated letters in parallel...")
+    t_start = _time.time()
+
+    batch_results = asyncio.run(generate_letters_batch(batch_tasks))
+
+    elapsed = _time.time() - t_start
+    logger.info(f"[PIPELINE] Consolidated batch complete: {n} letters in {elapsed:.1f}s")
+
+    # Save results — 1 letter per bureau, linking all accounts
+    generated_count = 0
+    for br, task in zip(batch_results, batch_tasks):
+        if br['error']:
+            logger.error(f"Failed consolidated letter for {task['bureau']}: {br['error']}")
+            continue
+
+        qr = br['quality_result']
+        if qr and qr.warnings:
+            logger.warning(f"Quality warnings for {task['bureau']} consolidated: {qr.warnings}")
+        if qr and not qr.passed:
+            logger.error(f"Quality gate FAILED for {task['bureau']} consolidated: {qr.failures}")
+
+        letter_text = _sanitize_letter(br['letter_text'], task['context'])
+
+        import json as _json
+        letter_record = ClientDisputeLetter(
+            client_id=client_id,
+            letter_text=letter_text,
+            status='Draft',
+            template_name=task['template_name'],
+            round_number=round_number,
+            quality_score=qr.score if qr else 100,
+            quality_warnings=_json.dumps((qr.failures + qr.warnings) if qr else []),
+        )
+        db.session.add(letter_record)
+        db.session.flush()
+
+        # Link ALL accounts for this bureau to this single letter
+        for acct_id in task['account_ids']:
+            account = DisputeAccount.query.get(acct_id)
+            if account:
+                account.letter_id = letter_record.id
+
+        generated_count += 1
+        logger.info(f"Generated consolidated letter for {task['bureau']} "
+                     f"({len(task['account_ids'])} accounts)")
+
+    if generated_count == 0:
+        raise ValueError("Failed to generate any consolidated letters — all API calls failed")
+
+    db.session.commit()
+    return 'review'
 
 
 def _generate_notice_of_dispute(pipeline, client_data, accounts_data, round_number):
@@ -748,6 +909,22 @@ def handle_generation(pipeline):
             ).order_by(BureauResponse.uploaded_at.desc()).first()
             if prev_response and prev_response.analysis_json:
                 legal_data[ad['id']] = prev_response.analysis_json
+
+    # ── Round 2+ consolidated letters: 1 per bureau instead of 1 per account ──
+    if round_number > 1 and not custom_body:
+        # Read previous round outcomes (needed for consolidated prompt context)
+        prev_outcomes = {}
+        prev_round_accounts = DisputeAccount.query.filter_by(
+            pipeline_id=pipeline_id, round_number=round_number - 1
+        ).all()
+        for pa in prev_round_accounts:
+            prev_outcomes[(pa.account_name, pa.bureau)] = pa.outcome
+
+        return _generate_consolidated_round2(
+            pipeline_id, client_id, client_data, accounts_data,
+            parsed_accounts, round_number, agent_config, legal_data,
+            send_to, creditor_addresses, prev_outcomes,
+        )
 
     # ── PHASE 2: Release DB — do all API work with no connection ──
     db.session.expunge_all()
@@ -1252,7 +1429,7 @@ def handle_response_received(pipeline):
     # ── Full Auto Mode: skip round_review, auto-escalate ──
     agent_config_mode = agent_config.get('mode', 'supervised')
     if agent_config_mode == 'full_auto':
-        unresolved = [a for a in accounts if a.outcome not in ('removed', 'updated')]
+        unresolved = [a for a in accounts if a.outcome in ('verified', 'no_response', 'stall')]
         if unresolved:
             logger.info(f"[PIPELINE] Full auto mode — auto-escalating {len(unresolved)} "
                         f"unresolved accounts to round {pipeline.round_number + 1}")

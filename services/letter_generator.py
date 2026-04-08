@@ -862,6 +862,7 @@ async def generate_letters_batch(tasks):
             )
             return {
                 'account_id': task.get('account_id'),
+                'account_ids': task.get('account_ids', []),
                 'letter_text': letter_text,
                 'quality_result': qr,
                 'error': None,
@@ -869,6 +870,7 @@ async def generate_letters_batch(tasks):
         except Exception as e:
             return {
                 'account_id': task.get('account_id'),
+                'account_ids': task.get('account_ids', []),
                 'letter_text': None,
                 'quality_result': None,
                 'error': str(e),
@@ -994,6 +996,131 @@ def build_prompt(template_pack, template_index, context, parsed_accounts=None,
             has_inaccuracies = True
 
     # Append legal research context if provided
+    has_legal_research = False
+    legal_section = ""
+    if legal_research_context and legal_research_context.strip():
+        legal_section = "\n\n--- LEGAL RESEARCH FINDINGS ---\n\n" + legal_research_context
+        has_legal_research = True
+
+    return preamble + body + inaccuracy_section + legal_section, has_inaccuracies, has_legal_research
+
+
+# ═══════════════════════════════════════════════════════════
+#  Round 2+ Consolidated Letter (1 per bureau, N accounts)
+# ═══════════════════════════════════════════════════════════
+
+CONSOLIDATED_ROUND2_TEMPLATE = (
+    "Write a formal ESCALATION dispute letter to {entity}.\n\n"
+    "This is Round {round_number}. The accounts listed below were previously disputed "
+    "and came back verified, received no response within 30 days, or received a generic "
+    "stall letter that failed to address the specific dispute points.\n\n"
+    "{accounts_block}\n\n"
+    "Follow all e-OSCAR RULES from the system prompt. Additionally:\n"
+    "- Address EACH account with its own clearly labeled DISPUTE POINT section\n"
+    "- For each account, cite the specific Metro 2 fields that are inaccurate or unverified\n"
+    "- Reference the prior dispute and the bureau's failure to conduct a reasonable investigation "
+    "under § 1681i(a)\n"
+    "- Cite Cushman v. Trans Union, Gorman v. Wolpoff & Abramson, CFPB v. Experian (2025), "
+    "CFPB v. Equifax (2025)\n"
+    "- Include a single Method of Verification (MOV) demand covering all accounts — "
+    "demand the name, address, and telephone number of each furnisher contacted, the specific "
+    "documents reviewed, and the employee who conducted the investigation\n"
+    "- Direct all furnisher document demands THROUGH the CRA under § 1681i(a)(2), "
+    "not at the CRA itself\n"
+    "- End with a unified demand: if any account cannot be verified with documentary evidence "
+    "within 30 days, it must be deleted per § 1681i(a)(5)(A), and failure to comply will "
+    "constitute willful noncompliance under § 1681n with statutory damages of $100-$1,000 per violation"
+)
+
+
+def build_prompt_multi(template_pack, context, accounts_list,
+                       parsed_accounts=None, legal_research_context=None):
+    """
+    Build a single prompt referencing MULTIPLE accounts for a consolidated bureau letter.
+
+    Used in Round 2+ where all unresolved accounts for one bureau are bundled
+    into a single escalation letter.
+
+    Args:
+        template_pack: Key from PACKS dict (for escalation-specific language).
+        context: Dict with client info + entity (bureau name) + round_number.
+        accounts_list: List of dicts, each with:
+            account_name, account_number, status, issue, dispute_reason, prev_outcome
+        parsed_accounts: Optional list of account dicts from the credit report parser.
+        legal_research_context: Optional string with CFPB + case law data.
+
+    Returns:
+        Tuple of (filled_prompt_string, has_inaccuracies_bool, has_legal_research_bool).
+    """
+    # Build the multi-account block
+    account_lines = []
+    for i, acct in enumerate(accounts_list, 1):
+        prev = acct.get('prev_outcome', 'verified')
+        outcome_desc = {
+            'verified': 'Bureau claimed verification without adequate investigation',
+            'no_response': 'No response received within the 30-day statutory window (FCRA violation)',
+            'stall': 'Received generic form response that did not address dispute points',
+        }.get(prev, 'Unresolved from prior round')
+
+        account_lines.append(
+            f"Account {i}:\n"
+            f"  Name: {acct.get('account_name', 'Unknown')}\n"
+            f"  Account #: {acct.get('account_number', 'N/A')}\n"
+            f"  Reported Status: {acct.get('status', 'Negative')}\n"
+            f"  Dispute Issues: {acct.get('issue', 'Inaccurate reporting')}\n"
+            f"  Prior Round Result: {outcome_desc}"
+        )
+
+    accounts_block = "\n\n".join(account_lines)
+
+    # Defaults for context
+    ctx = {
+        'entity': '',
+        'client_full_name': '',
+        'client_address': '',
+        'client_address_line2': '',
+        'client_city_state_zip': '',
+        'today_date': '',
+        'round_number': 2,
+        'creditor_address': '',
+        'creditor_city_state_zip': '',
+        'bureau_address': '',
+    }
+    ctx.update(context)
+
+    # Build address sections
+    addr2 = ctx.get('client_address_line2', '').strip()
+    ctx['client_address_line2_section'] = f"{addr2}\n" if addr2 else ''
+    recip_addr = ctx.get('creditor_address') or ctx.get('bureau_address', '')
+    recip_csz = ctx.get('creditor_city_state_zip', '').strip(', ')
+    if recip_addr:
+        ctx['recipient_address_section'] = f"Address: {recip_addr}\n{recip_csz}\n" if recip_csz else f"Address: {recip_addr}\n"
+    else:
+        ctx['recipient_address_section'] = ''
+
+    preamble = CLIENT_CONTEXT_PREAMBLE.format(**ctx)
+    body = CONSOLIDATED_ROUND2_TEMPLATE.format(
+        entity=ctx['entity'],
+        round_number=ctx.get('round_number', 2),
+        accounts_block=accounts_block,
+    )
+
+    # Inaccuracy context from parsed accounts
+    has_inaccuracies = False
+    inaccuracy_section = ""
+    if parsed_accounts:
+        # Collect all accounts that match any of the disputed account names
+        target_names = {(a.get('account_name') or '').upper() for a in accounts_list}
+        relevant = [
+            pa for pa in parsed_accounts
+            if (pa.get('account_name') or '').upper() in target_names
+            and pa.get('inaccuracies')
+        ]
+        if relevant:
+            inaccuracy_section = "\n\n" + build_inaccuracy_context_multi(relevant)
+            has_inaccuracies = True
+
+    # Legal research context
     has_legal_research = False
     legal_section = ""
     if legal_research_context and legal_research_context.strip():
