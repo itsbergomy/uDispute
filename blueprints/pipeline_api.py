@@ -503,16 +503,13 @@ def start_next_round(pipeline_id):
     db.session.commit()
 
     # Kick off the pipeline in background
+    # _run_pipeline_bg already spawns its own thread — call directly
+    # so it can capture current_app from the request context
     import logging
     logger = logging.getLogger(__name__)
     logger.info(f"Starting Round {pipeline.round_number} for pipeline {pipeline.id}")
 
-    thread = threading.Thread(
-        target=_run_pipeline_bg,
-        args=(pipeline.id,),
-        daemon=True,
-    )
-    thread.start()
+    _run_pipeline_bg(pipeline.id)
 
     return jsonify({
         'message': f'Round {pipeline.round_number} started',
