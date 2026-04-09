@@ -396,7 +396,7 @@
 
       <!-- Review Action — Batch Review Carousel -->
       {% if pipeline_status.state == 'review' and pipeline_status.mode == 'supervised' %}
-      {% set review_accounts = pipeline_status.accounts | selectattr('letter_id') | list %}
+      {% set review_accounts = pipeline_status.accounts | selectattr('letter_id') | selectattr('round_number', 'equalto', pipeline_status.round_number) | list %}
       {% if review_accounts %}
       <div class="mb-4">
         <p class="text-xs font-semibold mb-2 glass-text-emboss" style="color:var(--text-secondary);">Review Letters</p>
