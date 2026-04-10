@@ -120,10 +120,8 @@ def index():
     return render_template('index.html')
 
 
-@disputes_bp.route('/landing')
-def landing_preview():
-    """Temp preview route for the landing page — remove before production."""
-    return render_template('landing.html')
+
+# Landing page moved to auth blueprint (auth.landing_page)
 
 
 @disputes_bp.route('/upload-pdf', methods=['GET', 'POST'])

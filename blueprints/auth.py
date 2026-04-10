@@ -78,23 +78,101 @@ def signup():
             flash('Password must be at least 8 characters.', 'error')
             return redirect(url_for('auth.signup'))
 
+        # Plan comes from Stripe checkout success (stored in session)
+        # or defaults to 'free' if they signed up directly
+        paid_plan = session.pop('stripe_paid_plan', None)
+        plan = paid_plan or 'free'
+
         new_user = User(
             first_name=fn,
             last_name=ln,
             username=un,
             email=em,
             password=generate_password_hash(pw, method='pbkdf2:sha256'),
-            plan='free'
+            plan=plan,
         )
         db.session.add(new_user)
         db.session.commit()
 
-        audit_logger.info(f"SIGNUP_SUCCESS user_id={new_user.id} ip={request.remote_addr}")
+        audit_logger.info(f"SIGNUP_SUCCESS user_id={new_user.id} plan={plan} ip={request.remote_addr}")
         login_user(new_user)
-        flash("Welcome! You're on our Free plan.", 'success')
-        return redirect(url_for('disputes.index'))
 
-    return render_template('register.html')
+        if plan == 'business':
+            flash(f"Welcome! You're on the Business plan.", 'success')
+            return redirect(url_for('business.business_dashboard'))
+        elif plan == 'pro':
+            flash(f"Welcome! You're on the Pro plan.", 'success')
+            return redirect(url_for('disputes.index'))
+        else:
+            flash("Welcome! You're on our Free plan.", 'success')
+            return redirect(url_for('disputes.index'))
+
+    # Show the plan badge if coming from Stripe checkout
+    paid_plan = session.get('stripe_paid_plan')
+    return render_template('register.html', paid_plan=paid_plan)
+
+
+# ── Stripe Checkout ──────────────────────────────────────
+
+STRIPE_PRICES = {
+    'pro': os.getenv('STRIPE_PRO_PRICE_ID'),
+    'business': os.getenv('STRIPE_BUSINESS_PRICE_ID'),
+}
+
+
+@auth_bp.route('/checkout/<plan>')
+def checkout(plan):
+    """Create a Stripe Checkout Session and redirect to Stripe's hosted payment page."""
+    if plan not in STRIPE_PRICES:
+        flash('Invalid plan.', 'error')
+        return redirect(url_for('auth.landing_page'))
+
+    price_id = STRIPE_PRICES[plan]
+    if not price_id:
+        flash('Payment not configured yet.', 'error')
+        return redirect(url_for('auth.landing_page'))
+
+    try:
+        base_url = request.host_url.rstrip('/')
+        checkout_session = stripe.checkout.Session.create(
+            mode='subscription',
+            line_items=[{'price': price_id, 'quantity': 1}],
+            success_url=base_url + url_for('auth.checkout_success', plan=plan) + '?session_id={CHECKOUT_SESSION_ID}',
+            cancel_url=base_url + '/landing#pricing',
+        )
+        return redirect(checkout_session.url)
+    except stripe.error.StripeError as e:
+        audit_logger.error(f"STRIPE_CHECKOUT_ERROR plan={plan}: {e}")
+        flash('Payment service error. Please try again.', 'error')
+        return redirect(url_for('auth.landing_page'))
+
+
+@auth_bp.route('/checkout/success/<plan>')
+def checkout_success(plan):
+    """Stripe redirects here after successful payment. Store plan in session, send to signup."""
+    session_id = request.args.get('session_id')
+
+    if session_id:
+        try:
+            checkout_session = stripe.checkout.Session.retrieve(session_id)
+            if checkout_session.payment_status == 'paid':
+                session['stripe_paid_plan'] = plan
+                session['stripe_customer_id'] = checkout_session.customer
+                session['stripe_subscription_id'] = checkout_session.subscription
+                audit_logger.info(f"CHECKOUT_SUCCESS plan={plan} session={session_id}")
+                flash(f'{plan.title()} plan activated! Create your account to get started.', 'success')
+                return redirect(url_for('auth.signup'))
+        except stripe.error.StripeError as e:
+            audit_logger.error(f"STRIPE_VERIFY_ERROR: {e}")
+
+    flash('Payment verification failed. Please try again or contact support.', 'error')
+    return redirect(url_for('auth.landing_page'))
+
+
+@auth_bp.route('/landing')
+def landing_page():
+    """Serve the landing page."""
+    return render_template('landing.html')
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
