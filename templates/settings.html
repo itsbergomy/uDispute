@@ -5,137 +5,282 @@
 
 {% block content %}
 <main class="flex justify-center items-start min-h-[90vh] px-4 py-10">
-  <div class="glass-card glass-card--heavy glass-p w-full max-w-2xl glass-animate-in">
+  <div class="w-full max-w-2xl space-y-6 glass-animate-in">
 
     <a href="{% if current_user.is_authenticated and current_user.plan == 'business' %}{{ url_for('business_dashboard') }}{% else %}{{ url_for('index') }}{% endif %}"
-       class="absolute top-4 left-4 glass-btn glass-btn--ghost p-3 rounded-full">&larr; Back</a>
+       class="glass-btn glass-btn--ghost glass-btn--pill text-sm px-4 py-2">&larr; Back</a>
 
-    <div class="text-center mb-8">
-      <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
-        {{ icons.icon_shield(size=28, uid='s1') }}
-      </div>
+    <div class="text-center mb-4">
       <h2 class="text-3xl font-bold glass-text-3d" style="color:var(--text-primary);">Settings</h2>
-      <p class="text-sm mt-1" style="color:var(--text-tertiary);">Manage your API keys and preferences</p>
+      <p class="text-sm mt-1" style="color:var(--text-tertiary);">Manage your account, plan, and preferences</p>
     </div>
 
-    <!-- DocuPost BYOK -->
-    <div class="glass-inset rounded-2xl p-6">
-      <div class="flex items-center gap-3 mb-4">
-        <div class="glass-icon-well" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
-          {{ icons.icon_mailbox(size=20, uid='s2') }}
+    <!-- ═══ Account ═══ -->
+    <div class="glass-card glass-card--heavy glass-p rounded-3xl">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="glass-icon-well" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
+          {{ icons.icon_id(size=20, uid='s-acct') }}
         </div>
         <div>
-          <h3 class="text-lg font-semibold glass-text-emboss" style="color:var(--text-primary);">DocuPost API Key</h3>
-          <p class="text-xs" style="color:var(--text-tertiary);">Used for mailing dispute letters via USPS</p>
+          <h3 class="text-lg font-semibold glass-text-emboss" style="color:var(--text-primary);">Account</h3>
+          <p class="text-xs" style="color:var(--text-tertiary);">Your profile and credentials</p>
+        </div>
+      </div>
+
+      <form id="accountForm" class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="glass-label block">First Name</label>
+            <input type="text" id="accountFirstName" value="{{ current_user.first_name }}" class="glass-input w-full" />
+          </div>
+          <div>
+            <label class="glass-label block">Last Name</label>
+            <input type="text" id="accountLastName" value="{{ current_user.last_name }}" class="glass-input w-full" />
+          </div>
+        </div>
+        <div>
+          <label class="glass-label block">Email</label>
+          <input type="email" id="accountEmail" value="{{ current_user.email }}" class="glass-input w-full" />
+        </div>
+        <div>
+          <label class="glass-label block">Username</label>
+          <input type="text" value="{{ current_user.username }}" class="glass-input w-full" disabled
+                 style="opacity:0.5;cursor:not-allowed;" />
+          <p class="text-xs mt-1" style="color:var(--text-tertiary);">Username cannot be changed</p>
+        </div>
+
+        <div class="pt-2 border-t" style="border-color:rgba(255,255,255,0.08);">
+          <p class="glass-label block mb-2">Change Password</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <input type="password" id="newPassword" placeholder="New password" class="glass-input w-full" minlength="8" />
+            <input type="password" id="confirmPassword" placeholder="Confirm password" class="glass-input w-full" minlength="8" />
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button type="button" onclick="saveAccount()"
+                  class="glass-btn glass-btn--primary glass-btn--pill text-sm px-5 py-2">
+            Save Changes
+          </button>
+          <span id="accountMsg" class="text-sm"></span>
+        </div>
+      </form>
+    </div>
+
+    <!-- ═══ Plan ═══ -->
+    <div class="glass-card glass-card--heavy glass-p rounded-3xl">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="glass-icon-well" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
+          {{ icons.icon_shield(size=20, uid='s-plan') }}
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold glass-text-emboss" style="color:var(--text-primary);">Plan</h3>
+          <p class="text-xs" style="color:var(--text-tertiary);">Your current subscription</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-4 mb-4">
+        <span class="glass-badge {{ 'glass-badge--info' if current_user.plan == 'pro' else 'glass-badge--success' if current_user.plan == 'business' else 'glass-badge--neutral' }}"
+              style="font-size:0.8rem;padding:0.4rem 1.2rem;">
+          {{ current_user.plan | upper }}
+        </span>
+        {% if current_user.plan == 'pro' %}
+          <span class="text-sm" style="color:var(--text-secondary);">$80/mo &bull; First Class mailing included</span>
+        {% elif current_user.plan == 'business' %}
+          <span class="text-sm" style="color:var(--text-secondary);">$125/mo &bull; First Class mailing included</span>
+        {% elif current_user.is_beta %}
+          <span class="text-sm" style="color:var(--text-secondary);">Beta tester — all features unlocked</span>
+        {% else %}
+          <span class="text-sm" style="color:var(--text-secondary);">Free plan</span>
+        {% endif %}
+      </div>
+
+      {% if not current_user.is_beta and current_user.plan == 'pro' %}
+      <a href="{{ url_for('auth.upgrade_to_business') }}"
+         class="glass-btn glass-btn--primary glass-btn--pill text-sm px-5 py-2">
+        Upgrade to Business — $45 this month, then $125/mo
+      </a>
+      {% endif %}
+    </div>
+
+    <!-- ═══ Mailing ═══ -->
+    <div class="glass-card glass-card--heavy glass-p rounded-3xl">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="glass-icon-well" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
+          {{ icons.icon_mailbox(size=20, uid='s-mail') }}
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold glass-text-emboss" style="color:var(--text-primary);">Mailing</h3>
+          <p class="text-xs" style="color:var(--text-tertiary);">Dispute letter delivery preferences</p>
         </div>
       </div>
 
       <div class="space-y-4">
-        <!-- Status -->
-        <div class="flex items-center gap-2">
-          <div id="keyStatusDot" style="width:10px;height:10px;border-radius:50%;background:{% if has_docupost_key %}#34d399{% else %}rgba(255,255,255,0.2){% endif %};flex-shrink:0;"></div>
-          <span id="keyStatusText" class="text-sm" style="color:var(--text-secondary);">
-            {% if has_docupost_key %}Connected — {{ masked_key }}{% else %}No key configured{% endif %}
-          </span>
+        <div>
+          <label class="glass-label block">Default Mailing Method</label>
+          <select id="mailMethod" class="glass-select w-full" onchange="saveMailPrefs()">
+            <option value="first_class" {% if mail_prefs.get('method') == 'first_class' %}selected{% endif %}>First Class — Included</option>
+            <option value="certified" {% if mail_prefs.get('method') == 'certified' %}selected{% endif %}>Certified Mail — $14.99/letter</option>
+            <option value="certified_rr" {% if mail_prefs.get('method') == 'certified_rr' %}selected{% endif %}>Certified + Return Receipt — $16.99/letter</option>
+          </select>
         </div>
 
-        <!-- Input -->
-        <div class="flex gap-3">
-          <input type="password" id="docupostKeyInput"
-                 class="glass-input flex-1"
-                 placeholder="{% if has_docupost_key %}Enter new key to replace{% else %}Paste your DocuPost API token{% endif %}" />
+        <div>
+          <label class="glass-label block">Return Address</label>
+          <input type="text" id="mailReturnAddr" class="glass-input w-full"
+                 placeholder="123 Main St, City, State ZIP"
+                 value="{{ mail_prefs.get('return_address', '') }}" />
         </div>
 
-        <!-- Buttons -->
-        <div class="flex gap-3 flex-wrap">
-          <button type="button" id="saveKeyBtn"
-                  class="glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge text-sm px-5 py-2"
-                  style="position:relative;overflow:hidden;">
-            Save Key
-          </button>
-          {% if has_docupost_key %}
-          <button type="button" id="testKeyBtn"
-                  class="glass-btn glass-btn--pill text-sm px-5 py-2" style="color:var(--text-primary);">
-            Test Connection
-          </button>
-          <button type="button" id="removeKeyBtn"
-                  class="glass-btn glass-btn--pill text-sm px-5 py-2" style="color:#ff453a;">
-            Remove Key
-          </button>
-          {% endif %}
-        </div>
-
-        <div id="keyMessage" class="text-sm" style="min-height:1.2em;"></div>
+        <button type="button" onclick="saveMailPrefs()"
+                class="glass-btn glass-btn--secondary glass-btn--pill text-sm px-5 py-2">
+          Save Mailing Preferences
+        </button>
+        <span id="mailMsg" class="text-sm ml-2"></span>
       </div>
+    </div>
+
+    <!-- ═══ Import ═══ -->
+    <div class="glass-card glass-card--heavy glass-p rounded-3xl">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="glass-icon-well" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
+          {{ icons.icon_file(size=20, uid='s-import') }}
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold glass-text-emboss" style="color:var(--text-primary);">Import Clients</h3>
+          <p class="text-xs" style="color:var(--text-tertiary);">Migrate from DisputeFox, Credit Repair Cloud, or other platforms</p>
+        </div>
+      </div>
+
+      {% if current_user.plan == 'business' or current_user.is_beta %}
+      <div class="glass-inset rounded-xl p-5">
+        <p class="text-sm mb-3" style="color:var(--text-secondary);">
+          Upload a CSV file with your client data. We'll map the columns and import your clients into uDispute.
+        </p>
+        <div class="flex items-center gap-3">
+          <label class="glass-btn glass-btn--secondary glass-btn--pill text-sm px-5 py-2 cursor-pointer">
+            <input type="file" accept=".csv" id="importFile" hidden onchange="handleImportFile(this)" />
+            Choose CSV File
+          </label>
+          <span id="importFileName" class="text-sm" style="color:var(--text-tertiary);">No file selected</span>
+        </div>
+        <div id="importStatus" class="text-sm mt-3" style="display:none;"></div>
+      </div>
+      {% else %}
+      <div class="glass-inset rounded-xl p-5">
+        <p class="text-sm" style="color:var(--text-tertiary);">
+          Client import is available on the Business plan.
+          {% if current_user.plan == 'pro' %}
+          <a href="{{ url_for('auth.upgrade_to_business') }}" class="glass-link">Upgrade now</a>
+          {% endif %}
+        </p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- ═══ Delete Account ═══ -->
+    <div class="glass-card glass-p rounded-3xl" style="border:1px solid rgba(255,59,48,0.15);">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="glass-icon-well" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
+          <span style="font-size:18px;">⚠</span>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold" style="color:#ff453a;">Danger Zone</h3>
+          <p class="text-xs" style="color:var(--text-tertiary);">Permanent actions that cannot be undone</p>
+        </div>
+      </div>
+      <p class="text-sm mb-4" style="color:var(--text-secondary);">
+        Deleting your account will permanently remove all your data, dispute history, letters, and client records. This cannot be reversed.
+      </p>
+      <button type="button" onclick="confirmDeleteAccount()"
+              class="glass-btn glass-btn--pill text-sm px-5 py-2"
+              style="background:rgba(255,59,48,0.08);color:#ff453a;border:1px solid rgba(255,59,48,0.2);">
+        Delete My Account
+      </button>
     </div>
 
   </div>
 </main>
 
 <script>
-(function(){
-  const input = document.getElementById('docupostKeyInput');
-  const saveBtn = document.getElementById('saveKeyBtn');
-  const testBtn = document.getElementById('testKeyBtn');
-  const removeBtn = document.getElementById('removeKeyBtn');
-  const msg = document.getElementById('keyMessage');
-  const dot = document.getElementById('keyStatusDot');
-  const statusText = document.getElementById('keyStatusText');
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
-  function showMsg(text, color) {
-    msg.textContent = text;
-    msg.style.color = color || 'var(--text-secondary)';
-    setTimeout(() => { msg.textContent = ''; }, 4000);
+function showMsg(elId, text, color) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = color || 'var(--text-secondary)';
+  setTimeout(() => { el.textContent = ''; }, 4000);
+}
+
+async function saveAccount() {
+  const fn = document.getElementById('accountFirstName').value.trim();
+  const ln = document.getElementById('accountLastName').value.trim();
+  const email = document.getElementById('accountEmail').value.trim();
+  const pw = document.getElementById('newPassword').value;
+  const pw2 = document.getElementById('confirmPassword').value;
+
+  if (pw && pw !== pw2) {
+    showMsg('accountMsg', 'Passwords do not match', '#ff453a');
+    return;
+  }
+  if (pw && pw.length < 8) {
+    showMsg('accountMsg', 'Password must be at least 8 characters', '#ff453a');
+    return;
   }
 
-  saveBtn.addEventListener('click', async () => {
-    const key = input.value.trim();
-    if (!key) { showMsg('Please enter an API key', '#ff453a'); return; }
-    showMsg('Saving...', 'var(--text-secondary)');
-    try {
-      const res = await fetch('/settings/docupost-key', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({api_key: key})
-      });
-      const data = await res.json();
-      if (data.ok) {
-        dot.style.background = '#34d399';
-        statusText.textContent = 'Connected — ' + data.masked_key;
-        input.value = '';
-        input.placeholder = 'Enter new key to replace';
-        showMsg('Key saved and encrypted!', '#248a3d');
-        // Reload to show test/remove buttons
-        setTimeout(() => window.location.reload(), 1200);
-      } else {
-        showMsg(data.error || 'Failed to save', '#ff453a');
-      }
-    } catch(e) { showMsg('Network error', '#ff453a'); }
-  });
+  try {
+    const res = await fetch('/settings/account', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+      body: JSON.stringify({first_name: fn, last_name: ln, email: email, password: pw || null})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showMsg('accountMsg', 'Saved!', '#248a3d');
+      document.getElementById('newPassword').value = '';
+      document.getElementById('confirmPassword').value = '';
+    } else {
+      showMsg('accountMsg', data.error || 'Failed', '#ff453a');
+    }
+  } catch(e) { showMsg('accountMsg', 'Network error', '#ff453a'); }
+}
 
-  if (testBtn) testBtn.addEventListener('click', async () => {
-    showMsg('Testing...', 'var(--text-secondary)');
-    try {
-      const res = await fetch('/settings/docupost-key/test', {method:'POST'});
-      const data = await res.json();
-      showMsg(data.ok ? 'Connection successful!' : (data.error || 'Test failed'),
-              data.ok ? '#248a3d' : '#ff453a');
-    } catch(e) { showMsg('Network error', '#ff453a'); }
-  });
+async function saveMailPrefs() {
+  const method = document.getElementById('mailMethod').value;
+  const addr = document.getElementById('mailReturnAddr').value.trim();
+  try {
+    const res = await fetch('/settings/mailing', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+      body: JSON.stringify({method: method, return_address: addr})
+    });
+    const data = await res.json();
+    if (data.ok) showMsg('mailMsg', 'Saved!', '#248a3d');
+    else showMsg('mailMsg', data.error || 'Failed', '#ff453a');
+  } catch(e) { showMsg('mailMsg', 'Network error', '#ff453a'); }
+}
 
-  if (removeBtn) removeBtn.addEventListener('click', async () => {
-    if (!confirm('Remove your DocuPost API key?')) return;
-    try {
-      const res = await fetch('/settings/docupost-key/delete', {method:'POST'});
-      const data = await res.json();
-      if (data.ok) {
-        dot.style.background = 'rgba(255,255,255,0.2)';
-        statusText.textContent = 'No key configured';
-        showMsg('Key removed', 'var(--text-secondary)');
-        setTimeout(() => window.location.reload(), 1200);
-      }
-    } catch(e) { showMsg('Network error', '#ff453a'); }
+function handleImportFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('importFileName').textContent = file.name;
+  const status = document.getElementById('importStatus');
+  status.style.display = 'block';
+  status.textContent = 'Import tool coming soon — file recognized.';
+  status.style.color = 'var(--accent)';
+}
+
+function confirmDeleteAccount() {
+  const confirmed = prompt('Type DELETE to permanently delete your account:');
+  if (confirmed !== 'DELETE') return;
+  fetch('/settings/delete-account', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+  }).then(r => r.json()).then(d => {
+    if (d.ok) window.location.href = '/landing';
+    else alert(d.error || 'Failed to delete account');
   });
-})();
+}
 </script>
 {% endblock %}

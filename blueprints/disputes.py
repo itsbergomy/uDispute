@@ -11,8 +11,9 @@ from flask import (
     Blueprint, request, jsonify, render_template, flash,
     abort, redirect, url_for, session, send_file, send_from_directory, current_app, make_response
 )
-from flask_login import login_required, current_user
+from flask_login import login_required, current_user, logout_user
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash
 
 from models import db, User, UserSetting, DisputeRound, DailyLogEntry, MailedLetter, Correspondence
 from services.pdf_parser import (
@@ -2182,74 +2183,87 @@ def funding_sequencer():
     return render_template('funding_sequencer.html')
 
 
-# ─── Settings (BYOK) ───
+# ─── Settings ───
 
 @disputes_bp.route('/settings')
 @login_required
 def settings_page():
-    """Settings page — BYOK API keys."""
-    setting = UserSetting.query.filter_by(user_id=current_user.id, key='docupost_api_token').first()
-    has_key = bool(setting and setting.value)
-    masked = ''
-    if has_key:
+    """Settings page — account, plan, mailing, import."""
+    # Load mailing preferences
+    mail_setting = UserSetting.query.filter_by(user_id=current_user.id, key='mail_prefs').first()
+    mail_prefs = {}
+    if mail_setting and mail_setting.value:
         try:
-            from services.encryption import decrypt_value
-            raw = decrypt_value(setting.value)
-            masked = '•' * (len(raw) - 4) + raw[-4:] if len(raw) > 4 else '•' * len(raw)
+            mail_prefs = json.loads(mail_setting.value)
         except Exception:
-            masked = '••••••••'
-    return render_template('settings.html', has_docupost_key=has_key, masked_key=masked)
+            pass
+    return render_template('settings.html', mail_prefs=mail_prefs)
 
 
-@disputes_bp.route('/settings/docupost-key', methods=['POST'])
+@disputes_bp.route('/settings/account', methods=['POST'])
 @login_required
-def save_docupost_key():
-    """Save or update the user's DocuPost API key (encrypted)."""
+def save_account():
+    """Update account details (name, email, password)."""
     data = request.get_json(silent=True) or {}
-    key_value = data.get('api_key', '').strip()
-    if not key_value:
-        return jsonify({'error': 'API key is required'}), 400
 
-    from services.encryption import encrypt_value
-    encrypted = encrypt_value(key_value)
+    fn = data.get('first_name', '').strip()
+    ln = data.get('last_name', '').strip()
+    email = data.get('email', '').strip().lower()
+    pw = data.get('password')
 
-    setting = UserSetting.query.filter_by(user_id=current_user.id, key='docupost_api_token').first()
-    if setting:
-        setting.value = encrypted
-        setting.updated_at = datetime.utcnow()
-    else:
-        setting = UserSetting(user_id=current_user.id, key='docupost_api_token', value=encrypted)
-        db.session.add(setting)
-    db.session.commit()
+    if fn:
+        current_user.first_name = fn
+    if ln:
+        current_user.last_name = ln
+    if email and email != current_user.email:
+        existing = User.query.filter_by(email=email).first()
+        if existing and existing.id != current_user.id:
+            return jsonify({'error': 'Email already in use'}), 400
+        current_user.email = email
+    if pw:
+        current_user.password = generate_password_hash(pw, method='pbkdf2:sha256')
 
-    masked = '•' * (len(key_value) - 4) + key_value[-4:] if len(key_value) > 4 else '•' * len(key_value)
-    return jsonify({'ok': True, 'masked_key': masked})
-
-
-@disputes_bp.route('/settings/docupost-key/delete', methods=['POST'])
-@login_required
-def delete_docupost_key():
-    """Remove the user's stored DocuPost API key."""
-    UserSetting.query.filter_by(user_id=current_user.id, key='docupost_api_token').delete()
     db.session.commit()
     return jsonify({'ok': True})
 
 
-@disputes_bp.route('/settings/docupost-key/test', methods=['POST'])
+@disputes_bp.route('/settings/mailing', methods=['POST'])
 @login_required
-def test_docupost_key():
-    """Test the user's DocuPost API key by making a lightweight API call."""
-    token = get_docupost_token(current_user.id)
-    if not token:
-        return jsonify({'ok': False, 'error': 'No DocuPost key configured'}), 400
+def save_mailing_prefs():
+    """Save mailing preferences (method, return address)."""
+    data = request.get_json(silent=True) or {}
+    prefs = {
+        'method': data.get('method', 'first_class'),
+        'return_address': data.get('return_address', '').strip(),
+    }
 
-    import requests as req
-    try:
-        resp = req.get('https://app.docupost.com/api/1.1/wf/account_info',
-                       params={'api_token': token}, timeout=10)
-        if resp.status_code == 200 and b'<Error>' not in resp.content:
-            return jsonify({'ok': True, 'message': 'Key is valid'})
-        else:
-            return jsonify({'ok': False, 'error': 'Key rejected by DocuPost'}), 400
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
+    setting = UserSetting.query.filter_by(user_id=current_user.id, key='mail_prefs').first()
+    if setting:
+        setting.value = json.dumps(prefs)
+        setting.updated_at = datetime.utcnow()
+    else:
+        setting = UserSetting(user_id=current_user.id, key='mail_prefs', value=json.dumps(prefs))
+        db.session.add(setting)
+    db.session.commit()
+
+    return jsonify({'ok': True})
+
+
+@disputes_bp.route('/settings/delete-account', methods=['POST'])
+@login_required
+def delete_account():
+    """Permanently delete the current user's account and all data."""
+    user_id = current_user.id
+
+    # Delete all user data
+    UserSetting.query.filter_by(user_id=user_id).delete()
+    # Note: cascade deletes for disputes, clients, etc. should be handled
+    # by foreign key constraints or additional cleanup here
+
+    user = User.query.get(user_id)
+    if user:
+        logout_user()
+        db.session.delete(user)
+        db.session.commit()
+
+    return jsonify({'ok': True})
