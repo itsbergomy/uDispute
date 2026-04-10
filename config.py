@@ -226,7 +226,7 @@ def create_app():
             if 'Users' in inspector.get_table_names():
                 existing = [c['name'] for c in inspector.get_columns('Users')]
                 user_new_cols = {
-                    'is_beta': 'BOOLEAN DEFAULT 0',
+                    'is_beta': 'BOOLEAN DEFAULT FALSE',
                     'stripe_customer_id': 'VARCHAR(100)',
                     'stripe_subscription_id': 'VARCHAR(100)',
                 }
