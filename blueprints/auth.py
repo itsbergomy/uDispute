@@ -56,6 +56,7 @@ BETA_CODES = {
 @auth_bp.route('/signup', methods=['GET', 'POST'])
 @_rate_limit("5 per minute")
 def signup():
+    """Beta tester signup — requires invite code. Free plan."""
     if request.method == 'POST':
         fn = request.form['first_name'].strip()
         ln = request.form['last_name'].strip()
@@ -73,43 +74,80 @@ def signup():
             flash('Username already taken', 'error')
             return redirect(url_for('auth.signup'))
 
-        # Password strength check
         if len(pw) < 8:
             flash('Password must be at least 8 characters.', 'error')
             return redirect(url_for('auth.signup'))
 
-        # Plan comes from Stripe checkout success (stored in session)
-        # or defaults to 'free' if they signed up directly
-        paid_plan = session.pop('stripe_paid_plan', None)
-        plan = paid_plan or 'free'
+        new_user = User(
+            first_name=fn, last_name=ln, username=un, email=em,
+            password=generate_password_hash(pw, method='pbkdf2:sha256'),
+            plan='free',
+        )
+        db.session.add(new_user)
+        db.session.commit()
+
+        audit_logger.info(f"SIGNUP_SUCCESS user_id={new_user.id} plan=free ip={request.remote_addr}")
+        login_user(new_user)
+        flash("Welcome! You're on our Free plan.", 'success')
+        return redirect(url_for('disputes.index'))
+
+    return render_template('register.html')
+
+
+@auth_bp.route('/signup/<plan>', methods=['GET', 'POST'])
+@_rate_limit("5 per minute")
+def signup_paid(plan):
+    """Paid signup — no beta code. Plan was already paid via Stripe Checkout."""
+    if plan not in ('pro', 'business'):
+        flash('Invalid plan.', 'error')
+        return redirect(url_for('auth.landing_page'))
+
+    # Verify they actually paid (session flag set by checkout_success)
+    if session.get('stripe_paid_plan') != plan:
+        flash('Please complete payment first.', 'error')
+        return redirect(url_for('auth.checkout', plan=plan))
+
+    plan_label = 'Pro' if plan == 'pro' else 'Business'
+
+    if request.method == 'POST':
+        fn = request.form['first_name'].strip()
+        ln = request.form['last_name'].strip()
+        un = request.form['username'].strip()
+        em = request.form['email'].strip().lower()
+        pw = request.form['password']
+
+        if User.get_by_username(un):
+            flash('Username already taken', 'error')
+            return redirect(url_for('auth.signup_paid', plan=plan))
+
+        if len(pw) < 8:
+            flash('Password must be at least 8 characters.', 'error')
+            return redirect(url_for('auth.signup_paid', plan=plan))
 
         new_user = User(
-            first_name=fn,
-            last_name=ln,
-            username=un,
-            email=em,
+            first_name=fn, last_name=ln, username=un, email=em,
             password=generate_password_hash(pw, method='pbkdf2:sha256'),
             plan=plan,
         )
         db.session.add(new_user)
         db.session.commit()
 
+        # Clear Stripe session data
+        session.pop('stripe_paid_plan', None)
+        session.pop('stripe_customer_id', None)
+        session.pop('stripe_subscription_id', None)
+
         audit_logger.info(f"SIGNUP_SUCCESS user_id={new_user.id} plan={plan} ip={request.remote_addr}")
         login_user(new_user)
 
         if plan == 'business':
-            flash(f"Welcome! You're on the Business plan.", 'success')
+            flash(f"Welcome! You're on the {plan_label} plan.", 'success')
             return redirect(url_for('business.business_dashboard'))
-        elif plan == 'pro':
-            flash(f"Welcome! You're on the Pro plan.", 'success')
-            return redirect(url_for('disputes.index'))
         else:
-            flash("Welcome! You're on our Free plan.", 'success')
+            flash(f"Welcome! You're on the {plan_label} plan.", 'success')
             return redirect(url_for('disputes.index'))
 
-    # Show the plan badge if coming from Stripe checkout
-    paid_plan = session.get('stripe_paid_plan')
-    return render_template('register.html', paid_plan=paid_plan)
+    return render_template('register_paid.html', plan=plan, plan_label=plan_label)
 
 
 # ── Stripe Checkout ──────────────────────────────────────
@@ -161,7 +199,7 @@ def checkout_success(plan):
                 session['stripe_subscription_id'] = checkout_session.subscription
                 audit_logger.info(f"CHECKOUT_SUCCESS plan={plan} session={session_id}")
                 flash(f'{plan.title()} plan activated! Create your account to get started.', 'success')
-                return redirect(url_for('auth.signup'))
+                return redirect(url_for('auth.signup_paid', plan=plan))
         except stripe.error.StripeError as e:
             audit_logger.error(f"STRIPE_VERIFY_ERROR: {e}")
 
