@@ -222,6 +222,19 @@ def create_app():
                     conn.execute(text('ALTER TABLE correspondence ADD COLUMN round_number INTEGER DEFAULT 1'))
                     conn.commit()
 
+            # ── Users (is_beta, stripe fields) ──
+            if 'Users' in inspector.get_table_names():
+                existing = [c['name'] for c in inspector.get_columns('Users')]
+                user_new_cols = {
+                    'is_beta': 'BOOLEAN DEFAULT 0',
+                    'stripe_customer_id': 'VARCHAR(100)',
+                    'stripe_subscription_id': 'VARCHAR(100)',
+                }
+                for col_name, col_type in user_new_cols.items():
+                    if col_name not in existing:
+                        conn.execute(text(f'ALTER TABLE "Users" ADD COLUMN {col_name} {col_type}'))
+                conn.commit()
+
     mail.init_app(app)
     login_manager.init_app(app)
 

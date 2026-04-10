@@ -82,11 +82,12 @@ def signup():
             first_name=fn, last_name=ln, username=un, email=em,
             password=generate_password_hash(pw, method='pbkdf2:sha256'),
             plan='free',
+            is_beta=True,
         )
         db.session.add(new_user)
         db.session.commit()
 
-        audit_logger.info(f"SIGNUP_SUCCESS user_id={new_user.id} plan=free ip={request.remote_addr}")
+        audit_logger.info(f"SIGNUP_SUCCESS user_id={new_user.id} plan=free is_beta=True ip={request.remote_addr}")
         login_user(new_user)
         flash("Welcome! You're on our Free plan.", 'success')
         return redirect(url_for('disputes.index'))
@@ -128,6 +129,9 @@ def signup_paid(plan):
             first_name=fn, last_name=ln, username=un, email=em,
             password=generate_password_hash(pw, method='pbkdf2:sha256'),
             plan=plan,
+            is_beta=False,
+            stripe_customer_id=session.get('stripe_customer_id'),
+            stripe_subscription_id=session.get('stripe_subscription_id'),
         )
         db.session.add(new_user)
         db.session.commit()
@@ -211,6 +215,60 @@ def checkout_success(plan):
 def landing_page():
     """Serve the landing page."""
     return render_template('landing.html')
+
+
+# ── Pro → Business Upgrade ───────────────────────────────
+
+@auth_bp.route('/upgrade')
+@login_required
+def upgrade_to_business():
+    """Upgrade a Pro user to Business via Stripe Checkout ($45 first month)."""
+    if current_user.plan != 'pro':
+        flash('Upgrade is only available for Pro users.', 'error')
+        return redirect(url_for('disputes.index'))
+
+    upgrade_price_id = os.getenv('STRIPE_UPGRADE_PRICE_ID')
+    if not upgrade_price_id:
+        flash('Upgrade not configured yet.', 'error')
+        return redirect(url_for('disputes.index'))
+
+    try:
+        base_url = request.host_url.rstrip('/')
+        checkout_session = stripe.checkout.Session.create(
+            mode='subscription',
+            line_items=[{'price': upgrade_price_id, 'quantity': 1}],
+            success_url=base_url + url_for('auth.upgrade_success') + '?session_id={CHECKOUT_SESSION_ID}',
+            cancel_url=base_url + url_for('disputes.index'),
+            customer=current_user.stripe_customer_id or None,
+        )
+        return redirect(checkout_session.url)
+    except stripe.error.StripeError as e:
+        audit_logger.error(f"STRIPE_UPGRADE_ERROR user={current_user.id}: {e}")
+        flash('Payment service error. Please try again.', 'error')
+        return redirect(url_for('disputes.index'))
+
+
+@auth_bp.route('/upgrade/success')
+@login_required
+def upgrade_success():
+    """Handle successful Pro → Business upgrade."""
+    session_id = request.args.get('session_id')
+
+    if session_id:
+        try:
+            checkout_session = stripe.checkout.Session.retrieve(session_id)
+            if checkout_session.payment_status == 'paid':
+                current_user.plan = 'business'
+                current_user.stripe_subscription_id = checkout_session.subscription
+                db.session.commit()
+                audit_logger.info(f"UPGRADE_SUCCESS user={current_user.id} pro→business")
+                flash("Welcome to Business Mode!", 'success')
+                return redirect(url_for('business.business_dashboard'))
+        except stripe.error.StripeError as e:
+            audit_logger.error(f"STRIPE_UPGRADE_VERIFY_ERROR: {e}")
+
+    flash('Upgrade verification failed. Please contact support.', 'error')
+    return redirect(url_for('disputes.index'))
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])

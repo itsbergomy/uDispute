@@ -75,7 +75,8 @@
         </div>
         {% endif %}
 
-        <!-- Dev plan switcher -->
+        {% if current_user.is_beta %}
+        <!-- Beta tester plan switcher -->
         <div class="flex items-center gap-1 ml-2" style="backdrop-filter:blur(8px);background:rgba(255,255,255,0.06);border-radius:12px;padding:2px;">
           {% for p in ['free', 'pro', 'business'] %}
             <a href="{{ url_for('auth.dev_switch_plan', plan=p) }}"
@@ -90,6 +91,14 @@
             </a>
           {% endfor %}
         </div>
+        {% elif current_user.plan == 'pro' %}
+        <!-- Pro user: upgrade button -->
+        <a href="{{ url_for('auth.upgrade_to_business') }}"
+           class="ml-2 px-4 py-1.5 text-xs font-bold transition-all"
+           style="border-radius:12px;background:linear-gradient(135deg,#0077ed,#005bb5);color:#fff;box-shadow:0 2px 10px rgba(0,113,227,0.3);">
+          Upgrade to Business
+        </a>
+        {% endif %}
 
         <a href="{{ url_for('disputes.settings_page') }}"
            class="text-base font-medium glass-nav-link {% if request.endpoint == 'disputes.settings_page' %}glass-nav-link--active{% endif %}"
