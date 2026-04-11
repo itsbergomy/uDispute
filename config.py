@@ -227,6 +227,7 @@ def create_app():
                 existing = [c['name'] for c in inspector.get_columns('Users')]
                 user_new_cols = {
                     'is_beta': 'BOOLEAN DEFAULT FALSE',
+                    'is_admin': 'BOOLEAN DEFAULT FALSE',
                     'stripe_customer_id': 'VARCHAR(100)',
                     'stripe_subscription_id': 'VARCHAR(100)',
                 }
@@ -243,6 +244,16 @@ def create_app():
     @login_manager.user_loader
     def load_user(user_id):
         return User.query.get(int(user_id))
+
+    # Ensure platform admin account is flagged
+    with app.app_context():
+        try:
+            admin = User.query.filter_by(username='berglegend').first()
+            if admin and not admin.is_admin:
+                admin.is_admin = True
+                db.session.commit()
+        except Exception:
+            pass
 
     # Register blueprints
     from blueprints.auth import auth_bp

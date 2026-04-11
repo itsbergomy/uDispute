@@ -21,6 +21,7 @@ class User(db.Model, UserMixin):
     password = db.Column(db.String(200), nullable=False)
     plan = db.Column(db.String(20), default='free')
     is_beta = db.Column(db.Boolean, default=False)
+    is_admin = db.Column(db.Boolean, default=False)
     stripe_customer_id = db.Column(db.String(100), nullable=True)
     stripe_subscription_id = db.Column(db.String(100), nullable=True)
     last_round_time = db.Column(db.DateTime, nullable=True)

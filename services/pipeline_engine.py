@@ -10,9 +10,9 @@ import logging
 from datetime import datetime
 
 from models import (
-    db, DisputePipeline, PipelineTask, DisputeAccount,
+    db, User, DisputePipeline, PipelineTask, DisputeAccount,
     Client, ClientReportAnalysis, ClientDisputeLetter, WorkflowSetting,
-    CustomLetter, BureauResponse
+    CustomLetter, BureauResponse, UserSetting
 )
 from services.pdf_parser import extract_negative_items_from_pdf, compute_pdf_hash
 from services.report_analyzer import run_report_analysis
@@ -1192,6 +1192,41 @@ def handle_delivery(pipeline):
         outcome='pending',
     ).all()
 
+    # ── Resolve mailing method from user settings ──
+    from services.delivery import charge_mailing_fee
+    user = User.query.get(pipeline.user_id)
+
+    # Get user's mailing preference
+    mail_pref_setting = UserSetting.query.filter_by(user_id=pipeline.user_id, key='mail_prefs').first()
+    mail_prefs = {}
+    if mail_pref_setting and mail_pref_setting.value:
+        try:
+            mail_prefs = json.loads(mail_pref_setting.value)
+        except Exception:
+            pass
+    preferred_method = mail_prefs.get('method', 'first_class')
+
+    # Count mailable letters for billing
+    mailable = [a for a in accounts
+                if a.letter and a.letter.status == 'Approved' and a.bureau != 'cfpb']
+
+    # ── Charge for premium mailing before sending ──
+    if mailable and preferred_method in ('certified', 'certified_rr'):
+        charge_result = charge_mailing_fee(user, len(mailable), preferred_method)
+        if charge_result.get('error'):
+            logger.warning(f"[PIPELINE] Mailing charge failed: {charge_result['error']} — falling back to First Class")
+            preferred_method = 'first_class'  # Fallback
+        elif charge_result.get('charged'):
+            logger.info(f"[PIPELINE] Charged ${charge_result['amount_cents']/100:.2f} for {len(mailable)} {preferred_method} letters")
+
+    # Map preference to DocuPost mail_class
+    docupost_class_map = {
+        'first_class': 'usps_first_class',
+        'certified': 'usps_certified',
+        'certified_rr': 'usps_certified_return_receipt',
+    }
+    docupost_mail_class = docupost_class_map.get(preferred_method, 'usps_first_class')
+
     sent_count = 0
     fail_count = 0
 
@@ -1325,7 +1360,13 @@ def handle_delivery(pipeline):
                         f"for account {account.account_name} ({account.account_number})")
             result = {'success': True, 'response': 'dry-run'}
         else:
-            mail_opts = agent_config.get('mail_options', {})
+            mail_opts = {
+                'mail_class': docupost_mail_class,
+                'servicelevel': 'certified' if preferred_method in ('certified', 'certified_rr') else '',
+                'color': 'false',
+                'doublesided': 'true',
+                'return_envelope': 'true' if preferred_method == 'certified_rr' else 'false',
+            }
             result = mail_letter_via_docupost(
                 pdf_url=pdf_url,
                 recipient=recipient,
@@ -1341,7 +1382,7 @@ def handle_delivery(pipeline):
             account.letter.pdf_url = pdf_url
             account.letter.mailed_at = datetime.utcnow()
             account.letter.delivery_status = 'queued'
-            account.letter.mail_class = mail_opts.get('mail_class', 'usps_first_class')
+            account.letter.mail_class = docupost_mail_class
             account.letter.service_level = mail_opts.get('servicelevel') or None
             # Store DocuPost tracking info
             if result.get('letter_id'):

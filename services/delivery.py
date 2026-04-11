@@ -1,29 +1,96 @@
 """
 Letter delivery service — DocuPost integration for mailing dispute letters.
-Extracted from dispute_ui.py.
+Handles mailing via platform DocuPost account and per-letter Stripe billing.
 """
 
 import os
+import logging
 import requests
+import stripe
 from dotenv import load_dotenv
 
 load_dotenv()
 
+stripe.api_key = os.getenv("STRIPE_TEST_SECRET_KEY")
+
 DOCUPOST_API_TOKEN = os.getenv("DOCUPOST_API_TOKEN")
 DOCUPOST_SENDLETTER_URL = "https://app.docupost.com/api/1.1/wf/sendletter"
 
+logger = logging.getLogger(__name__)
+
+# Mailing prices in cents
+MAILING_PRICES = {
+    'first_class': 0,         # Included in subscription
+    'usps_first_class': 0,    # Alias
+    'certified': 1499,        # $14.99
+    'certified_rr': 1699,     # $16.99
+}
+
+
+def charge_mailing_fee(user, letter_count, mail_class):
+    """
+    Charge the user for premium mailing via Stripe.
+
+    Args:
+        user: User model instance
+        letter_count: Number of letters being mailed
+        mail_class: 'first_class', 'certified', or 'certified_rr'
+
+    Returns:
+        dict with 'charged' (bool), 'amount_cents', 'error' (if failed)
+    """
+    # Admin accounts are never charged
+    if getattr(user, 'is_admin', False):
+        logger.info(f"[MAILING] Admin user {user.id} — skipping charge for {letter_count} {mail_class} letters")
+        return {'charged': False, 'amount_cents': 0, 'skipped': 'admin'}
+
+    price_per_letter = MAILING_PRICES.get(mail_class, 0)
+
+    # First Class is included — no charge
+    if price_per_letter == 0:
+        return {'charged': False, 'amount_cents': 0, 'skipped': 'included'}
+
+    total_cents = price_per_letter * letter_count
+
+    # Need a Stripe customer ID to charge
+    customer_id = getattr(user, 'stripe_customer_id', None)
+    if not customer_id:
+        logger.error(f"[MAILING] No Stripe customer ID for user {user.id} — cannot charge for {mail_class}")
+        return {'charged': False, 'amount_cents': total_cents, 'error': 'No payment method on file'}
+
+    try:
+        # Create and confirm a PaymentIntent using the customer's default payment method
+        intent = stripe.PaymentIntent.create(
+            amount=total_cents,
+            currency='usd',
+            customer=customer_id,
+            confirm=True,
+            automatic_payment_methods={'enabled': True, 'allow_redirects': 'never'},
+            description=f'uDispute mailing — {letter_count}x {mail_class.replace("_", " ").title()}',
+            metadata={
+                'user_id': str(user.id),
+                'letter_count': str(letter_count),
+                'mail_class': mail_class,
+            },
+        )
+
+        if intent.status == 'succeeded':
+            logger.info(f"[MAILING] Charged user {user.id}: ${total_cents/100:.2f} for {letter_count} {mail_class} letters")
+            return {'charged': True, 'amount_cents': total_cents, 'payment_intent_id': intent.id}
+        else:
+            logger.error(f"[MAILING] Payment not succeeded for user {user.id}: status={intent.status}")
+            return {'charged': False, 'amount_cents': total_cents, 'error': f'Payment status: {intent.status}'}
+
+    except stripe.error.CardError as e:
+        logger.error(f"[MAILING] Card declined for user {user.id}: {e}")
+        return {'charged': False, 'amount_cents': total_cents, 'error': 'Card declined'}
+    except stripe.error.StripeError as e:
+        logger.error(f"[MAILING] Stripe error for user {user.id}: {e}")
+        return {'charged': False, 'amount_cents': total_cents, 'error': str(e)}
+
 
 def get_docupost_token(user_id=None):
-    """Resolve DocuPost API token — check user's BYOK key first, fall back to env var."""
-    if user_id:
-        try:
-            from models import UserSetting
-            from services.encryption import decrypt_value
-            setting = UserSetting.query.filter_by(user_id=user_id, key='docupost_api_token').first()
-            if setting and setting.value:
-                return decrypt_value(setting.value)
-        except Exception:
-            pass  # Fall back to platform key
+    """Return the platform DocuPost API token. All mailing goes through the platform account."""
     return DOCUPOST_API_TOKEN
 
 
