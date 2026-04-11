@@ -249,9 +249,16 @@ def create_app():
     with app.app_context():
         try:
             admin = User.query.filter_by(username='berglegend').first()
-            if admin and not admin.is_admin:
-                admin.is_admin = True
-                db.session.commit()
+            if admin:
+                changed = False
+                if not admin.is_admin:
+                    admin.is_admin = True
+                    changed = True
+                if not admin.is_beta:
+                    admin.is_beta = True
+                    changed = True
+                if changed:
+                    db.session.commit()
         except Exception:
             pass
 
