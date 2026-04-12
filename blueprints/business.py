@@ -528,21 +528,23 @@ def client_file(client_id, filetype):
             signed = get_signed_url(fn, inline=False)
             try:
                 import requests as http_req
-                resp = http_req.get(signed, timeout=30, stream=True)
+                resp = http_req.get(signed, timeout=30)
                 if resp.status_code != 200:
                     abort(resp.status_code)
                 # Detect content type from extension or default to PDF
-                ext = fn.rsplit('/', 1)[-1].rsplit('.', 1)
-                if len(ext) == 2:
+                last_segment = fn.rsplit('/', 1)[-1]
+                if '.' in last_segment:
                     ctype = resp.headers.get('content-type', 'application/pdf')
                 else:
                     ctype = 'application/pdf'
-                from flask import Response
-                return Response(
-                    resp.iter_content(chunk_size=8192),
-                    content_type=ctype,
-                    headers={'Content-Disposition': 'inline'}
-                )
+                from flask import Response, make_response
+                response = make_response(resp.content)
+                response.headers['Content-Type'] = ctype
+                response.headers['Content-Length'] = len(resp.content)
+                response.headers['Content-Disposition'] = 'inline'
+                response.headers['Accept-Ranges'] = 'bytes'
+                response.headers['Cache-Control'] = 'public, max-age=3600'
+                return response
             except Exception as e:
                 print(f"[CLIENT_FILE] Proxy error: {e}", flush=True)
                 return redirect(fn)  # Fallback to direct redirect
