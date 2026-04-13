@@ -112,16 +112,30 @@
         </div>
       </div>
 
-      <!-- File Uploads -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <div>
-          <label for="pdf_file" class="glass-label">Credit Report (PDF)</label>
-          <input type="file"
-                 name="pdf_file"
-                 id="pdf_file"
-                 accept=".pdf"
-                 class="glass-input mt-1 block w-full" />
+      <!-- Credit Report Uploads (3 bureaus) -->
+      <div class="mb-6">
+        <p class="glass-label mb-3">Credit Reports (PDF)</p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="glass-inset rounded-xl p-4">
+            <label for="pdf_experian_file" class="glass-label block mb-1" style="color:#0077ed;">Experian</label>
+            <input type="file" name="pdf_experian_file" id="pdf_experian_file" accept=".pdf" class="glass-input mt-1 block w-full" />
+            {% if client.pdf_experian %}<p class="text-xs mt-1" style="color:var(--text-tertiary);">Current: uploaded</p>{% endif %}
+          </div>
+          <div class="glass-inset rounded-xl p-4">
+            <label for="pdf_transunion_file" class="glass-label block mb-1" style="color:#34c759;">TransUnion</label>
+            <input type="file" name="pdf_transunion_file" id="pdf_transunion_file" accept=".pdf" class="glass-input mt-1 block w-full" />
+            {% if client.pdf_transunion %}<p class="text-xs mt-1" style="color:var(--text-tertiary);">Current: uploaded</p>{% endif %}
+          </div>
+          <div class="glass-inset rounded-xl p-4">
+            <label for="pdf_equifax_file" class="glass-label block mb-1" style="color:#ff3b30;">Equifax</label>
+            <input type="file" name="pdf_equifax_file" id="pdf_equifax_file" accept=".pdf" class="glass-input mt-1 block w-full" />
+            {% if client.pdf_equifax %}<p class="text-xs mt-1" style="color:var(--text-tertiary);">Current: uploaded</p>{% endif %}
+          </div>
         </div>
+      </div>
+
+      <!-- Other File Uploads -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
         <div>
           <label for="id_file" class="glass-label">ID Document (PDF/IMG)</label>
           <input type="file"

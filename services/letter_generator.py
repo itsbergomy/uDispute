@@ -153,12 +153,68 @@ FCRA_INACCURACY_MAP = {
             "must be deleted."
         ),
     },
+    # ── Cross-Bureau Discrepancy Categories ──
+    "cross_bureau_balance_mismatch": {
+        "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+        "title": "Cross-Bureau Inconsistency — Balance Discrepancy",
+        "explanation": (
+            "Under {section}, furnishers are prohibited from reporting information they know "
+            "or have reasonable cause to believe is inaccurate. This account reports different "
+            "balance amounts across credit bureaus. At minimum, one bureau is furnishing an "
+            "inaccurate balance. The furnisher has a duty to report identical, accurate balance "
+            "information to all bureaus simultaneously. This cross-bureau inconsistency "
+            "constitutes prima facie evidence of inaccurate reporting."
+        ),
+    },
+    "cross_bureau_status_conflict": {
+        "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+        "title": "Cross-Bureau Inconsistency — Status Conflict",
+        "explanation": (
+            "Under {section}, this account reports contradictory statuses across credit bureaus. "
+            "An account cannot simultaneously be in different states of delinquency at different "
+            "bureaus — this demonstrates that at least one CRA is reporting inaccurate status "
+            "information. The furnisher must reconcile and correct the status across all bureaus."
+        ),
+    },
+    "cross_bureau_missing_account": {
+        "section": "15 U.S.C. § 1681i(a)",
+        "title": "Cross-Bureau Inconsistency — Selective Reporting",
+        "explanation": (
+            "Under {section}, this account appears on one bureau but not others. Selective "
+            "reporting — where a negative tradeline is furnished to some bureaus but not all — "
+            "raises questions about the account's verifiability. If the furnisher cannot produce "
+            "documentation that this account belongs to the consumer across all bureaus where "
+            "it is reported, it must be deleted from the reporting bureau."
+        ),
+    },
+    "cross_bureau_date_mismatch": {
+        "section": "15 U.S.C. § 1681e(b)",
+        "title": "Cross-Bureau Inconsistency — Date Discrepancy",
+        "explanation": (
+            "Under {section}, consumer reporting agencies must follow reasonable procedures to "
+            "assure maximum possible accuracy. This account reports different date-opened values "
+            "across bureaus, which affects credit age calculations and the 7-year reporting window. "
+            "The furnisher must correct the date to match the actual origination records."
+        ),
+    },
 }
 
 
 def classify_inaccuracy(inaccuracy_text):
     """Classify an inaccuracy string into an FCRA category."""
     text = inaccuracy_text.lower()
+    # Cross-bureau findings (prefixed with [CROSS-BUREAU])
+    if '[cross-bureau]' in text:
+        if 'balance' in text:
+            return "cross_bureau_balance_mismatch"
+        if 'status' in text:
+            return "cross_bureau_status_conflict"
+        if 'not reported' in text or 'does not appear' in text or 'selective' in text:
+            return "cross_bureau_missing_account"
+        if 'date' in text:
+            return "cross_bureau_date_mismatch"
+        return "cross_bureau_balance_mismatch"  # default cross-bureau
+    # Standard intra-report inaccuracies
     if 'status' in text and ('contradict' in text or 'paying as agreed' in text or 'current' in text):
         return "status_contradicts_history"
     if 'account type' in text and ('mismatch' in text or 'open account' in text or 'collection' in text):

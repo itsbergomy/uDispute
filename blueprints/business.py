@@ -127,7 +127,10 @@ def create_client():
 
     # Save uploaded files — Cloudinary if configured, otherwise local
     file_fields = {
-        'pdf_file': 'pdf_filename',
+        'pdf_experian_file': 'pdf_experian',
+        'pdf_transunion_file': 'pdf_transunion',
+        'pdf_equifax_file': 'pdf_equifax',
+        'pdf_file': 'pdf_experian',       # Legacy: single upload maps to Experian
         'id_file': 'id_filename',
         'ssn_file': 'ssn_filename',
         'utility_file': 'utility_filename',
@@ -473,7 +476,10 @@ def edit_client(client_id):
             ('id_file', 'id_filename'),
             ('ssn_file', 'ssn_filename'),
             ('utility_file', 'utility_filename'),
-            ('pdf_file', 'pdf_filename'),
+            ('pdf_experian_file', 'pdf_experian'),
+            ('pdf_transunion_file', 'pdf_transunion'),
+            ('pdf_equifax_file', 'pdf_equifax'),
+            ('pdf_file', 'pdf_experian'),  # Legacy: single upload maps to Experian
         ]
         _img_fields = {'id_file', 'ssn_file', 'utility_file'}
         for field_name, model_attr in uploads:
@@ -508,7 +514,10 @@ def client_file(client_id, filetype):
         'id': c.id_filename,
         'ssn': c.ssn_filename,
         'util': c.utility_filename,
-        'pdf': c.pdf_filename
+        'pdf': c.pdf_filename,            # Backward compatible (returns first bureau)
+        'pdf_experian': c.pdf_experian,
+        'pdf_transunion': c.pdf_transunion,
+        'pdf_equifax': c.pdf_equifax,
     }
     fn = mapping.get(filetype)
     print(f"[CLIENT_FILE] client={client_id} type={filetype} fn={fn!r}", flush=True)

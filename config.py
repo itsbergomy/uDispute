@@ -236,6 +236,25 @@ def create_app():
                         conn.execute(text(f'ALTER TABLE "Users" ADD COLUMN {col_name} {col_type}'))
                 conn.commit()
 
+            # ── clients (per-bureau PDF columns) ──
+            if 'clients' in inspector.get_table_names():
+                existing = [c['name'] for c in inspector.get_columns('clients')]
+                client_new_cols = {
+                    'pdf_experian': 'VARCHAR(200)',
+                    'pdf_transunion': 'VARCHAR(200)',
+                    'pdf_equifax': 'VARCHAR(200)',
+                }
+                for col_name, col_type in client_new_cols.items():
+                    if col_name not in existing:
+                        conn.execute(text(f'ALTER TABLE clients ADD COLUMN {col_name} {col_type}'))
+                # Migrate existing data: copy pdf_filename → pdf_experian
+                if 'pdf_filename' in existing and 'pdf_experian' in [c['name'] for c in inspector.get_columns('clients')]:
+                    conn.execute(text(
+                        'UPDATE clients SET pdf_experian = pdf_filename '
+                        'WHERE pdf_filename IS NOT NULL AND pdf_experian IS NULL'
+                    ))
+                conn.commit()
+
     mail.init_app(app)
     login_manager.init_app(app)
 

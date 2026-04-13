@@ -123,7 +123,20 @@ class Client(db.Model):
     id_filename = db.Column(db.String(200), nullable=True)
     ssn_filename = db.Column(db.String(200), nullable=True)
     utility_filename = db.Column(db.String(200), nullable=True)
-    pdf_filename = db.Column(db.String(200), nullable=True)
+    # Per-bureau credit report PDFs
+    pdf_experian = db.Column(db.String(200), nullable=True)
+    pdf_transunion = db.Column(db.String(200), nullable=True)
+    pdf_equifax = db.Column(db.String(200), nullable=True)
+
+    @property
+    def pdf_filename(self):
+        """Backward-compatible: returns the first non-null bureau PDF."""
+        return self.pdf_experian or self.pdf_transunion or self.pdf_equifax
+
+    @pdf_filename.setter
+    def pdf_filename(self, value):
+        """Legacy setter: assigns to pdf_experian by default."""
+        self.pdf_experian = value
     round_status = db.Column(db.String(50), default='Not Started')
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

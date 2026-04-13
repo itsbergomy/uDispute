@@ -818,15 +818,41 @@
         </a>
         {% endif %}
 
-        {% if client.pdf_filename %}
-        <a href="{{ url_for('business.client_file', client_id=client.id, filetype='pdf') }}" target="_blank"
+        {% if client.pdf_experian %}
+        <a href="{{ url_for('business.client_file', client_id=client.id, filetype='pdf_experian') }}" target="_blank"
            class="glass-card glass-card--light rounded-xl p-3 flex items-center gap-4 hover:scale-[1.01] transition-all duration-200"
            onmouseenter="this.classList.add('glass-raised')" onmouseleave="this.classList.remove('glass-raised')">
           <div class="glass-icon-well flex items-center justify-center" style="width:40px;height:40px;border-radius:12px;flex-shrink:0;">
-            {{ icons.icon_file(size=22, uid='doc3') }}
+            {{ icons.icon_file(size=22, uid='doc3a') }}
           </div>
           <div>
-            <div class="text-sm font-semibold">Credit Report</div>
+            <div class="text-sm font-semibold" style="color:#0077ed;">Experian Report</div>
+            <div class="text-xs" style="color:var(--text-tertiary);">Click to view</div>
+          </div>
+        </a>
+        {% endif %}
+        {% if client.pdf_transunion %}
+        <a href="{{ url_for('business.client_file', client_id=client.id, filetype='pdf_transunion') }}" target="_blank"
+           class="glass-card glass-card--light rounded-xl p-3 flex items-center gap-4 hover:scale-[1.01] transition-all duration-200"
+           onmouseenter="this.classList.add('glass-raised')" onmouseleave="this.classList.remove('glass-raised')">
+          <div class="glass-icon-well flex items-center justify-center" style="width:40px;height:40px;border-radius:12px;flex-shrink:0;">
+            {{ icons.icon_file(size=22, uid='doc3b') }}
+          </div>
+          <div>
+            <div class="text-sm font-semibold" style="color:#34c759;">TransUnion Report</div>
+            <div class="text-xs" style="color:var(--text-tertiary);">Click to view</div>
+          </div>
+        </a>
+        {% endif %}
+        {% if client.pdf_equifax %}
+        <a href="{{ url_for('business.client_file', client_id=client.id, filetype='pdf_equifax') }}" target="_blank"
+           class="glass-card glass-card--light rounded-xl p-3 flex items-center gap-4 hover:scale-[1.01] transition-all duration-200"
+           onmouseenter="this.classList.add('glass-raised')" onmouseleave="this.classList.remove('glass-raised')">
+          <div class="glass-icon-well flex items-center justify-center" style="width:40px;height:40px;border-radius:12px;flex-shrink:0;">
+            {{ icons.icon_file(size=22, uid='doc3c') }}
+          </div>
+          <div>
+            <div class="text-sm font-semibold" style="color:#ff3b30;">Equifax Report</div>
             <div class="text-xs" style="color:var(--text-tertiary);">Click to view</div>
           </div>
         </a>

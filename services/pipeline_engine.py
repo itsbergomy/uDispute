@@ -354,7 +354,9 @@ def get_pipeline_status(pipeline_id):
 # ─── State Handlers ───
 
 def handle_intake(pipeline):
-    """Validate that the client has a PDF and ID documents uploaded."""
+    """Parse all uploaded credit reports (up to 3 bureaus) and cross-reference."""
+    from services.cross_reference import cross_reference
+
     client = Client.query.get(pipeline.client_id)
     if not client:
         raise ValueError("Client not found")
@@ -362,21 +364,38 @@ def handle_intake(pipeline):
     if not client.pdf_filename:
         raise ValueError("No credit report PDF uploaded for this client")
 
-    # Resolve PDF path — Cloudinary URL or local file
-    if client.pdf_filename.startswith('http'):
-        pdf_path = download_to_temp(client.pdf_filename, suffix='.pdf')
-        if not pdf_path:
-            raise ValueError(f"Could not download PDF from cloud: {client.pdf_filename}")
-    else:
-        upload_folder = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
-        pdf_path = os.path.join(upload_folder, str(client.id), client.pdf_filename)
-        if not os.path.exists(pdf_path):
-            pdf_path = os.path.join(upload_folder, client.pdf_filename)
-        if not os.path.exists(pdf_path):
-            raise ValueError(f"PDF file not found: {client.pdf_filename}")
+    # Resolve PDF paths for all uploaded bureau reports
+    upload_folder = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
+    bureau_pdfs = {}  # {'experian': '/tmp/xxx.pdf', ...}
 
-    # Compute PDF hash
-    pdf_hash = compute_pdf_hash(pdf_path)
+    for bureau, field in [('experian', 'pdf_experian'), ('transunion', 'pdf_transunion'), ('equifax', 'pdf_equifax')]:
+        url_or_path = getattr(client, field, None)
+        if not url_or_path:
+            continue
+
+        if url_or_path.startswith('http'):
+            pdf_path = download_to_temp(url_or_path, suffix='.pdf')
+            if not pdf_path:
+                logger.warning(f"[INTAKE] Could not download {bureau} PDF: {url_or_path}")
+                continue
+        else:
+            pdf_path = os.path.join(upload_folder, str(client.id), url_or_path)
+            if not os.path.exists(pdf_path):
+                pdf_path = os.path.join(upload_folder, url_or_path)
+            if not os.path.exists(pdf_path):
+                logger.warning(f"[INTAKE] {bureau} PDF not found: {url_or_path}")
+                continue
+
+        bureau_pdfs[bureau] = pdf_path
+
+    if not bureau_pdfs:
+        raise ValueError("No credit report PDFs could be resolved")
+
+    logger.info(f"[INTAKE] Parsing {len(bureau_pdfs)} bureau report(s): {list(bureau_pdfs.keys())}")
+
+    # Compute hash from first available PDF (for dedup)
+    first_path = list(bureau_pdfs.values())[0]
+    pdf_hash = compute_pdf_hash(first_path)
 
     # Cache IDs and strategy before releasing DB
     pipeline_id = pipeline.id
@@ -398,16 +417,32 @@ def handle_intake(pipeline):
     db.session.expunge_all()
     db.session.remove()
 
-    # Extract negative items (SLOW — 30-60s, no DB connection held)
-    try:
-        negative_items = extract_negative_items_from_pdf(pdf_path)
-    except Exception as exc:
-        raise ValueError(f"Failed to extract accounts from PDF: {exc}")
+    # Parse each bureau report independently (SLOW — 30-60s each, no DB held)
+    bureau_results = {}
+    for bureau, pdf_path in bureau_pdfs.items():
+        try:
+            logger.info(f"[INTAKE] Parsing {bureau} report...")
+            items = extract_negative_items_from_pdf(pdf_path)
+            bureau_results[bureau] = items
+            logger.info(f"[INTAKE] {bureau}: {len(items)} negative accounts found")
+        except Exception as exc:
+            logger.error(f"[INTAKE] Failed to parse {bureau} report: {exc}")
+
+    if not bureau_results:
+        raise ValueError("Failed to extract accounts from any credit report")
+
+    # Cross-reference across bureaus (fast — pure Python, no API calls)
+    merged_items, xref_summary = cross_reference(bureau_results)
+    logger.info(f"[INTAKE] Cross-reference: {xref_summary}")
 
     # ── Fresh DB connection — write results ──
     pipeline = DisputePipeline.query.get(pipeline_id)
     pipeline.pdf_hash = pdf_hash
-    strategy_data['negative_items'] = negative_items
+    strategy_data['negative_items'] = merged_items
+    strategy_data['negative_items_by_bureau'] = {
+        b: items for b, items in bureau_results.items()
+    }
+    strategy_data['cross_reference_summary'] = xref_summary
     strategy_data['analysis'] = analysis
     pipeline.strategy_json = json.dumps(strategy_data)
     db.session.commit()
