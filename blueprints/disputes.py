@@ -142,85 +142,99 @@ def upload_pdf():
                      'dual_letter_enabled', 'selected_issues', 'selected_solutions']:
             session.pop(key, None)
 
-        if 'pdfFile' not in request.files:
-            return jsonify({"error": 'No file selected'}), 400
+        # Accept up to 3 bureau-labeled PDFs + legacy single pdfFile
+        bureau_files = {}
+        for form_key, bureau in [('pdfExperian', 'experian'), ('pdfTransunion', 'transunion'),
+                                  ('pdfEquifax', 'equifax'), ('pdfFile', 'experian')]:
+            f = request.files.get(form_key)
+            if f and f.filename and allowed_file(f.filename):
+                if bureau not in bureau_files:  # Don't overwrite bureau-specific with legacy
+                    bureau_files[bureau] = f
 
-        file = request.files['pdfFile']
-        if file.filename == '':
-            return jsonify({"error": 'No file selected'}), 400
+        if not bureau_files:
+            flash("No PDF files selected. Please upload at least one credit report.", "error")
+            return redirect(url_for('disputes.upload_pdf'))
 
-        if file and allowed_file(file.filename):
+        # Upload and parse each bureau report
+        bureau_results = {}
+        first_hash = None
+
+        for bureau, file in bureau_files.items():
             filename = secure_filename(file.filename)
 
             if cloud_configured():
-                # Upload to Cloudinary, download temp copy for parsing
-                result = upload_file(file, folder=f"users/{current_user.id}/reports", resource_type="raw")
+                result = upload_file(file, folder=f"users/{current_user.id}/reports/{bureau}", resource_type="raw")
                 if not result:
-                    flash("File upload failed. Please try again.", "error")
-                    return redirect(url_for('disputes.upload_pdf'))
-                session['cloud_pdf_url'] = result['secure_url']
+                    flash(f"Upload failed for {bureau.title()} report.", "error")
+                    continue
+                session[f'cloud_pdf_url_{bureau}'] = result['secure_url']
                 filepath = download_to_temp(result['secure_url'], suffix='.pdf')
                 if not filepath:
-                    flash("Could not process uploaded file.", "error")
-                    return redirect(url_for('disputes.upload_pdf'))
+                    flash(f"Could not process {bureau.title()} report.", "error")
+                    continue
             else:
-                filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+                filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], f"{bureau}_{filename}")
                 file.save(filepath)
 
-            pdf_hash = compute_pdf_hash(filepath)
-            session['pdf_hash'] = pdf_hash
+            if not first_hash:
+                first_hash = compute_pdf_hash(filepath)
 
             try:
-                negative_items = extract_negative_items_from_pdf(filepath)
+                items = extract_negative_items_from_pdf(filepath)
+                bureau_results[bureau] = items
             except Exception as e:
-                flash(f"Could not parse PDF: {e}", "error")
-                return redirect(url_for('disputes.upload_pdf'))
-            session['negative_items'] = negative_items
+                flash(f"Could not parse {bureau.title()} report: {e}", "error")
+                continue
 
-            # Auto-detect which bureau's report was uploaded
-            try:
-                import pdfplumber
-                with pdfplumber.open(filepath) as _pdf:
-                    _header = "\n".join(p.extract_text() or "" for p in _pdf.pages[:2])[:1500].lower()
-                if 'experian' in _header:
-                    session['detected_bureau'] = 'Experian'
-                elif 'transunion' in _header:
-                    session['detected_bureau'] = 'TransUnion'
-                elif 'equifax' in _header:
-                    session['detected_bureau'] = 'Equifax'
-                else:
-                    session['detected_bureau'] = None
-            except Exception:
-                session['detected_bureau'] = None
+        if not bureau_results:
+            flash("Failed to parse any uploaded reports.", "error")
+            return redirect(url_for('disputes.upload_pdf'))
 
-            existing_round = DisputeRound.query.filter_by(
+        # Cross-reference across bureaus
+        from services.cross_reference import cross_reference
+        merged_items, xref_summary = cross_reference(bureau_results)
+
+        session['negative_items'] = merged_items
+        session['negative_items_by_bureau'] = {b: items for b, items in bureau_results.items()}
+        session['cross_reference_summary'] = xref_summary
+        session['pdf_hash'] = first_hash
+        session['detected_bureau'] = None  # Multi-bureau — entity set per account via source_bureau
+
+        bureaus_parsed = list(bureau_results.keys())
+        discrepancies = xref_summary.get('discrepancies_found', 0)
+
+        existing_round = DisputeRound.query.filter_by(
+            user_id=current_user.id,
+            pdf_hash=first_hash
+        ).first()
+
+        if not existing_round:
+            new_round = DisputeRound(
                 user_id=current_user.id,
-                pdf_hash=pdf_hash
-            ).first()
+                pdf_hash=first_hash,
+                round_number=1
+            )
+            db.session.add(new_round)
+            db.session.commit()
+            session['current_round'] = 1
+            session['disputed_accounts'] = []
 
-            if not existing_round:
-                new_round = DisputeRound(
-                    user_id=current_user.id,
-                    pdf_hash=pdf_hash,
-                    round_number=1
-                )
-                db.session.add(new_round)
-                db.session.commit()
-                session['current_round'] = 1
-                session['disputed_accounts'] = []
-                flash("New PDF detected — Starting Round 1. Next: Select the accounts you want to dispute and choose your strategy.", "success")
-                return redirect('/select-account')
-            else:
-                session['current_round'] = existing_round.round_number
-                session['disputed_accounts'] = existing_round.get_disputed_accounts()
-
-                if all(item['account_number'] in session['disputed_accounts'] for item in negative_items):
-                    return redirect(url_for('disputes.confirm_next_round'))
-
-                flash(f"Resuming Round {existing_round.round_number}.", "info")
-                return redirect('/select-account')
+            msg = f"Parsed {len(bureaus_parsed)} report(s): {', '.join(b.title() for b in bureaus_parsed)}. "
+            msg += f"Found {len(merged_items)} negative accounts"
+            if discrepancies > 0:
+                msg += f" with {discrepancies} cross-bureau discrepancies"
+            msg += ". Select accounts to dispute."
+            flash(msg, "success")
+            return redirect('/select-account')
         else:
-            return jsonify({"error": "Invalid file type. Only PDFs allowed."}), 400
+            session['current_round'] = existing_round.round_number
+            session['disputed_accounts'] = existing_round.get_disputed_accounts()
+
+            if all(item.get('account_number', '') in session['disputed_accounts'] for item in merged_items):
+                return redirect(url_for('disputes.confirm_next_round'))
+
+            flash(f"Resuming Round {existing_round.round_number} with {len(bureaus_parsed)} report(s).", "info")
+            return redirect('/select-account')
 
     return render_template('upload_pdf.html')
 

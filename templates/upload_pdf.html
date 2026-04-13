@@ -1,32 +1,84 @@
 {% extends "base_header.html" %}
 {% import '_icons.html' as icons %}
-{% block title %}Upload Credit Report{% endblock %}
+{% block title %}Upload Credit Reports{% endblock %}
 {% block content %}
-<main class="flex justify-center items-center min-h-[75vh] px-4 py-10">
-  <div class="glass-card glass-card--heavy glass-p text-center max-w-xl w-full relative glass-animate-in">
-    <a href="{% if current_user.plan == 'business' %}{{ url_for('business.business_dashboard') }}{% else %}{{ url_for('disputes.index') }}{% endif %}"
+<main class="flex justify-center items-start min-h-[75vh] px-4 py-10">
+  <div class="glass-card glass-card--heavy glass-p max-w-3xl w-full relative glass-animate-in">
+    <a href="{{ url_for('disputes.index') }}"
        class="absolute top-6 left-6 glass-btn glass-btn--ghost p-3 rounded-full">
       &larr;
     </a>
 
-    <div class="glass-icon-well mx-auto mb-5" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
-      {{ icons.icon_file(size=28, uid='up1') }}
+    <div class="text-center mb-6">
+      <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
+        {{ icons.icon_file(size=28, uid='up1') }}
+      </div>
+      <h2 class="text-2xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">Upload Credit Reports</h2>
+      <p style="color:var(--text-secondary);max-width:480px;margin:0 auto;">
+        Upload your credit reports from each bureau. The more reports you upload, the stronger your disputes — we cross-reference discrepancies across bureaus.
+      </p>
     </div>
-
-    <h2 class="text-2xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">Upload Credit Report PDF <span class="glass-help-tip" data-term="dispute-mode">?</span></h2>
-    <p class="mb-8" style="color:var(--text-secondary);">Please upload your credit report to begin parsing for negative accounts.</p>
 
     <form method="POST" action="{{ url_for('upload_pdf') }}" enctype="multipart/form-data" id="uploadForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-      <div class="upload-area glass-inset rounded-2xl p-8 mb-6" style="border:2px dashed rgba(0,113,227,0.25);">
-        <div class="mb-3">{{ icons.icon_inbox(size=32, uid='up2') }}</div>
-        <p class="upload-text text-sm font-medium mb-4" style="color:var(--text-secondary);">Drop your PDF here or click below</p>
-        <label class="inline-block glass-btn glass-btn--primary glass-btn--pill cursor-pointer glass-shimmer-edge" style="position:relative;overflow:hidden;">
-          <input type="file" name="pdfFile" id="pdfFileInput" accept=".pdf" class="hidden" />
-          Choose PDF
-        </label>
+
+      <!-- 3 Bureau Drop Zones -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+
+        <!-- Experian -->
+        <div class="drop-zone glass-inset rounded-2xl p-5 text-center transition-all duration-200"
+             data-bureau="experian" data-input="pdfExperian"
+             style="border:2px dashed rgba(0,113,227,0.25);cursor:pointer;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+          <div class="mb-2" style="width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:rgba(0,113,227,0.08);margin:0 auto;">
+            <span style="font-size:16px;color:#0077ed;">E</span>
+          </div>
+          <p class="text-sm font-bold mb-1" style="color:#0077ed;">Experian</p>
+          <p class="drop-text text-xs" style="color:var(--text-tertiary);">Drop PDF or click</p>
+          <input type="file" name="pdfExperian" id="pdfExperian" accept=".pdf" class="hidden" />
+          <div class="drop-status mt-2 text-xs font-medium" style="display:none;"></div>
+        </div>
+
+        <!-- TransUnion -->
+        <div class="drop-zone glass-inset rounded-2xl p-5 text-center transition-all duration-200"
+             data-bureau="transunion" data-input="pdfTransunion"
+             style="border:2px dashed rgba(52,199,89,0.25);cursor:pointer;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+          <div class="mb-2" style="width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:rgba(52,199,89,0.08);margin:0 auto;">
+            <span style="font-size:16px;color:#34c759;">T</span>
+          </div>
+          <p class="text-sm font-bold mb-1" style="color:#34c759;">TransUnion</p>
+          <p class="drop-text text-xs" style="color:var(--text-tertiary);">Drop PDF or click</p>
+          <input type="file" name="pdfTransunion" id="pdfTransunion" accept=".pdf" class="hidden" />
+          <div class="drop-status mt-2 text-xs font-medium" style="display:none;"></div>
+        </div>
+
+        <!-- Equifax -->
+        <div class="drop-zone glass-inset rounded-2xl p-5 text-center transition-all duration-200"
+             data-bureau="equifax" data-input="pdfEquifax"
+             style="border:2px dashed rgba(255,59,48,0.25);cursor:pointer;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+          <div class="mb-2" style="width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:rgba(255,59,48,0.08);margin:0 auto;">
+            <span style="font-size:16px;color:#ff3b30;">Q</span>
+          </div>
+          <p class="text-sm font-bold mb-1" style="color:#ff3b30;">Equifax</p>
+          <p class="drop-text text-xs" style="color:var(--text-tertiary);">Drop PDF or click</p>
+          <input type="file" name="pdfEquifax" id="pdfEquifax" accept=".pdf" class="hidden" />
+          <div class="drop-status mt-2 text-xs font-medium" style="display:none;"></div>
+        </div>
+
+      </div>
+
+      <!-- Upload counter + CTA -->
+      <div class="text-center">
+        <p id="uploadCount" class="text-sm mb-4" style="color:var(--text-tertiary);">No reports selected — upload at least 1 to continue</p>
+        <button type="submit" id="analyzeBtn" disabled
+                class="glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge px-8 py-3 text-base"
+                style="position:relative;overflow:hidden;opacity:0.4;cursor:not-allowed;">
+          Analyze All Reports
+        </button>
       </div>
     </form>
+
+    <!-- Legacy single-upload fallback for backward compat -->
+    <input type="file" name="pdfFile" id="pdfFileLegacy" class="hidden" form="uploadForm" />
   </div>
 </main>
 {% endblock %}
@@ -34,70 +86,131 @@
 {% block scripts %}
 {{ super() }}
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    var input = document.getElementById('pdfFileInput');
-    var form = document.getElementById('uploadForm');
-    var uploadArea = document.querySelector('.upload-area');
-    var uploadText = document.querySelector('.upload-text');
+document.addEventListener('DOMContentLoaded', function() {
+  var zones = document.querySelectorAll('.drop-zone');
+  var analyzeBtn = document.getElementById('analyzeBtn');
+  var countText = document.getElementById('uploadCount');
+  var fileCount = 0;
 
-    function handleFile(file) {
-      if (!file) return;
-      if (!file.name.toLowerCase().endsWith('.pdf')) {
-        uploadText.textContent = 'PDF files only — please try again';
-        uploadText.style.color = '#e74c3c';
-        uploadArea.style.borderColor = 'rgba(231,76,60,0.5)';
-        setTimeout(function() {
-          uploadText.textContent = 'Drop your PDF here or click below';
-          uploadText.style.color = '';
-          uploadArea.style.borderColor = 'rgba(0,113,227,0.25)';
-        }, 2000);
-        return;
-      }
-      var dt = new DataTransfer();
-      dt.items.add(file);
-      input.files = dt.files;
+  var bureauColors = {
+    experian: {border: 'rgba(0,113,227,0.6)', bg: 'rgba(0,113,227,0.06)', text: '#0077ed'},
+    transunion: {border: 'rgba(52,199,89,0.6)', bg: 'rgba(52,199,89,0.06)', text: '#34c759'},
+    equifax: {border: 'rgba(255,59,48,0.6)', bg: 'rgba(255,59,48,0.06)', text: '#ff3b30'},
+  };
 
-      uploadText.textContent = file.name + ' — uploading...';
-      uploadArea.style.borderColor = 'rgba(0,200,83,0.5)';
-      form.submit();
+  function updateCount() {
+    fileCount = 0;
+    zones.forEach(function(z) {
+      if (z.dataset.hasFile === 'true') fileCount++;
+    });
+    if (fileCount === 0) {
+      countText.textContent = 'No reports selected — upload at least 1 to continue';
+      analyzeBtn.disabled = true;
+      analyzeBtn.style.opacity = '0.4';
+      analyzeBtn.style.cursor = 'not-allowed';
+    } else {
+      var label = fileCount === 1 ? '1 report' : fileCount + ' reports';
+      countText.textContent = label + ' ready for analysis';
+      countText.style.color = 'var(--text-primary)';
+      analyzeBtn.disabled = false;
+      analyzeBtn.style.opacity = '1';
+      analyzeBtn.style.cursor = 'pointer';
+      analyzeBtn.textContent = 'Analyze ' + (fileCount === 1 ? 'Report' : 'All ' + fileCount + ' Reports');
+    }
+  }
+
+  function handleFile(zone, file) {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      var dropText = zone.querySelector('.drop-text');
+      dropText.textContent = 'PDF files only';
+      dropText.style.color = '#e74c3c';
+      setTimeout(function() {
+        dropText.textContent = 'Drop PDF or click';
+        dropText.style.color = '';
+      }, 2000);
+      return;
     }
 
+    var inputId = zone.dataset.input;
+    var input = document.getElementById(inputId);
+    var dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+
+    var bureau = zone.dataset.bureau;
+    var colors = bureauColors[bureau];
+    zone.style.borderColor = colors.border;
+    zone.style.background = colors.bg;
+    zone.dataset.hasFile = 'true';
+
+    var dropText = zone.querySelector('.drop-text');
+    dropText.textContent = file.name;
+    dropText.style.color = colors.text;
+    dropText.style.fontWeight = '600';
+
+    var status = zone.querySelector('.drop-status');
+    status.style.display = 'block';
+    status.textContent = '✓ Ready';
+    status.style.color = colors.text;
+
+    updateCount();
+  }
+
+  zones.forEach(function(zone) {
+    var inputId = zone.dataset.input;
+    var input = document.getElementById(inputId);
+
     // Click to select
+    zone.addEventListener('click', function(e) {
+      if (e.target === input) return;
+      input.click();
+    });
+
     input.addEventListener('change', function(e) {
-      handleFile(e.target.files[0]);
+      handleFile(zone, e.target.files[0]);
     });
 
-    // Drag and drop
-    uploadArea.addEventListener('dragenter', function(e) {
+    // Drag events
+    zone.addEventListener('dragenter', function(e) {
       e.preventDefault(); e.stopPropagation();
-      uploadArea.style.borderColor = 'rgba(0,113,227,0.6)';
-      uploadArea.style.background = 'rgba(0,113,227,0.06)';
-      uploadText.textContent = 'Drop your file here';
+      var bureau = zone.dataset.bureau;
+      zone.style.borderColor = bureauColors[bureau].border;
+      zone.style.background = bureauColors[bureau].bg;
     });
 
-    uploadArea.addEventListener('dragover', function(e) {
+    zone.addEventListener('dragover', function(e) {
       e.preventDefault(); e.stopPropagation();
     });
 
-    uploadArea.addEventListener('dragleave', function(e) {
+    zone.addEventListener('dragleave', function(e) {
       e.preventDefault(); e.stopPropagation();
-      uploadArea.style.borderColor = 'rgba(0,113,227,0.25)';
-      uploadArea.style.background = '';
-      uploadText.textContent = 'Drop your PDF here or click below';
-    });
-
-    uploadArea.addEventListener('drop', function(e) {
-      e.preventDefault(); e.stopPropagation();
-      uploadArea.style.borderColor = 'rgba(0,113,227,0.25)';
-      uploadArea.style.background = '';
-      if (e.dataTransfer.files.length > 0) {
-        handleFile(e.dataTransfer.files[0]);
+      if (zone.dataset.hasFile !== 'true') {
+        var bureau = zone.dataset.bureau;
+        var defaultBorder = {experian:'rgba(0,113,227,0.25)',transunion:'rgba(52,199,89,0.25)',equifax:'rgba(255,59,48,0.25)'};
+        zone.style.borderColor = defaultBorder[bureau];
+        zone.style.background = '';
       }
     });
 
-    // Prevent browser default on document
-    document.addEventListener('dragover', function(e) { e.preventDefault(); });
-    document.addEventListener('drop', function(e) { e.preventDefault(); });
+    zone.addEventListener('drop', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      if (e.dataTransfer.files.length > 0) {
+        handleFile(zone, e.dataTransfer.files[0]);
+      }
+    });
   });
+
+  // Submit loading state
+  document.getElementById('uploadForm').addEventListener('submit', function() {
+    analyzeBtn.disabled = true;
+    analyzeBtn.textContent = 'Analyzing...';
+    analyzeBtn.style.opacity = '0.6';
+  });
+
+  // Prevent browser default drag
+  document.addEventListener('dragover', function(e) { e.preventDefault(); });
+  document.addEventListener('drop', function(e) { e.preventDefault(); });
+});
 </script>
 {% endblock %}
