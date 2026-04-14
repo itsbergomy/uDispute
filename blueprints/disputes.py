@@ -16,6 +16,39 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
 
 from models import db, User, UserSetting, DisputeRound, DailyLogEntry, MailedLetter, Correspondence
+
+
+# ── Session overflow helpers ──
+# Parsed credit report data can exceed the 4KB cookie limit.
+# Store large data in UserSetting (DB) and keep only a flag in session.
+
+def _store_parsed_results(user_id, negative_items, extra=None):
+    """Store parsed results in DB instead of session (avoids cookie overflow)."""
+    payload = json.dumps({
+        'negative_items': negative_items,
+        **(extra or {}),
+    })
+    setting = UserSetting.query.filter_by(user_id=user_id, key='parsed_results').first()
+    if setting:
+        setting.value = payload
+        setting.updated_at = datetime.utcnow()
+    else:
+        setting = UserSetting(user_id=user_id, key='parsed_results', value=payload)
+        db.session.add(setting)
+    db.session.commit()
+    session['has_parsed_results'] = True
+
+
+def _load_parsed_results(user_id):
+    """Load parsed results from DB. Returns list of negative items."""
+    setting = UserSetting.query.filter_by(user_id=user_id, key='parsed_results').first()
+    if setting and setting.value:
+        try:
+            data = json.loads(setting.value)
+            return data.get('negative_items', [])
+        except (ValueError, TypeError):
+            pass
+    return []  # No parsed results found
 from services.pdf_parser import (
     extract_negative_items_from_pdf, compute_pdf_hash,
     extract_pdf_metrics, pdf_to_base64_images
@@ -227,9 +260,11 @@ def upload_pdf():
         from services.cross_reference import cross_reference
         merged_items, xref_summary = cross_reference(bureau_results)
 
-        session['negative_items'] = merged_items
-        session['negative_items_by_bureau'] = {b: items for b, items in bureau_results.items()}
-        session['cross_reference_summary'] = xref_summary
+        # Store in DB (not session) — parsed data can exceed the 4KB cookie limit
+        _store_parsed_results(current_user.id, merged_items, extra={
+            'negative_items_by_bureau': {b: items for b, items in bureau_results.items()},
+            'cross_reference_summary': xref_summary,
+        })
         session['pdf_hash'] = first_hash
         session['detected_bureau'] = None  # Multi-bureau — entity set per account via source_bureau
 
@@ -349,7 +384,7 @@ SOLUTION_CARDS = [
 @disputes_bp.route('/select-account', methods=['GET'])
 @login_required
 def select_account():
-    items = session.get('negative_items', [])
+    items = _load_parsed_results(current_user.id)
     return render_template('select_negative.html', negative_items=items)
 
 
@@ -394,7 +429,7 @@ def _detect_issues(account):
 @require_pro_or_business
 def auto_mode():
     """Auto Mode config page — user picks accounts, bureaus, pack, dual letter."""
-    items = session.get('negative_items', [])
+    items = _load_parsed_results(current_user.id)
     if not items:
         flash("No accounts found. Please upload a credit report first.", "error")
         return redirect(url_for('disputes.upload_pdf'))
@@ -418,7 +453,7 @@ def auto_mode_run():
     dual_letter = data.get('dual_letter', False)
     bureaus = data.get('bureaus', ['Equifax', 'TransUnion', 'Experian'])
 
-    items = session.get('negative_items', [])
+    items = _load_parsed_results(current_user.id)
     accounts = [i for i in items if i.get('account_number') in selected_numbers]
     if not accounts:
         return jsonify({'error': 'No accounts selected'}), 400
@@ -597,7 +632,7 @@ def auto_mode_action():
 @login_required
 def tier1_notice():
     """Show the Tier 1 Notice of Dispute screen with accounts grouped by bureau."""
-    items = session.get('negative_items', [])
+    items = _load_parsed_results(current_user.id)
     if not items:
         flash("No accounts found. Please upload a credit report first.", "error")
         return redirect(url_for('disputes.upload_pdf'))
@@ -631,7 +666,7 @@ def generate_tier1_notices():
     import traceback
     import tempfile
 
-    items = session.get('negative_items', [])
+    items = _load_parsed_results(current_user.id)
     if not items:
         flash("No accounts found. Please upload a credit report first.", "error")
         return redirect(url_for('disputes.upload_pdf'))
@@ -921,7 +956,7 @@ def tier2_issues():
     """Show selectable issue/solution cards for the current account."""
     account_name = session.get('account_name', '')
     account_number = session.get('account_number', '')
-    items = session.get('negative_items', [])
+    items = _load_parsed_results(current_user.id)
 
     # Find the specific account
     account = None
@@ -1032,7 +1067,7 @@ def cfpb_wizard():
     # ── Gather context for AI narratives ──
     # Find inaccuracies from parsed data
     inaccuracies = []
-    negative_items = session.get('negative_items', [])
+    negative_items = _load_parsed_results(current_user.id)
     for item in negative_items:
         if item.get('account_number') == account_number or item.get('account_name') == account_name:
             inaccuracies = item.get('inaccuracies', [])
@@ -1263,7 +1298,7 @@ def generate_process():
     }
 
     # Pull parser results from session to get inaccuracy details
-    parsed_accounts = session.get('negative_items', [])
+    parsed_accounts = _load_parsed_results(current_user.id)
     target_number = session.get('account_number', '')
 
     # Filter to the account being disputed
@@ -1922,7 +1957,7 @@ def research_results(letter_id):
     inaccuracy_detail = None
 
     # Check if we have parsed account data in session
-    parsed_accounts = session.get('negative_items', [])
+    parsed_accounts = _load_parsed_results(current_user.id)
     target_name = (letter.account_name or '').split('#')[0].strip().upper()
 
     for acct in parsed_accounts:
@@ -1969,7 +2004,7 @@ def escalate_dispute(letter_id):
 
     # Try to get inaccuracies from session
     inaccuracies = None
-    parsed_accounts = session.get('negative_items', [])
+    parsed_accounts = _load_parsed_results(current_user.id)
     for acct in parsed_accounts:
         acct_name = (acct.get('account_name') or '').upper()
         if target_name.upper() in acct_name or acct_name in target_name.upper():
