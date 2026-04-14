@@ -368,7 +368,7 @@ def cross_reference(bureau_results):
     for group in matched_groups:
         # Use the first bureau's data as the primary entry
         first_bureau, first_acct = group[0]
-        bureaus = [b for b, _ in group]
+        bureaus = list(dict.fromkeys(b for b, _ in group))  # Deduplicate, preserve order
 
         # Build bureau_data dict with each bureau's specific account data
         bureau_data = {}
