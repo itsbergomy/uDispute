@@ -1139,11 +1139,13 @@ def confirm_account():
     account_name = request.args.get('account_name')
     account_number = request.args.get('account_number')
     status = request.args.get('status')
+    bureaus = request.args.get('bureaus', '')
 
     return render_template('confirm_account.html',
         account_name=account_name,
         account_number=account_number,
-        status=status
+        status=status,
+        bureaus=bureaus,
     )
 
 
@@ -1173,6 +1175,15 @@ def save_confirmed_account():
         disputed_accounts.append(account_number)
         round_record.set_disputed_accounts(disputed_accounts)
         db.session.commit()
+
+    # If bureaus are known from multi-report upload, skip entity selection
+    bureaus_str = request.form.get('bureaus', '')
+    if bureaus_str:
+        bureaus = [b.strip() for b in bureaus_str.split(',') if b.strip()]
+        session['target_bureaus'] = bureaus
+        session['selected_entity'] = bureaus[0].title()  # Set primary for backward compat
+        flash(f"Account confirmed! Disputing across {len(bureaus)} bureau(s).", "success")
+        return redirect(url_for('disputes.tier2_issues'))
 
     flash("Account confirmed! Next: Select who you're disputing with.", "success")
     return redirect(url_for('disputes.select_entity'))
@@ -1300,8 +1311,16 @@ def generate_process():
     # Pull parser results from session to get inaccuracy details
     parsed_accounts = _load_parsed_results(current_user.id)
     target_number = session.get('account_number', '')
+    target_name = session.get('account_name', '')
 
-    # Filter to the account being disputed
+    # Find the account being disputed (may have bureau_data for multi-report)
+    target_account = None
+    for acct in parsed_accounts:
+        if acct.get('account_number') == target_number:
+            target_account = acct
+            break
+
+    # Filter to relevant accounts with inaccuracies
     relevant_accounts = [
         acct for acct in parsed_accounts
         if acct.get('account_number') == target_number
@@ -1309,6 +1328,57 @@ def generate_process():
     ]
 
     pack_key = session.get('prompt_pack', 'default')
+    target_bureaus = session.get('target_bureaus', [])
+
+    # ── Multi-bureau generation: 1 letter per bureau in parallel ──
+    if target_bureaus and len(target_bureaus) >= 1 and target_account:
+        from concurrent.futures import ThreadPoolExecutor
+
+        bureau_data = target_account.get('bureau_data', {})
+        letters = {}
+
+        def _generate_for_bureau(bureau):
+            b_data = bureau_data.get(bureau, {})
+            bureau_context = dict(data)
+            bureau_context['entity'] = bureau.title()
+            # Use bureau-specific data if available
+            if b_data.get('balance'):
+                bureau_context['marks'] = b_data.get('status', data['marks'])
+
+            # Build relevant accounts list for this bureau
+            b_inaccuracies = b_data.get('inaccuracies', [])
+            # Combine bureau-specific + cross-bureau inaccuracies
+            combined_acct = dict(target_account)
+            if b_inaccuracies:
+                combined_acct['inaccuracies'] = b_inaccuracies
+            b_relevant = [combined_acct] if combined_acct.get('inaccuracies') else relevant_accounts
+
+            prompt, has_inac, has_legal = build_prompt(
+                pack_key, 0, bureau_context, parsed_accounts=b_relevant
+            )
+            letter = generate_letter(prompt, has_inaccuracies=has_inac, has_legal_research=has_legal)
+            return bureau, letter
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [executor.submit(_generate_for_bureau, b) for b in target_bureaus]
+            for future in futures:
+                bureau, letter = future.result()
+                letters[bureau] = letter
+
+        store_id = str(uuid.uuid4())
+        _store_letters(store_id, {
+            'letters': letters,
+            'account_name': data['account_name'],
+            'account_number': data['account_number'],
+        })
+
+        if len(letters) == 1:
+            # Single bureau — use regular final review
+            single_bureau = list(letters.keys())[0]
+            _store_letters(store_id, {'letter': letters[single_bureau]})
+            return redirect(url_for('disputes.final_review', sid=store_id))
+        else:
+            return redirect(url_for('disputes.multi_review', sid=store_id))
 
     if session.get('dual_letter_enabled'):
         # Dual-Letter Strategy: generate CRA + furnisher letters
@@ -1347,6 +1417,45 @@ def final_review():
     data = _get_letters(sid) if sid else {}
     letter = data.get('letter', session.get('generated_letter'))
     return render_template('final_review.html', letter=letter)
+
+
+@disputes_bp.route('/multi-review')
+def multi_review():
+    """Review carousel for multi-bureau letters (1 tab per bureau)."""
+    sid = request.args.get('sid')
+    data = _get_letters(sid) if sid else {}
+    letters = data.get('letters', {})
+    account_name = data.get('account_name', session.get('account_name', ''))
+    account_number = data.get('account_number', session.get('account_number', ''))
+    return render_template('multi_review.html',
+        letters=letters,
+        account_name=account_name,
+        account_number=account_number,
+        sid=sid)
+
+
+@disputes_bp.route('/multi-review/save', methods=['POST'])
+@login_required
+def multi_review_save():
+    """Save all multi-bureau letters to MailedLetter records."""
+    bureaus = request.form.getlist('bureau')
+    for bureau in bureaus:
+        letter_text = request.form.get(f'letter_{bureau}', '').strip()
+        if not letter_text:
+            continue
+        ml = MailedLetter(
+            user_id=current_user.id,
+            letter_text=letter_text,
+            bureau=bureau.title(),
+            round_number=session.get('current_round', 1),
+            account_name=session.get('account_name', ''),
+            account_number=session.get('account_number', ''),
+            tier='inaccuracy',
+        )
+        db.session.add(ml)
+    db.session.commit()
+    flash(f"{len(bureaus)} dispute letters saved to your Dispute Folder.", "success")
+    return redirect(url_for('disputes.dispute_folder'))
 
 
 @disputes_bp.route('/dual-review')

@@ -315,6 +315,13 @@ def cross_reference(bureau_results):
         for bureau, accts in active.items():
             for acct in accts:
                 acct['source_bureau'] = bureau
+                acct['bureaus'] = [bureau]
+                acct['bureau_data'] = {bureau: {
+                    k: acct.get(k, '') for k in ['account_name', 'account_number', 'balance',
+                                                   'status', 'account_type', 'date_opened',
+                                                   'original_creditor', 'comments', 'raw_payment_lines',
+                                                   'inaccuracies']
+                }}
                 items.append(acct)
         return items, {'bureaus_parsed': list(active.keys()), 'matched_groups': 0,
                        'discrepancies_found': 0, 'single_report': True}
@@ -355,24 +362,74 @@ def cross_reference(bureau_results):
             acct['inaccuracies'].append(finding)
             total_discrepancies += 1
 
-    # Build merged item list with source_bureau
+    # Build DEDUPLICATED merged list — 1 entry per account, not per bureau
     merged_items = []
-    seen = set()  # Avoid duplicates from matched groups
 
     for group in matched_groups:
+        # Use the first bureau's data as the primary entry
+        first_bureau, first_acct = group[0]
+        bureaus = [b for b, _ in group]
+
+        # Build bureau_data dict with each bureau's specific account data
+        bureau_data = {}
         for bureau, acct in group:
-            acct['source_bureau'] = bureau
-            acct_key = (bureau, acct.get('account_name', ''), acct.get('account_number', ''))
-            if acct_key not in seen:
-                merged_items.append(acct)
-                seen.add(acct_key)
+            bureau_data[bureau] = {
+                'account_name': acct.get('account_name', ''),
+                'account_number': acct.get('account_number', ''),
+                'balance': acct.get('balance', ''),
+                'status': acct.get('status', ''),
+                'account_type': acct.get('account_type', ''),
+                'date_opened': acct.get('date_opened', ''),
+                'original_creditor': acct.get('original_creditor', ''),
+                'comments': acct.get('comments', ''),
+                'raw_payment_lines': acct.get('raw_payment_lines', []),
+                'inaccuracies': acct.get('inaccuracies', []),
+            }
+
+        # Collect ALL inaccuracies (per-bureau + cross-ref) into one list
+        all_inaccuracies = []
+        seen_inac = set()
+        for bureau, acct in group:
+            for inac in acct.get('inaccuracies', []):
+                if inac not in seen_inac:
+                    all_inaccuracies.append(inac)
+                    seen_inac.add(inac)
+
+        merged_items.append({
+            'account_name': first_acct.get('account_name', ''),
+            'account_number': first_acct.get('account_number', ''),
+            'balance': first_acct.get('balance', ''),
+            'status': first_acct.get('status', ''),
+            'account_type': first_acct.get('account_type', ''),
+            'date_opened': first_acct.get('date_opened', ''),
+            'original_creditor': first_acct.get('original_creditor', ''),
+            'issue': first_acct.get('issue', ''),
+            'comments': first_acct.get('comments', ''),
+            'raw_payment_lines': first_acct.get('raw_payment_lines', []),
+            'inaccuracies': all_inaccuracies,
+            'bureaus': bureaus,
+            'bureau_data': bureau_data,
+            'source_bureau': first_bureau,
+        })
 
     for bureau, acct in orphans:
         acct['source_bureau'] = bureau
-        acct_key = (bureau, acct.get('account_name', ''), acct.get('account_number', ''))
-        if acct_key not in seen:
-            merged_items.append(acct)
-            seen.add(acct_key)
+        acct['bureaus'] = [bureau]
+        acct['bureau_data'] = {
+            bureau: {
+                'account_name': acct.get('account_name', ''),
+                'account_number': acct.get('account_number', ''),
+                'balance': acct.get('balance', ''),
+                'status': acct.get('status', ''),
+                'account_type': acct.get('account_type', ''),
+                'date_opened': acct.get('date_opened', ''),
+                'original_creditor': acct.get('original_creditor', ''),
+                'comments': acct.get('comments', ''),
+                'raw_payment_lines': acct.get('raw_payment_lines', []),
+                'inaccuracies': acct.get('inaccuracies', []),
+            }
+        }
+        merged_items.append(acct)
 
     summary = {
         'bureaus_parsed': list(active.keys()),
@@ -384,6 +441,7 @@ def cross_reference(bureau_results):
     }
 
     logger.info(f"[CROSS-REF] Done: {len(matched_groups)} matched groups, "
-                f"{len(orphans)} orphans, {total_discrepancies} discrepancies found")
+                f"{len(orphans)} orphans, {total_discrepancies} discrepancies, "
+                f"{len(merged_items)} deduplicated accounts")
 
     return merged_items, summary

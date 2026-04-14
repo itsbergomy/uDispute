@@ -1,0 +1,155 @@
+{% extends "base_header.html" %}
+{% import '_icons.html' as icons %}
+
+{% block title %}Review Bureau Letters{% endblock %}
+
+{% block content %}
+<main class="pt-20 pb-12 min-h-screen px-4 md:px-8 max-w-4xl mx-auto">
+
+  <a href="{{ url_for('disputes.index') }}"
+     class="inline-block mb-4 glass-btn glass-btn--ghost p-3 rounded-full">&larr; Back</a>
+
+  {# ── Header ── #}
+  <div class="glass-card glass-card--heavy glass-p glass-animate-in mb-6 text-center">
+    <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
+      {{ icons.icon_document(size=28, uid='mr1') }}
+    </div>
+    <h2 class="text-3xl font-bold glass-text-3d mb-2" style="color:var(--text-primary);">Multi-Bureau Dispute</h2>
+    <p class="text-sm max-w-2xl mx-auto" style="color:var(--text-secondary);">
+      {{ account_name }} &bull; {{ account_number }} &mdash; {{ letters | length }} letter{{ 's' if letters | length != 1 }} generated, one per bureau.
+      Review and edit each letter, then send all at once.
+    </p>
+  </div>
+
+  {# ── Bureau Tabs ── #}
+  {% set bureau_colors = {
+    'experian': {'bg': 'linear-gradient(135deg, #0077ed, #005bb5)', 'shadow': 'rgba(0,113,227,0.3)', 'dot': '#0077ed'},
+    'transunion': {'bg': 'linear-gradient(135deg, #34c759, #28a745)', 'shadow': 'rgba(52,199,89,0.3)', 'dot': '#34c759'},
+    'equifax': {'bg': 'linear-gradient(135deg, #ff3b30, #d63031)', 'shadow': 'rgba(255,59,48,0.3)', 'dot': '#ff3b30'}
+  } %}
+
+  <div class="flex gap-2 mb-4">
+    {% for bureau, letter_text in letters.items() %}
+    {% set colors = bureau_colors.get(bureau, bureau_colors['experian']) %}
+    <button id="tab-{{ bureau }}" onclick="showBureauTab('{{ bureau }}')"
+            class="bureau-tab flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all"
+            style="{% if loop.first %}background:{{ colors.bg }};color:#fff;box-shadow:0 4px 15px {{ colors.shadow }};{% else %}background:var(--glass-bg);color:var(--text-secondary);border:1px solid var(--glass-border-subtle);{% endif %}">
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{% if loop.first %}#fff{% else %}{{ colors.dot }}{% endif %};margin-right:6px;"></span>
+      {{ bureau | title }}
+    </button>
+    {% endfor %}
+  </div>
+
+  {# ── Letter Panels ── #}
+  <form method="POST" action="{{ url_for('disputes.multi_review_save') }}" id="multiReviewForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+    {% for bureau, letter_text in letters.items() %}
+    {% set colors = bureau_colors.get(bureau, bureau_colors['experian']) %}
+    <input type="hidden" name="bureau" value="{{ bureau }}"/>
+
+    <div id="panel-{{ bureau }}" class="bureau-panel glass-card glass-card--heavy glass-p glass-animate-in mb-4"
+         style="{% if not loop.first %}display:none;{% endif %}">
+
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <span class="inline-block px-3 py-1 rounded-full text-xs font-bold"
+                style="background:{{ colors.bg }};color:#fff;">{{ bureau | title }}</span>
+          <span class="text-sm font-semibold" style="color:var(--text-primary);">{{ account_name }}</span>
+        </div>
+        <span class="text-xs" style="color:var(--text-tertiary);">{{ account_number }}</span>
+      </div>
+
+      <div class="glass-inset rounded-xl p-3 mb-3">
+        <textarea name="letter_{{ bureau }}" rows="18"
+                  class="glass-input glass-textarea w-full text-sm"
+                  style="background:transparent;border:none;box-shadow:none;resize:vertical;line-height:1.7;font-family:var(--font-mono);">{{ letter_text }}</textarea>
+      </div>
+
+      <div class="flex items-center justify-between">
+        {% if not loop.first %}
+        <button type="button" class="glass-btn glass-btn--ghost glass-btn--pill text-xs px-3 py-1.5"
+                onclick="showBureauTab('{{ letters.keys() | list }}[{{ loop.index0 - 1 }}]')">
+          &larr; Previous
+        </button>
+        {% else %}
+        <div></div>
+        {% endif %}
+
+        {% if not loop.last %}
+        {% set next_bureau = (letters.keys() | list)[loop.index] %}
+        <button type="button" class="glass-btn glass-btn--primary glass-btn--pill text-xs px-4 py-1.5"
+                onclick="showBureauTab('{{ next_bureau }}')">
+          Next: {{ next_bureau | title }} &rarr;
+        </button>
+        {% else %}
+        <span class="text-xs font-medium" style="color:var(--text-tertiary);">Last letter in batch</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+
+    {# ── Batch Summary + Send ── #}
+    <div class="glass-inset rounded-xl p-4 mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-semibold" style="color:var(--text-secondary);">Batch Summary</span>
+        <span class="text-sm font-bold" style="color:var(--text-primary);">{{ letters | length }} letter{{ 's' if letters | length != 1 }}</span>
+      </div>
+      <div class="flex items-center gap-3 text-xs" style="color:var(--text-tertiary);">
+        {% for bureau in letters.keys() %}
+        {% set colors = bureau_colors.get(bureau, bureau_colors['experian']) %}
+        <span style="color:{{ colors.dot }};">&#x25CF; {{ bureau | title }}</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <button type="submit" id="sendAllBtn"
+            class="glass-btn glass-btn--primary glass-btn--full rounded-2xl glass-shimmer-edge w-full"
+            style="position:relative;overflow:hidden;">
+      Save All {{ letters | length }} Letters to Dispute Folder
+    </button>
+  </form>
+
+</main>
+
+<script>
+var bureauList = {{ letters.keys() | list | tojson }};
+var bureauColors = {{ bureau_colors | tojson }};
+
+function showBureauTab(bureau) {
+  // Hide all panels
+  document.querySelectorAll('.bureau-panel').forEach(function(p) { p.style.display = 'none'; });
+
+  // Reset all tabs
+  document.querySelectorAll('.bureau-tab').forEach(function(t) {
+    t.style.background = 'var(--glass-bg)';
+    t.style.color = 'var(--text-secondary)';
+    t.style.border = '1px solid var(--glass-border-subtle)';
+    t.style.boxShadow = 'none';
+    // Reset dot color
+    var dot = t.querySelector('span');
+    if (dot) {
+      var tabBureau = t.id.replace('tab-', '');
+      var colors = bureauColors[tabBureau] || bureauColors['experian'];
+      dot.style.background = colors.dot;
+    }
+  });
+
+  // Show selected panel
+  var panel = document.getElementById('panel-' + bureau);
+  if (panel) panel.style.display = 'block';
+
+  // Activate selected tab
+  var tab = document.getElementById('tab-' + bureau);
+  if (tab) {
+    var colors = bureauColors[bureau] || bureauColors['experian'];
+    tab.style.background = colors.bg;
+    tab.style.color = '#fff';
+    tab.style.border = 'none';
+    tab.style.boxShadow = '0 4px 15px ' + colors.shadow;
+    var dot = tab.querySelector('span');
+    if (dot) dot.style.background = '#fff';
+  }
+}
+</script>
+{% endblock %}

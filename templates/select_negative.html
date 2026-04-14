@@ -61,6 +61,7 @@
     </p>
 
     {% for item in negative_items %}
+    {% set bureaus = item.get('bureaus', []) %}
     <form method="GET" action="{{ url_for('disputes.confirm_account') }}"
           class="mb-3 glass-list-item text-left {% if item.account_number in disputed_accounts %}opacity-50 pointer-events-none{% endif %}"
           style="transition:box-shadow 0.2s ease,transform 0.2s ease;"
@@ -69,10 +70,26 @@
       <input type="hidden" name="account_name" value="{{ item.account_name }}">
       <input type="hidden" name="account_number" value="{{ item.account_number }}">
       <input type="hidden" name="status" value="{{ item.status }}">
+      <input type="hidden" name="bureaus" value="{{ bureaus | join(',') }}">
       <button type="submit" class="w-full text-left p-4 flex justify-between items-center">
         <div>
           <h4 class="text-lg font-semibold" style="color:var(--text-primary);">{{ item.account_name }}</h4>
           <p class="text-sm mt-1" style="color:var(--text-tertiary);">{{ item.account_number }} &bull; {{ item.status }}</p>
+          {% if bureaus | length > 0 %}
+          <div class="flex items-center gap-1.5 mt-2">
+            {% for b in bureaus %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold"
+                  style="{% if b == 'experian' %}background:rgba(0,113,227,0.10);color:#0077ed;{% elif b == 'transunion' %}background:rgba(52,199,89,0.10);color:#34c759;{% elif b == 'equifax' %}background:rgba(255,59,48,0.10);color:#ff3b30;{% endif %}">
+              <span style="width:6px;height:6px;border-radius:50;display:inline-block;{% if b == 'experian' %}background:#0077ed;{% elif b == 'transunion' %}background:#34c759;{% elif b == 'equifax' %}background:#ff3b30;{% endif %}"></span>
+              {{ b | title }}
+            </span>
+            {% endfor %}
+            {% set inac_count = item.get('inaccuracies', []) | length %}
+            {% if inac_count > 0 %}
+            <span class="text-xs" style="color:var(--text-tertiary);">&bull; {{ inac_count }} issue{{ 's' if inac_count != 1 }}</span>
+            {% endif %}
+          </div>
+          {% endif %}
         </div>
         <div class="text-xl font-bold" style="color:var(--accent);">&rsaquo;</div>
       </button>
