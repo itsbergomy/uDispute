@@ -34,8 +34,9 @@
 
 {% block scripts %}
 {{ super() }}
+{% if current_user.is_authenticated %}
 <script>
-  // ── Onboarding tour — fires once for new users ──
+  // ── Onboarding tour — fires once for new users (authenticated only) ──
   document.addEventListener('DOMContentLoaded', function () {
     // Build steps dynamically — only include elements that actually exist on the page
     var tourSteps = [
@@ -127,4 +128,5 @@
     }, 1200);
   });
 </script>
+{% endif %}
 {% endblock %}

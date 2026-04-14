@@ -149,7 +149,10 @@ def allowed_file(filename):
 
 @disputes_bp.route('/')
 def index():
-    if current_user.is_authenticated and current_user.plan == 'business':
+    # Non-authenticated users see the landing page (marketing + pricing)
+    if not current_user.is_authenticated:
+        return redirect(url_for('auth.landing_page'))
+    if current_user.plan == 'business':
         return redirect(url_for('business.business_dashboard'))
     return render_template('index.html')
 
