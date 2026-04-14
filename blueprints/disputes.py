@@ -159,8 +159,8 @@ def upload_pdf():
             flash("No PDF files selected. Please upload at least one credit report.", "error")
             return redirect(url_for('disputes.upload_pdf'))
 
-        # Upload and parse each bureau report
-        bureau_results = {}
+        # Step 1: Upload all files to Cloudinary (sequential — stream consumed per file)
+        bureau_paths = {}  # {bureau: local_filepath}
         first_hash = None
 
         for bureau, file in bureau_files.items():
@@ -183,15 +183,41 @@ def upload_pdf():
             if not first_hash:
                 first_hash = compute_pdf_hash(filepath)
 
+            bureau_paths[bureau] = filepath
+            print(f"[UPLOAD] {bureau}: ready at {filepath} ({os.path.getsize(filepath)} bytes)", flush=True)
+
+        if not bureau_paths:
+            flash("Failed to upload any reports.", "error")
+            return redirect(url_for('disputes.upload_pdf'))
+
+        # Step 2: Parse all reports in PARALLEL (each takes ~15-30s)
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import time as _time
+
+        bureau_results = {}
+        t_start = _time.time()
+        print(f"[UPLOAD] Parsing {len(bureau_paths)} reports in parallel...", flush=True)
+
+        def _parse_one(bureau, filepath):
             try:
-                print(f"[UPLOAD] Parsing {bureau} from {filepath} (size: {os.path.getsize(filepath)} bytes)", flush=True)
                 items = extract_negative_items_from_pdf(filepath)
                 print(f"[UPLOAD] {bureau}: parsed {len(items)} negative accounts", flush=True)
-                bureau_results[bureau] = items
+                return bureau, items, None
             except Exception as e:
                 print(f"[UPLOAD] PARSE ERROR for {bureau}: {e}", flush=True)
-                flash(f"Could not parse {bureau.title()} report: {e}", "error")
-                continue
+                return bureau, [], str(e)
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {executor.submit(_parse_one, b, p): b for b, p in bureau_paths.items()}
+            for future in as_completed(futures):
+                bureau, items, error = future.result()
+                if error:
+                    flash(f"Could not parse {bureau.title()} report: {error}", "error")
+                elif items:
+                    bureau_results[bureau] = items
+
+        elapsed = _time.time() - t_start
+        print(f"[UPLOAD] All parsing complete in {elapsed:.1f}s", flush=True)
 
         if not bureau_results:
             flash("Failed to parse any uploaded reports.", "error")
