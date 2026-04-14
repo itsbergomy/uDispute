@@ -2512,7 +2512,7 @@ def funding_sequencer():
 @disputes_bp.route('/settings')
 @login_required
 def settings_page():
-    """Settings page — account, plan, mailing, import."""
+    """Settings page — account, plan, mailing, import, referral."""
     # Load mailing preferences
     mail_setting = UserSetting.query.filter_by(user_id=current_user.id, key='mail_prefs').first()
     mail_prefs = {}
@@ -2521,7 +2521,15 @@ def settings_page():
             mail_prefs = json.loads(mail_setting.value)
         except Exception:
             pass
-    return render_template('settings.html', mail_prefs=mail_prefs)
+
+    # Load referral stats (paid users only)
+    referral_stats = None
+    if current_user.plan in ('pro', 'business'):
+        from services.referral import ensure_user_has_code, get_referral_stats
+        ensure_user_has_code(current_user)
+        referral_stats = get_referral_stats(current_user)
+
+    return render_template('settings.html', mail_prefs=mail_prefs, referral_stats=referral_stats)
 
 
 @disputes_bp.route('/settings/account', methods=['POST'])

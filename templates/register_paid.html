@@ -40,6 +40,13 @@
         <input id="password" name="password" type="password" required minlength="8"
                class="glass-input w-full" />
       </div>
+      <div>
+        <label for="referral_code" class="glass-label block">Referral Code <span style="color:var(--text-tertiary);font-weight:normal;">(optional)</span></label>
+        <input id="referral_code" name="referral_code" type="text"
+               value="{{ session.get('pending_ref_code', '') }}"
+               placeholder="e.g. BERGLEGEND"
+               class="glass-input w-full" style="letter-spacing:0.06em;text-transform:uppercase;" />
+      </div>
       <button type="submit"
               class="w-full glass-btn glass-btn--primary glass-shimmer-edge" style="position:relative;overflow:hidden;">
         {{ 'Enter Pro Mode' if plan == 'pro' else 'Enter Business Mode' }}

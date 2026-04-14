@@ -103,6 +103,113 @@
       {% endif %}
     </div>
 
+    <!-- ═══ Refer & Earn ═══ -->
+    {% if referral_stats and current_user.plan in ('pro', 'business') %}
+    <div class="glass-card glass-card--heavy glass-p rounded-3xl">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="glass-icon-well" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:12px;">
+          <span style="font-size:18px;">✨</span>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold glass-text-emboss" style="color:var(--text-primary);">Refer &amp; Earn</h3>
+          <p class="text-xs" style="color:var(--text-tertiary);">Earn {{ referral_stats.commission_rate_pct }}% recurring on every user you refer</p>
+        </div>
+      </div>
+
+      {# Referral Code #}
+      <div class="glass-inset rounded-xl p-4 mb-4">
+        <label class="glass-label block text-xs mb-1">Your Referral Code</label>
+        <div class="flex items-center gap-2">
+          <input type="text" id="referralCode" value="{{ referral_stats.code }}" readonly
+                 class="glass-input flex-1 font-mono text-lg font-bold" style="letter-spacing:0.1em;"/>
+          <button type="button" onclick="copyRef('referralCode')"
+                  class="glass-btn glass-btn--secondary glass-btn--pill text-xs px-4 py-2">
+            Copy
+          </button>
+        </div>
+      </div>
+
+      {# Share Link #}
+      <div class="glass-inset rounded-xl p-4 mb-4">
+        <label class="glass-label block text-xs mb-1">Share Link</label>
+        <div class="flex items-center gap-2">
+          <input type="text" id="referralLink"
+                 value="{{ request.host_url.rstrip('/') }}/landing?ref={{ referral_stats.code }}"
+                 readonly class="glass-input flex-1 text-xs"/>
+          <button type="button" onclick="copyRef('referralLink')"
+                  class="glass-btn glass-btn--secondary glass-btn--pill text-xs px-4 py-2">
+            Copy
+          </button>
+        </div>
+      </div>
+
+      {# Stats #}
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        <div class="glass-inset rounded-xl p-3 text-center">
+          <p class="text-xs" style="color:var(--text-tertiary);">Total Referred</p>
+          <p class="text-2xl font-bold" style="color:var(--text-primary);">{{ referral_stats.referred_count }}</p>
+        </div>
+        <div class="glass-inset rounded-xl p-3 text-center">
+          <p class="text-xs" style="color:var(--text-tertiary);">Active Subs</p>
+          <p class="text-2xl font-bold" style="color:var(--text-primary);">{{ referral_stats.active_count }}</p>
+        </div>
+        <div class="glass-inset rounded-xl p-3 text-center">
+          <p class="text-xs" style="color:var(--text-tertiary);">Pending</p>
+          <p class="text-2xl font-bold" style="color:#f59e0b;">${{ '%.2f' | format(referral_stats.earnings_pending) }}</p>
+        </div>
+        <div class="glass-inset rounded-xl p-3 text-center">
+          <p class="text-xs" style="color:var(--text-tertiary);">Paid Out</p>
+          <p class="text-2xl font-bold" style="color:#34c759;">${{ '%.2f' | format(referral_stats.earnings_paid) }}</p>
+        </div>
+      </div>
+
+      {# Stripe Connect Status #}
+      {% if not referral_stats.connect_account_id %}
+      <div class="glass-inset rounded-xl p-4 mb-3" style="border:1px solid rgba(245,158,11,0.3);">
+        <p class="text-sm font-semibold mb-1" style="color:#f59e0b;">⚠ Payouts not enabled</p>
+        <p class="text-xs mb-3" style="color:var(--text-tertiary);">
+          Connect a bank account via Stripe to receive your referral commissions.
+        </p>
+        <form method="POST" action="{{ url_for('auth.referral_connect_start') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <button type="submit" class="glass-btn glass-btn--primary glass-btn--pill text-sm px-5 py-2">
+            Enable Payouts via Stripe
+          </button>
+        </form>
+      </div>
+      {% else %}
+      <div class="glass-inset rounded-xl p-3 mb-3 flex items-center gap-2"
+           style="border:1px solid rgba(52,199,89,0.3);">
+        <div style="width:8px;height:8px;border-radius:50%;background:#34c759;"></div>
+        <p class="text-xs" style="color:var(--text-secondary);">
+          Payouts enabled — commissions paid out monthly (min $10)
+        </p>
+      </div>
+      {% endif %}
+
+      {# Recent Commissions #}
+      {% if referral_stats.recent_commissions %}
+      <div>
+        <p class="glass-label block text-xs mb-2">Recent Commissions</p>
+        <div class="space-y-2">
+          {% for c in referral_stats.recent_commissions %}
+          <div class="flex items-center justify-between glass-inset rounded-lg p-2">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold" style="color:var(--text-primary);">${{ '%.2f' | format(c.amount) }}</span>
+              <span class="text-xs" style="color:var(--text-tertiary);">· {{ c.plan | title }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs" style="color:var(--text-tertiary);">{{ c.created_at }}</span>
+              <span class="glass-badge {{ 'glass-badge--success' if c.status == 'paid' else 'glass-badge--warning' }}" style="font-size:0.65rem;padding:0.2rem 0.5rem;">{{ c.status }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
     <!-- ═══ Mailing ═══ -->
     <div class="glass-card glass-card--heavy glass-p rounded-3xl">
       <div class="flex items-center gap-3 mb-5">
@@ -280,6 +387,21 @@ function confirmDeleteAccount() {
   }).then(r => r.json()).then(d => {
     if (d.ok) window.location.href = '/landing';
     else alert(d.error || 'Failed to delete account');
+  });
+}
+
+function copyRef(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.select();
+  el.setSelectionRange(0, 99999);
+  navigator.clipboard.writeText(el.value).then(function() {
+    const btn = el.nextElementSibling;
+    if (btn) {
+      const original = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(function() { btn.textContent = original; }, 1500);
+    }
   });
 }
 </script>

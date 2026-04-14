@@ -24,6 +24,13 @@ class User(db.Model, UserMixin):
     is_admin = db.Column(db.Boolean, default=False)
     stripe_customer_id = db.Column(db.String(100), nullable=True)
     stripe_subscription_id = db.Column(db.String(100), nullable=True)
+    # Referral system
+    referral_code = db.Column(db.String(50), unique=True, nullable=True)
+    referred_by_user_id = db.Column(db.Integer, db.ForeignKey('Users.id'), nullable=True)
+    referral_paid_first_month_at = db.Column(db.DateTime, nullable=True)
+    stripe_connect_account_id = db.Column(db.String(100), nullable=True)
+    referral_earnings_pending = db.Column(db.Float, default=0.0)
+    referral_earnings_paid = db.Column(db.Float, default=0.0)
     last_round_time = db.Column(db.DateTime, nullable=True)
     manual_accounts_used = db.Column(db.Integer, default=0)
     manual_reset_time = db.Column(db.DateTime, nullable=True)
@@ -395,6 +402,27 @@ class UserSetting(db.Model):
 
     __table_args__ = (db.UniqueConstraint('user_id', 'key', name='uq_user_setting'),)
     user = db.relationship('User', backref='settings')
+
+
+class ReferralCommission(db.Model):
+    """Records each commission earned by a referrer from a referred user's payment."""
+    __tablename__ = 'referral_commissions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    referrer_id = db.Column(db.Integer, db.ForeignKey('Users.id'), nullable=False)
+    referred_user_id = db.Column(db.Integer, db.ForeignKey('Users.id'), nullable=False)
+    stripe_invoice_id = db.Column(db.String(100), nullable=True)
+    plan = db.Column(db.String(20), nullable=False)  # pro / business
+    subscription_amount_cents = db.Column(db.Integer, nullable=False)  # e.g. 8000 for $80
+    commission_cents = db.Column(db.Integer, nullable=False)  # 15% cut
+    commission_rate = db.Column(db.Float, default=0.15)
+    status = db.Column(db.String(20), default='pending')  # pending, paid, clawed_back
+    paid_at = db.Column(db.DateTime, nullable=True)
+    stripe_transfer_id = db.Column(db.String(100), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    referrer = db.relationship('User', foreign_keys=[referrer_id], backref='commissions_earned')
+    referred_user = db.relationship('User', foreign_keys=[referred_user_id], backref='commissions_generated')
 
 
 class SupportingDoc(db.Model):

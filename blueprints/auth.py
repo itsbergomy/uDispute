@@ -5,13 +5,14 @@ Extracted from dispute_ui.py.
 
 import os
 import stripe
+from datetime import datetime
 from urllib.parse import urlparse, urljoin
 from flask import Blueprint, request, jsonify, render_template, flash, redirect, url_for, session, abort
 from flask_login import login_required, current_user
 from dotenv import load_dotenv
 
 from models import User, db, login_user, logout_user, generate_password_hash
-from config import limiter, audit_logger
+from config import limiter, audit_logger, csrf
 
 load_dotenv()
 
@@ -87,6 +88,13 @@ def signup():
         db.session.add(new_user)
         db.session.commit()
 
+        # Generate referral code + assign referrer if code provided
+        from services.referral import ensure_user_has_code, assign_referrer
+        ensure_user_has_code(new_user)
+        ref_code = request.form.get('referral_code', '').strip() or session.pop('pending_ref_code', None)
+        if ref_code:
+            assign_referrer(new_user, ref_code)
+
         audit_logger.info(f"SIGNUP_SUCCESS user_id={new_user.id} plan=free is_beta=True ip={request.remote_addr}")
         login_user(new_user)
         flash("Welcome! You're on our Free plan.", 'success')
@@ -136,6 +144,17 @@ def signup_paid(plan):
         db.session.add(new_user)
         db.session.commit()
 
+        # Generate referral code + assign referrer if code provided
+        from services.referral import ensure_user_has_code, assign_referrer
+        ensure_user_has_code(new_user)
+        ref_code = request.form.get('referral_code', '').strip() or session.pop('pending_ref_code', None)
+        if ref_code:
+            referrer = assign_referrer(new_user, ref_code)
+            if referrer:
+                # Start 30-day clawback clock — first payment doesn't count for commission
+                new_user.referral_paid_first_month_at = datetime.utcnow()
+                db.session.commit()
+
         # Clear Stripe session data
         session.pop('stripe_paid_plan', None)
         session.pop('stripe_customer_id', None)
@@ -165,6 +184,11 @@ STRIPE_PRICES = {
 @auth_bp.route('/checkout/<plan>')
 def checkout(plan):
     """Create a Stripe Checkout Session and redirect to Stripe's hosted payment page."""
+    # Capture referral code from query param (survives Stripe redirect via session)
+    ref_code = request.args.get('ref', '').strip()
+    if ref_code:
+        session['pending_ref_code'] = ref_code
+
     if plan not in STRIPE_PRICES:
         flash('Invalid plan.', 'error')
         return redirect(url_for('auth.landing_page'))
@@ -213,8 +237,11 @@ def checkout_success(plan):
 
 @auth_bp.route('/landing')
 def landing_page():
-    """Serve the landing page."""
-    return render_template('landing.html')
+    """Serve the landing page. Captures ?ref=CODE for referral attribution."""
+    ref_code = request.args.get('ref', '').strip()
+    if ref_code:
+        session['pending_ref_code'] = ref_code
+    return render_template('landing.html', pending_ref_code=session.get('pending_ref_code'))
 
 
 # ── Pro → Business Upgrade ───────────────────────────────
@@ -269,6 +296,91 @@ def upgrade_success():
 
     flash('Upgrade verification failed. Please contact support.', 'error')
     return redirect(url_for('disputes.index'))
+
+
+# ── Stripe Webhook: Record commissions on invoice.paid ──
+
+@auth_bp.route('/stripe/webhook', methods=['POST'])
+@csrf.exempt
+def stripe_webhook():
+    """
+    Handle Stripe webhooks. Currently only listens for invoice.payment_succeeded
+    to record referral commissions.
+
+    Set STRIPE_WEBHOOK_SECRET in env to enable signature verification.
+    """
+    from services.referral import record_commission
+
+    payload = request.get_data()
+    sig_header = request.headers.get('Stripe-Signature', '')
+    webhook_secret = os.getenv('STRIPE_WEBHOOK_SECRET')
+
+    try:
+        if webhook_secret:
+            event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+        else:
+            # No secret configured — accept without verification (dev only)
+            event = stripe.Event.construct_from(
+                stripe.util.json.loads(payload), stripe.api_key
+            )
+    except Exception as e:
+        audit_logger.warning(f"STRIPE_WEBHOOK_VERIFY_FAIL: {e}")
+        return jsonify({'error': 'Invalid webhook'}), 400
+
+    if event['type'] == 'invoice.payment_succeeded':
+        invoice = event['data']['object']
+        customer_id = invoice.get('customer')
+        invoice_id = invoice.get('id')
+        amount_paid = invoice.get('amount_paid', 0)
+
+        if customer_id:
+            user = User.query.filter_by(stripe_customer_id=customer_id).first()
+            if user and user.referred_by_user_id:
+                record_commission(
+                    referred_user=user,
+                    stripe_invoice_id=invoice_id,
+                    amount_cents=amount_paid,
+                )
+
+    return jsonify({'received': True}), 200
+
+
+# ── Referral: Stripe Connect Onboarding ──────────────────
+
+@auth_bp.route('/referral/connect/start', methods=['POST'])
+@login_required
+def referral_connect_start():
+    """Start Stripe Connect Express onboarding for the current user."""
+    if current_user.plan not in ('pro', 'business'):
+        flash('Referral payouts are available for Pro and Business users.', 'error')
+        return redirect(url_for('disputes.settings_page'))
+
+    from services.referral import create_onboarding_link
+    base_url = request.host_url.rstrip('/')
+    return_url = base_url + url_for('auth.referral_connect_return')
+    refresh_url = base_url + url_for('disputes.settings_page')
+
+    link_url = create_onboarding_link(current_user, return_url, refresh_url)
+    if not link_url:
+        flash('Failed to start Stripe Connect onboarding. Please try again.', 'error')
+        return redirect(url_for('disputes.settings_page'))
+
+    return redirect(link_url)
+
+
+@auth_bp.route('/referral/connect/return')
+@login_required
+def referral_connect_return():
+    """User returns from Stripe Connect onboarding — verify status."""
+    from services.referral import check_connect_status
+    status = check_connect_status(current_user)
+    if status.get('enabled'):
+        flash('Your payouts are now enabled! You\'ll receive commissions monthly.', 'success')
+    elif status.get('details_submitted'):
+        flash('Your account is under review. Payouts will be enabled soon.', 'info')
+    else:
+        flash('Onboarding incomplete. Finish the Stripe setup to enable payouts.', 'warning')
+    return redirect(url_for('disputes.settings_page'))
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])

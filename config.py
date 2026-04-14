@@ -230,6 +230,12 @@ def create_app():
                     'is_admin': 'BOOLEAN DEFAULT FALSE',
                     'stripe_customer_id': 'VARCHAR(100)',
                     'stripe_subscription_id': 'VARCHAR(100)',
+                    'referral_code': 'VARCHAR(50)',
+                    'referred_by_user_id': 'INTEGER',
+                    'referral_paid_first_month_at': 'TIMESTAMP',
+                    'stripe_connect_account_id': 'VARCHAR(100)',
+                    'referral_earnings_pending': 'FLOAT DEFAULT 0',
+                    'referral_earnings_paid': 'FLOAT DEFAULT 0',
                 }
                 for col_name, col_type in user_new_cols.items():
                     if col_name not in existing:
