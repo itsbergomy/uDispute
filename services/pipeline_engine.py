@@ -563,6 +563,7 @@ def handle_strategy(pipeline):
                 decisions.append({
                     'account_name': item.get('account_name', ''),
                     'account_number': item.get('account_number', ''),
+                    'bureaus': item.get('bureaus', []),
                     'reason': item.get('reason', 'Inaccurate or unverified reporting'),
                     'legal_basis': 'FCRA Section 611 — right to dispute inaccurate information',
                 })
@@ -624,9 +625,14 @@ def handle_strategy(pipeline):
             db.session.add(account)
             created_count += 1
     else:
-        # Round 1: every account × every bureau
+        # Round 1: every account × bureaus that have the account
         for decision in decisions:
+            # If account has a 'bureaus' list (from multi-report), use it.
+            # Otherwise fall back to all targets (single-report upload).
+            account_bureaus = decision.get('bureaus', targets)
             for target in targets:
+                if target.lower() not in [b.lower() for b in account_bureaus]:
+                    continue  # Skip bureaus that don't have this account
                 action, issue = build_dispute_reason(decision, round_number)
                 account = DisputeAccount(
                     pipeline_id=pipeline_id,
