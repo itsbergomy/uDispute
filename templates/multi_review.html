@@ -103,11 +103,70 @@
       </div>
     </div>
 
-    <button type="submit" id="sendAllBtn"
-            class="glass-btn glass-btn--primary glass-btn--full rounded-2xl glass-shimmer-edge w-full"
-            style="position:relative;overflow:hidden;">
-      Save All {{ letters | length }} Letters to Dispute Folder
-    </button>
+    {# ── Mailing Method ── #}
+    <div class="glass-card glass-card--heavy glass-p rounded-2xl mb-4">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="text-sm font-semibold" style="color:var(--text-primary);">Mailing Method</span>
+      </div>
+      <div class="flex gap-2 flex-wrap">
+        <label class="flex-1 cursor-pointer">
+          <input type="radio" name="mail_class" value="first_class" checked class="hidden peer"/>
+          <div class="peer-checked:border-blue-500 peer-checked:bg-blue-500/10 glass-inset rounded-xl p-3 text-center transition-all border-2 border-transparent">
+            <p class="text-sm font-bold" style="color:var(--text-primary);">First Class</p>
+            <p class="text-xs" style="color:var(--text-tertiary);">Included</p>
+          </div>
+        </label>
+        <label class="flex-1 cursor-pointer">
+          <input type="radio" name="mail_class" value="certified" class="hidden peer"/>
+          <div class="peer-checked:border-green-500 peer-checked:bg-green-500/10 glass-inset rounded-xl p-3 text-center transition-all border-2 border-transparent">
+            <p class="text-sm font-bold" style="color:var(--text-primary);">Certified</p>
+            <p class="text-xs" style="color:var(--text-tertiary);">$14.99/letter</p>
+          </div>
+        </label>
+        <label class="flex-1 cursor-pointer">
+          <input type="radio" name="mail_class" value="certified_rr" class="hidden peer"/>
+          <div class="peer-checked:border-purple-500 peer-checked:bg-purple-500/10 glass-inset rounded-xl p-3 text-center transition-all border-2 border-transparent">
+            <p class="text-sm font-bold" style="color:var(--text-primary);">Certified + RR</p>
+            <p class="text-xs" style="color:var(--text-tertiary);">$16.99/letter</p>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    {# ── Supporting Documents (ID, SSN, Utility) ── #}
+    <div class="glass-inset rounded-xl p-4 mb-4">
+      <p class="text-xs font-semibold mb-3" style="color:var(--text-secondary);">Attach Supporting Documents (included in every letter package)</p>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label class="glass-label block text-xs">ID Document</label>
+          <input type="file" name="id_file" accept=".pdf,.jpg,.jpeg,.png" class="glass-input w-full text-xs"/>
+        </div>
+        <div>
+          <label class="glass-label block text-xs">SSN Card</label>
+          <input type="file" name="ssn_file" accept=".pdf,.jpg,.jpeg,.png" class="glass-input w-full text-xs"/>
+        </div>
+        <div>
+          <label class="glass-label block text-xs">Utility Bill</label>
+          <input type="file" name="utility_file" accept=".pdf,.jpg,.jpeg,.png" class="glass-input w-full text-xs"/>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex gap-3 flex-wrap">
+      <button type="submit" name="action" value="save" id="saveBtn"
+              class="glass-btn glass-btn--secondary glass-btn--pill flex-1 text-sm py-3">
+        Save to Folder
+      </button>
+      <button type="submit" name="action" value="pdf" id="pdfBtn"
+              class="glass-btn glass-btn--secondary glass-btn--pill flex-1 text-sm py-3">
+        Download PDF
+      </button>
+      <button type="submit" name="action" value="mail" id="mailBtn"
+              class="glass-btn glass-btn--primary glass-btn--full rounded-2xl glass-shimmer-edge flex-[2] text-sm py-3"
+              style="position:relative;overflow:hidden;">
+        Approve &amp; Mail All {{ letters | length }} Letters
+      </button>
+    </div>
   </form>
 
 </main>

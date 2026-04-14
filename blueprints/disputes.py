@@ -1437,8 +1437,16 @@ def multi_review():
 @disputes_bp.route('/multi-review/save', methods=['POST'])
 @login_required
 def multi_review_save():
-    """Save all multi-bureau letters to MailedLetter records."""
+    """Save and optionally mail all multi-bureau letters."""
+    from services.delivery import mail_letter_via_docupost, get_docupost_token, charge_mailing_fee
+    from services.letter_generator import letter_to_pdf, image_to_pdf, merge_dispute_package
+
+    action = request.form.get('action', 'save')
     bureaus = request.form.getlist('bureau')
+    mail_class = request.form.get('mail_class', 'first_class')
+
+    # Save all letters to DB
+    saved_letters = []
     for bureau in bureaus:
         letter_text = request.form.get(f'letter_{bureau}', '').strip()
         if not letter_text:
@@ -1453,8 +1461,130 @@ def multi_review_save():
             tier='inaccuracy',
         )
         db.session.add(ml)
+        db.session.flush()
+        saved_letters.append((bureau, ml))
+
     db.session.commit()
-    flash(f"{len(bureaus)} dispute letters saved to your Dispute Folder.", "success")
+
+    # Process supporting document uploads (used for PDF and mail)
+    def _process_supporting_docs():
+        doc_pdfs = []
+        for field_name in ['id_file', 'ssn_file', 'utility_file']:
+            f = request.files.get(field_name)
+            if f and f.filename:
+                import tempfile
+                ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else 'pdf'
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}')
+                f.save(tmp.name)
+                tmp.close()
+                if ext in ('png', 'jpg', 'jpeg'):
+                    doc_pdfs.append(image_to_pdf(tmp.name, field_type=field_name))
+                elif ext == 'pdf':
+                    doc_pdfs.append(tmp.name)
+        return doc_pdfs
+
+    # ── Download PDF action ──
+    if action == 'pdf' and saved_letters:
+        all_pdfs = []
+        for bureau, ml in saved_letters:
+            all_pdfs.append(letter_to_pdf(ml.letter_text))
+        # Add supporting docs once (they're the same for all letters)
+        all_pdfs.extend(_process_supporting_docs())
+
+        if len(all_pdfs) == 1:
+            return send_file(all_pdfs[0], as_attachment=True, download_name='dispute_letter.pdf')
+        else:
+            merged = merge_dispute_package(all_pdfs)
+            account_name = session.get('account_name', 'dispute').replace(' ', '_')
+            return send_file(merged, as_attachment=True,
+                             download_name=f'{account_name}_dispute_package.pdf')
+
+    if action == 'mail' and saved_letters:
+        # Charge for premium mailing if needed
+        if mail_class in ('certified', 'certified_rr'):
+            charge_result = charge_mailing_fee(current_user, len(saved_letters), mail_class)
+            if charge_result.get('error'):
+                flash(f"Mailing charge failed: {charge_result['error']}. Letters saved but not mailed. Falling back to First Class.", "warning")
+                mail_class = 'first_class'
+
+        docupost_class_map = {
+            'first_class': 'usps_first_class',
+            'certified': 'usps_certified',
+            'certified_rr': 'usps_certified_return_receipt',
+        }
+        docupost_mail_class = docupost_class_map.get(mail_class, 'usps_first_class')
+        token = get_docupost_token()
+
+        if not token:
+            flash(f"{len(saved_letters)} letters saved. Mailing not available — DocuPost not configured.", "warning")
+            return redirect(url_for('disputes.dispute_folder'))
+
+        mailed = 0
+        for bureau, ml in saved_letters:
+            # Generate PDF from letter text
+            try:
+                pdf_path = letter_to_pdf(ml.letter_text)
+
+                # Upload PDF to Cloudinary for DocuPost
+                if cloud_configured():
+                    from services.cloud_storage import upload_from_path
+                    cloud_result = upload_from_path(pdf_path, folder=f"users/{current_user.id}/letters")
+                    pdf_url = cloud_result['secure_url'] if cloud_result else None
+                else:
+                    pdf_url = None
+
+                if not pdf_url:
+                    continue
+
+                # Get bureau address
+                from services.pipeline_engine import BUREAU_ADDRESSES
+                recipient = BUREAU_ADDRESSES.get(bureau.lower(), {})
+                if not recipient:
+                    continue
+
+                sender = {
+                    'name': f"{current_user.first_name} {current_user.last_name}",
+                    'address1': '',
+                    'city': '',
+                    'state': '',
+                    'zip': '',
+                }
+
+                mail_opts = {
+                    'mail_class': docupost_mail_class,
+                    'servicelevel': 'certified' if mail_class in ('certified', 'certified_rr') else '',
+                    'return_envelope': 'true' if mail_class == 'certified_rr' else 'false',
+                }
+
+                result = mail_letter_via_docupost(
+                    pdf_url=pdf_url,
+                    recipient=recipient,
+                    sender=sender,
+                    mail_options=mail_opts,
+                    api_token=token,
+                )
+
+                if result.get('success'):
+                    ml.pdf_url = pdf_url
+                    if result.get('letter_id'):
+                        ml.docupost_letter_id = result['letter_id']
+                    if result.get('cost'):
+                        ml.docupost_cost = result['cost']
+                    mailed += 1
+
+            except Exception as e:
+                print(f"[MULTI-MAIL] Error mailing {bureau}: {e}", flush=True)
+                continue
+
+        db.session.commit()
+
+        if mailed > 0:
+            flash(f"{mailed} letter(s) mailed via {mail_class.replace('_', ' ').title()}!", "success")
+        else:
+            flash(f"Letters saved but mailing failed. Check your Dispute Folder.", "warning")
+    else:
+        flash(f"{len(saved_letters)} dispute letters saved to your Dispute Folder.", "success")
+
     return redirect(url_for('disputes.dispute_folder'))
 
 
