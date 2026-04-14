@@ -144,12 +144,16 @@ def upload_pdf():
 
         # Accept up to 3 bureau-labeled PDFs + legacy single pdfFile
         bureau_files = {}
+        print(f"[UPLOAD] request.files keys: {list(request.files.keys())}", flush=True)
         for form_key, bureau in [('pdfExperian', 'experian'), ('pdfTransunion', 'transunion'),
                                   ('pdfEquifax', 'equifax'), ('pdfFile', 'experian')]:
             f = request.files.get(form_key)
+            if f and f.filename:
+                print(f"[UPLOAD] Found {form_key}: {f.filename} (allowed: {allowed_file(f.filename)})", flush=True)
             if f and f.filename and allowed_file(f.filename):
                 if bureau not in bureau_files:  # Don't overwrite bureau-specific with legacy
                     bureau_files[bureau] = f
+        print(f"[UPLOAD] bureau_files: {list(bureau_files.keys())}", flush=True)
 
         if not bureau_files:
             flash("No PDF files selected. Please upload at least one credit report.", "error")
@@ -180,9 +184,12 @@ def upload_pdf():
                 first_hash = compute_pdf_hash(filepath)
 
             try:
+                print(f"[UPLOAD] Parsing {bureau} from {filepath} (size: {os.path.getsize(filepath)} bytes)", flush=True)
                 items = extract_negative_items_from_pdf(filepath)
+                print(f"[UPLOAD] {bureau}: parsed {len(items)} negative accounts", flush=True)
                 bureau_results[bureau] = items
             except Exception as e:
+                print(f"[UPLOAD] PARSE ERROR for {bureau}: {e}", flush=True)
                 flash(f"Could not parse {bureau.title()} report: {e}", "error")
                 continue
 
