@@ -189,27 +189,41 @@ def checkout(plan):
     if ref_code:
         session['pending_ref_code'] = ref_code
 
+    print(f"[CHECKOUT] Called with plan={plan}, STRIPE_PRICES={STRIPE_PRICES}", flush=True)
+    print(f"[CHECKOUT] stripe.api_key set: {bool(stripe.api_key)} (len={len(stripe.api_key) if stripe.api_key else 0})", flush=True)
+
     if plan not in STRIPE_PRICES:
+        print(f"[CHECKOUT] Invalid plan: {plan}", flush=True)
         flash('Invalid plan.', 'error')
         return redirect(url_for('auth.landing_page'))
 
     price_id = STRIPE_PRICES[plan]
+    print(f"[CHECKOUT] price_id for {plan}: {price_id}", flush=True)
     if not price_id:
+        print(f"[CHECKOUT] No price_id configured for {plan}", flush=True)
         flash('Payment not configured yet.', 'error')
         return redirect(url_for('auth.landing_page'))
 
     try:
         base_url = request.host_url.rstrip('/')
+        print(f"[CHECKOUT] Creating Stripe session with price={price_id}", flush=True)
         checkout_session = stripe.checkout.Session.create(
             mode='subscription',
             line_items=[{'price': price_id, 'quantity': 1}],
             success_url=base_url + url_for('auth.checkout_success', plan=plan) + '?session_id={CHECKOUT_SESSION_ID}',
             cancel_url=base_url + '/landing#pricing',
         )
+        print(f"[CHECKOUT] Session created: {checkout_session.id} url={checkout_session.url}", flush=True)
         return redirect(checkout_session.url)
     except stripe.error.StripeError as e:
+        print(f"[CHECKOUT] STRIPE ERROR: {type(e).__name__}: {e}", flush=True)
         audit_logger.error(f"STRIPE_CHECKOUT_ERROR plan={plan}: {e}")
-        flash('Payment service error. Please try again.', 'error')
+        flash(f'Payment service error: {str(e)[:100]}', 'error')
+        return redirect(url_for('auth.landing_page'))
+    except Exception as e:
+        print(f"[CHECKOUT] UNEXPECTED ERROR: {type(e).__name__}: {e}", flush=True)
+        audit_logger.error(f"CHECKOUT_UNEXPECTED_ERROR plan={plan}: {e}")
+        flash(f'Unexpected error: {str(e)[:100]}', 'error')
         return redirect(url_for('auth.landing_page'))
 
 
