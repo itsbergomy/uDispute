@@ -1875,6 +1875,26 @@ def dispute_folder_data():
     return render_template('_dispute_folder_fragment.html', logs=logs, letters=letters, docs=docs)
 
 
+@disputes_bp.route('/api/refresh-tracking', methods=['POST'])
+@login_required
+@require_pro_or_business
+def refresh_mail_tracking():
+    """Poll DocuPost for status updates on all Pro user mailed letters."""
+    from services.tracking import poll_all_user_mailed_letters
+    result = poll_all_user_mailed_letters(current_user.id)
+    return jsonify(result)
+
+
+@disputes_bp.route('/api/letter/<int:letter_id>/tracking', methods=['POST'])
+@login_required
+@require_pro_or_business
+def refresh_single_letter_tracking(letter_id):
+    """Poll DocuPost for a single MailedLetter's status."""
+    from services.tracking import poll_mailed_letter_status
+    result = poll_mailed_letter_status(letter_id, user_id=current_user.id)
+    return jsonify(result)
+
+
 @disputes_bp.route('/add-log', methods=['GET', 'POST'])
 @login_required
 def add_log():

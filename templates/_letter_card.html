@@ -32,6 +32,79 @@
           {{ L.created_at.strftime('%b %d, %Y · %I:%M %p') if L.created_at else '' }}
         </span>
       </div>
+      {# ── Delivery Tracking Row (only for letters that have been mailed via DocuPost) ── #}
+      {% if L.docupost_letter_id %}
+      <div class="flex items-center gap-2 flex-wrap mt-1 mb-1.5">
+        {# ── Delivery Status Badge ── #}
+        {% set status = L.delivery_status or 'submitted' %}
+        {% if status == 'delivered' %}
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1" style="background:rgba(16,185,129,0.15);color:rgba(16,185,129,0.95);">
+            <span style="width:6px;height:6px;border-radius:50%;background:#10b981;display:inline-block;"></span>
+            Delivered
+          </span>
+        {% elif status == 'in_transit' %}
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1" style="background:rgba(59,130,246,0.15);color:rgba(59,130,246,0.95);">
+            <span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;display:inline-block;"></span>
+            In Transit
+          </span>
+        {% elif status == 'processing' %}
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1" style="background:rgba(139,92,246,0.15);color:rgba(139,92,246,0.95);">
+            <span style="width:6px;height:6px;border-radius:50%;background:#8b5cf6;display:inline-block;"></span>
+            Processing
+          </span>
+        {% elif status == 'queued' %}
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1" style="background:rgba(245,158,11,0.15);color:rgba(245,158,11,0.95);">
+            <span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>
+            Queued
+          </span>
+        {% elif status in ('error', 'returned', 'cancelled') %}
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1" style="background:rgba(239,68,68,0.15);color:rgba(239,68,68,0.95);">
+            <span style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block;"></span>
+            {{ status | title }}
+          </span>
+        {% else %}
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1" style="background:rgba(148,163,184,0.15);color:rgba(148,163,184,0.95);">
+            <span style="width:6px;height:6px;border-radius:50%;background:#94a3b8;display:inline-block;"></span>
+            Submitted
+          </span>
+        {% endif %}
+
+        {# ── Mail Class Badge ── #}
+        {% if L.mail_class %}
+          {% set mc_label = {'usps_first_class': 'First Class', 'usps_certified': 'Certified', 'usps_certified_return_receipt': 'Certified + RR', 'first_class': 'First Class', 'certified': 'Certified', 'certified_rr': 'Certified + RR'}.get(L.mail_class, L.mail_class) %}
+          <span class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,0.06);color:var(--text-tertiary);">
+            {{ mc_label }}
+          </span>
+        {% endif %}
+
+        {# ── Tracking Number ── #}
+        {% if L.tracking_number %}
+          <a href="https://tools.usps.com/go/TrackConfirmAction?qtc_tLabels1={{ L.tracking_number }}" target="_blank"
+             class="text-xs font-mono px-2 py-0.5 rounded-full" style="background:rgba(0,113,227,0.08);color:var(--accent);text-decoration:none;">
+            #{{ L.tracking_number }}
+          </a>
+        {% endif %}
+
+        {# ── Mailed At ── #}
+        {% if L.mailed_at %}
+          <span class="text-xs" style="color:var(--text-tertiary);">
+            Mailed {{ L.mailed_at.strftime('%b %d') }}
+          </span>
+        {% endif %}
+
+        {# ── Refresh Tracking Button ── #}
+        <button onclick="refreshLetterTracking({{ L.id }}, this)"
+                class="text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1"
+                style="background:rgba(255,255,255,0.06);color:var(--text-secondary);border:none;cursor:pointer;"
+                title="Refresh tracking status">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+      {% endif %}
+
       <p class="text-sm mt-1" style="color:var(--text-secondary);line-height:1.5;">
         {{ L.letter_text[:180] }}{% if L.letter_text | length > 180 %}…{% endif %}
       </p>

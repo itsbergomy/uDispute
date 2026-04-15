@@ -126,11 +126,21 @@
       <div id="panel-letters" class="tab-panel hidden">
         {# ── Select Mode Toolbar ── #}
         <div class="flex items-center justify-between mb-3">
-          <button onclick="toggleSelectMode()" id="selectModeBtn"
-                  class="glass-btn glass-btn--pill text-xs px-3 py-1.5 font-semibold"
-                  style="background:rgba(255,255,255,0.08);color:var(--text-secondary);">
-            Select
-          </button>
+          <div class="flex items-center gap-2">
+            <button onclick="toggleSelectMode()" id="selectModeBtn"
+                    class="glass-btn glass-btn--pill text-xs px-3 py-1.5 font-semibold"
+                    style="background:rgba(255,255,255,0.08);color:var(--text-secondary);">
+              Select
+            </button>
+            <button onclick="refreshAllTracking(this)" id="refreshAllTrackingBtn"
+                    class="glass-btn glass-btn--pill text-xs px-3 py-1.5 font-semibold inline-flex items-center gap-1"
+                    style="background:rgba(0,113,227,0.08);color:var(--accent);">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              Refresh Tracking
+            </button>
+          </div>
           <div id="selectActions" class="hidden flex items-center gap-2">
             <span id="selectedCount" class="text-xs" style="color:var(--text-tertiary);">0 selected</span>
             <button onclick="batchDeleteLetters()"
@@ -605,6 +615,67 @@ function batchDeleteLetters() {
     else { alert(data.error || 'Error deleting'); }
   })
   .catch(function(err) { alert('Error: ' + err); });
+}
+
+// ── Mail Tracking ──
+function refreshAllTracking(btn) {
+  var originalHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span>Refreshing...</span>';
+
+  fetch('/api/refresh-tracking', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN}
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    btn.innerHTML = '<span>' + (data.updated || 0) + ' updated</span>';
+    if (data.updated > 0) {
+      setTimeout(function() { window.location.reload(); }, 800);
+    } else {
+      setTimeout(function() {
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+      }, 1500);
+    }
+  })
+  .catch(function(err) {
+    btn.innerHTML = '<span>Error</span>';
+    setTimeout(function() {
+      btn.innerHTML = originalHTML;
+      btn.disabled = false;
+    }, 1500);
+  });
+}
+
+function refreshLetterTracking(letterId, btn) {
+  var originalHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span>...</span>';
+
+  fetch('/api/letter/' + letterId + '/tracking', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN}
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.updated) {
+      window.location.reload();
+    } else {
+      btn.innerHTML = '<span>No change</span>';
+      setTimeout(function() {
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+      }, 1500);
+    }
+  })
+  .catch(function(err) {
+    btn.innerHTML = '<span>Error</span>';
+    setTimeout(function() {
+      btn.innerHTML = originalHTML;
+      btn.disabled = false;
+    }, 1500);
+  });
 }
 </script>
 {% endblock %}
