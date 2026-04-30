@@ -555,6 +555,22 @@ def handle_strategy(pipeline):
             )
         except Exception:
             decisions = []
+
+        # Build lookup: (account_name, account_number) → bureaus list
+        # so AI decisions inherit the same per-account bureau filtering as
+        # the auto-added fallback. Without this, AI-picked accounts default
+        # to all 3 bureaus even when only 1 PDF was uploaded.
+        bureaus_lookup = {
+            (item.get('account_name', ''), item.get('account_number', '')): item.get('bureaus', [])
+            for item in negative_items
+        }
+
+        # Graft `bureaus` onto every AI decision
+        for d in decisions:
+            key = (d.get('account_name', ''), d.get('account_number', ''))
+            if 'bureaus' not in d or not d['bureaus']:
+                d['bureaus'] = bureaus_lookup.get(key, [])
+
         # Make sure every negative item is included even if AI skipped it
         ai_keys = {(d.get('account_name',''), d.get('account_number','')) for d in decisions}
         for item in negative_items:
@@ -626,10 +642,20 @@ def handle_strategy(pipeline):
             created_count += 1
     else:
         # Round 1: every account × bureaus that have the account
+        # `targets` is bounded by what was actually uploaded (parsed_bureaus
+        # below), so the inner check filters each account to only the bureaus
+        # that actually reported it AND that we have a report for.
+        parsed_bureaus = list(strategy_data.get('negative_items_by_bureau', {}).keys())
+        if parsed_bureaus and send_to == 'bureaus':
+            # Restrict targets to the bureaus the user actually uploaded
+            parsed_lower = {b.lower() for b in parsed_bureaus}
+            targets = [t for t in targets if t.lower() in parsed_lower]
+
         for decision in decisions:
-            # If account has a 'bureaus' list (from multi-report), use it.
-            # Otherwise fall back to all targets (single-report upload).
-            account_bureaus = decision.get('bureaus', targets)
+            # If account has a 'bureaus' list (from cross-reference), use it.
+            # Empty list means the lookup missed → fall back to all targets
+            # (which are already filtered to uploaded bureaus above).
+            account_bureaus = decision.get('bureaus') or targets
             for target in targets:
                 if target.lower() not in [b.lower() for b in account_bureaus]:
                     continue  # Skip bureaus that don't have this account
