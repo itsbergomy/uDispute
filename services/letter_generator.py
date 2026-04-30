@@ -5,8 +5,12 @@ Extracted from dispute_ui.py — handles prompt packs and GPT letter generation.
 
 import os
 import asyncio
+import logging
+import random
+import re as _re
 import tempfile
-from openai import OpenAI, AsyncOpenAI
+import time
+from openai import OpenAI, AsyncOpenAI, RateLimitError, APITimeoutError, APIConnectionError
 from dotenv import load_dotenv
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.units import inch
@@ -21,6 +25,79 @@ load_dotenv()
 
 openai_client = OpenAI()
 async_openai_client = AsyncOpenAI()
+
+logger = logging.getLogger(__name__)
+
+# ═══════════════════════════════════════════════════════════
+#  Model selection + transient-error retry
+# ═══════════════════════════════════════════════════════════
+#
+# LETTER_MODEL controls the default model for ALL letter generation paths
+# (Pro mode, Business mode, Auto Mode, dual-letter, multi-bureau, batch).
+# Defaults to gpt-4o because o3 has a much tighter TPM ceiling that gets
+# hit fast when multiple users fan out 6+ letters concurrently. Set
+# LETTER_MODEL=o3 in env to revert.
+#
+LETTER_MODEL = os.getenv("LETTER_MODEL", "gpt-4o")
+
+# Retry settings — applied on 429 / timeout / transient connection errors.
+_RETRY_MAX_ATTEMPTS = int(os.getenv("LETTER_RETRY_MAX", "4"))
+_RETRY_BASE_DELAY = float(os.getenv("LETTER_RETRY_BASE_DELAY", "2.0"))
+
+
+def _parse_retry_after(err) -> float:
+    """Pull a wait hint out of an OpenAI rate-limit error message, if present.
+    OpenAI usually says "Please try again in 3.566s" — we honor that.
+    Returns None if no hint found.
+    """
+    try:
+        msg = str(err)
+        m = _re.search(r"try again in ([0-9.]+)s", msg)
+        if m:
+            return float(m.group(1))
+    except Exception:
+        pass
+    return None
+
+
+def _chat_create_with_retry(**kwargs):
+    """Sync OpenAI chat.completions.create with exponential backoff on 429s."""
+    last_exc = None
+    for attempt in range(_RETRY_MAX_ATTEMPTS):
+        try:
+            return openai_client.chat.completions.create(**kwargs)
+        except (RateLimitError, APITimeoutError, APIConnectionError) as e:
+            last_exc = e
+            hinted = _parse_retry_after(e)
+            # Exponential backoff with jitter, capped at 30s
+            backoff = hinted if hinted else min(_RETRY_BASE_DELAY * (2 ** attempt), 30.0)
+            backoff += random.uniform(0, 0.5)
+            logger.warning(
+                f"[LETTER] {type(e).__name__} on attempt {attempt+1}/{_RETRY_MAX_ATTEMPTS} "
+                f"(model={kwargs.get('model')}); sleeping {backoff:.2f}s"
+            )
+            time.sleep(backoff)
+    # All retries exhausted
+    raise last_exc
+
+
+async def _chat_create_with_retry_async(**kwargs):
+    """Async OpenAI chat.completions.create with exponential backoff on 429s."""
+    last_exc = None
+    for attempt in range(_RETRY_MAX_ATTEMPTS):
+        try:
+            return await async_openai_client.chat.completions.create(**kwargs)
+        except (RateLimitError, APITimeoutError, APIConnectionError) as e:
+            last_exc = e
+            hinted = _parse_retry_after(e)
+            backoff = hinted if hinted else min(_RETRY_BASE_DELAY * (2 ** attempt), 30.0)
+            backoff += random.uniform(0, 0.5)
+            logger.warning(
+                f"[LETTER] {type(e).__name__} on attempt {attempt+1}/{_RETRY_MAX_ATTEMPTS} "
+                f"(model={kwargs.get('model')}); sleeping {backoff:.2f}s"
+            )
+            await asyncio.sleep(backoff)
+    raise last_exc
 
 # ─── FCRA Inaccuracy Mapping ───
 
@@ -723,14 +800,14 @@ def build_notice_of_dispute_prompt(bureau, accounts, client_context):
     return preamble + body, False, False
 
 
-def generate_letter(prompt, model="o3", has_inaccuracies=False,
+def generate_letter(prompt, model=None, has_inaccuracies=False,
                     has_legal_research=False, is_notice=False):
     """
     Generate a dispute letter using GPT.
 
     Args:
         prompt: The filled-in prompt template.
-        model: OpenAI model to use.
+        model: OpenAI model to use. Defaults to LETTER_MODEL env var (gpt-4o).
         has_inaccuracies: If True, uses enhanced system prompt that instructs
                           GPT to incorporate parsed inaccuracy findings.
         has_legal_research: If True, uses the full legal research system prompt
@@ -749,8 +826,8 @@ def generate_letter(prompt, model="o3", has_inaccuracies=False,
     else:
         system_prompt = SYSTEM_PROMPT_BASE
 
-    response = openai_client.chat.completions.create(
-        model=model,
+    response = _chat_create_with_retry(
+        model=model or LETTER_MODEL,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
@@ -760,7 +837,7 @@ def generate_letter(prompt, model="o3", has_inaccuracies=False,
 
 
 def generate_letter_with_quality_gate(
-    prompt, model="o3", has_inaccuracies=False, has_legal_research=False,
+    prompt, model=None, has_inaccuracies=False, has_legal_research=False,
     is_notice=False, quality_context=None, max_retries=2,
 ):
     """
@@ -824,7 +901,7 @@ def generate_letter_with_quality_gate(
 #  Async / Parallel Letter Generation
 # ═══════════════════════════════════════════════════════════
 
-async def generate_letter_async(prompt, model="o3", has_inaccuracies=False,
+async def generate_letter_async(prompt, model=None, has_inaccuracies=False,
                                 has_legal_research=False, is_notice=False):
     """Async version of generate_letter — uses AsyncOpenAI client."""
     if is_notice:
@@ -836,8 +913,8 @@ async def generate_letter_async(prompt, model="o3", has_inaccuracies=False,
     else:
         system_prompt = SYSTEM_PROMPT_BASE
 
-    response = await async_openai_client.chat.completions.create(
-        model=model,
+    response = await _chat_create_with_retry_async(
+        model=model or LETTER_MODEL,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
@@ -847,7 +924,7 @@ async def generate_letter_async(prompt, model="o3", has_inaccuracies=False,
 
 
 async def generate_letter_with_quality_gate_async(
-    prompt, model="o3", has_inaccuracies=False, has_legal_research=False,
+    prompt, model=None, has_inaccuracies=False, has_legal_research=False,
     is_notice=False, quality_context=None, max_retries=2,
 ):
     """Async version of generate_letter_with_quality_gate."""
@@ -936,7 +1013,7 @@ async def generate_letters_batch(tasks):
     return list(results)
 
 
-async def generate_dual_letters_async(cra_prompt, furnisher_prompt, model="o3",
+async def generate_dual_letters_async(cra_prompt, furnisher_prompt, model=None,
                                       has_inaccuracies=False, has_legal_research=False):
     """Async version of generate_dual_letters — both letters generated concurrently."""
     if has_legal_research:
@@ -946,15 +1023,17 @@ async def generate_dual_letters_async(cra_prompt, furnisher_prompt, model="o3",
     else:
         cra_system = SYSTEM_PROMPT_BASE
 
-    cra_task = async_openai_client.chat.completions.create(
-        model=model,
+    resolved_model = model or LETTER_MODEL
+
+    cra_task = _chat_create_with_retry_async(
+        model=resolved_model,
         messages=[
             {"role": "system", "content": cra_system},
             {"role": "user", "content": cra_prompt}
         ]
     )
-    furnisher_task = async_openai_client.chat.completions.create(
-        model=model,
+    furnisher_task = _chat_create_with_retry_async(
+        model=resolved_model,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT_FURNISHER_DIRECT},
             {"role": "user", "content": furnisher_prompt}
@@ -1188,7 +1267,7 @@ def build_prompt_multi(template_pack, context, accounts_list,
 
 # ─── Dual-Letter Generation Functions ───
 
-def generate_dual_letters(cra_prompt, furnisher_prompt, model="o3",
+def generate_dual_letters(cra_prompt, furnisher_prompt, model=None,
                           has_inaccuracies=False, has_legal_research=False):
     """
     Generate TWO dispute letters for the dual-letter strategy:
@@ -1198,7 +1277,7 @@ def generate_dual_letters(cra_prompt, furnisher_prompt, model="o3",
     Args:
         cra_prompt: The filled prompt for the CRA letter.
         furnisher_prompt: The filled prompt for the furnisher letter.
-        model: OpenAI model to use.
+        model: OpenAI model to use. Defaults to LETTER_MODEL env var (gpt-4o).
         has_inaccuracies: If True, uses enhanced system prompt for CRA letter.
         has_legal_research: If True, uses legal research system prompt for CRA letter.
 
@@ -1213,9 +1292,11 @@ def generate_dual_letters(cra_prompt, furnisher_prompt, model="o3",
     else:
         cra_system = SYSTEM_PROMPT_BASE
 
+    resolved_model = model or LETTER_MODEL
+
     # Generate CRA letter
-    cra_response = openai_client.chat.completions.create(
-        model=model,
+    cra_response = _chat_create_with_retry(
+        model=resolved_model,
         messages=[
             {"role": "system", "content": cra_system},
             {"role": "user", "content": cra_prompt}
@@ -1224,8 +1305,8 @@ def generate_dual_letters(cra_prompt, furnisher_prompt, model="o3",
     cra_letter = cra_response.choices[0].message.content
 
     # Generate furnisher letter
-    furnisher_response = openai_client.chat.completions.create(
-        model=model,
+    furnisher_response = _chat_create_with_retry(
+        model=resolved_model,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT_FURNISHER_DIRECT},
             {"role": "user", "content": furnisher_prompt}
