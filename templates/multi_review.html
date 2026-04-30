@@ -68,9 +68,10 @@
 
       <div class="flex items-center justify-between">
         {% if not loop.first %}
+        {% set prev_bureau = (letters.keys() | list)[loop.index0 - 1] %}
         <button type="button" class="glass-btn glass-btn--ghost glass-btn--pill text-xs px-3 py-1.5"
-                onclick="showBureauTab('{{ letters.keys() | list }}[{{ loop.index0 - 1 }}]')">
-          &larr; Previous
+                onclick="showBureauTab('{{ prev_bureau }}')">
+          &larr; {{ prev_bureau | title }}
         </button>
         {% else %}
         <div></div>

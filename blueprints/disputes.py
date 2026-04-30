@@ -461,11 +461,26 @@ def auto_mode_run():
     if not accounts:
         return jsonify({'error': 'No accounts selected'}), 400
 
-    # Build the full task list: each account × each bureau
+    # Normalize user-selected bureaus for comparison
+    BUREAU_TITLE = {'experian': 'Experian', 'transunion': 'TransUnion', 'equifax': 'Equifax'}
+    selected_lower = {b.lower() for b in bureaus}
+
+    # Build the full task list: each account × each bureau the account is actually on
     tasks = []
     for acct in accounts:
-        for bureau in bureaus:
+        acct_bureaus = acct.get('bureaus', []) or []
+        if acct_bureaus:
+            # Only fan out to bureaus that (a) the account is on AND (b) user selected
+            task_bureaus = [BUREAU_TITLE.get(b.lower(), b.title())
+                            for b in acct_bureaus if b.lower() in selected_lower]
+        else:
+            # Fallback for legacy single-report uploads without `bureaus` field
+            task_bureaus = list(bureaus)
+        for bureau in task_bureaus:
             tasks.append({'account': acct, 'bureau': bureau})
+
+    if not tasks:
+        return jsonify({'error': 'No matching account/bureau combinations'}), 400
 
     # Clean up old runs for this user
     old_keys = [k for k, v in _auto_runs.items() if v.get('user_id') == current_user.id]
@@ -1369,11 +1384,6 @@ def generate_process():
                 letters[bureau] = letter
 
         store_id = str(uuid.uuid4())
-        _store_letters(store_id, {
-            'letters': letters,
-            'account_name': data['account_name'],
-            'account_number': data['account_number'],
-        })
 
         if len(letters) == 1:
             # Single bureau — use regular final review
@@ -1381,6 +1391,11 @@ def generate_process():
             _store_letters(store_id, {'letter': letters[single_bureau]})
             return redirect(url_for('disputes.final_review', sid=store_id))
         else:
+            _store_letters(store_id, {
+                'letters': letters,
+                'account_name': data['account_name'],
+                'account_number': data['account_number'],
+            })
             return redirect(url_for('disputes.multi_review', sid=store_id))
 
     if session.get('dual_letter_enabled'):
@@ -1449,15 +1464,17 @@ def multi_review_save():
     mail_class = request.form.get('mail_class', 'first_class')
 
     # Save all letters to DB
+    BUREAU_CANONICAL = {'experian': 'Experian', 'transunion': 'TransUnion', 'equifax': 'Equifax'}
     saved_letters = []
     for bureau in bureaus:
         letter_text = request.form.get(f'letter_{bureau}', '').strip()
         if not letter_text:
             continue
+        canonical_bureau = BUREAU_CANONICAL.get(bureau.lower(), bureau.title())
         ml = MailedLetter(
             user_id=current_user.id,
             letter_text=letter_text,
-            bureau=bureau.title(),
+            bureau=canonical_bureau,
             round_number=session.get('current_round', 1),
             account_name=session.get('account_name', ''),
             account_number=session.get('account_number', ''),
@@ -1539,9 +1556,11 @@ def multi_review_save():
                 if not pdf_url:
                     continue
 
-                # Get bureau address
-                from services.pipeline_engine import BUREAU_ADDRESSES
-                recipient = BUREAU_ADDRESSES.get(bureau.lower(), {})
+                # Get bureau address (normalize to title-case key)
+                bureau_key = {'experian': 'Experian', 'transunion': 'TransUnion', 'equifax': 'Equifax'}.get(
+                    bureau.lower(), bureau.title()
+                )
+                recipient = BUREAU_ADDRESSES.get(bureau_key, {})
                 if not recipient:
                     continue
 
