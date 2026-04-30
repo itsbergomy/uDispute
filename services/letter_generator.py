@@ -32,13 +32,43 @@ logger = logging.getLogger(__name__)
 #  Model selection + transient-error retry
 # ═══════════════════════════════════════════════════════════
 #
-# LETTER_MODEL controls the default model for ALL letter generation paths
-# (Pro mode, Business mode, Auto Mode, dual-letter, multi-bureau, batch).
-# Defaults to gpt-4o because o3 has a much tighter TPM ceiling that gets
-# hit fast when multiple users fan out 6+ letters concurrently. Set
-# LETTER_MODEL=o3 in env to revert.
+# Two-model strategy:
+#
+#   LETTER_MODEL_INACCURACY (default: o3)
+#     Used when the prompt has parsed inaccuracies, legal research, or is
+#     part of the dual-letter strategy. These letters need to attack
+#     specific Metro 2 fields, cross-bureau discrepancies, and FCRA
+#     citations with reasoning. o3 produces the targeted, aggressive
+#     letters this product is built around. The retry-with-backoff below
+#     handles o3's tighter TPM ceiling so concurrent bursts no longer
+#     hard-fail — they queue and process gracefully.
+#
+#   LETTER_MODEL (default: gpt-4o)
+#     Used for Notice of Dispute (Tier 1) and any plain template letter
+#     with no parsed inaccuracies / no legal research. These are
+#     format-following tasks where 4o's higher TPM, faster latency, and
+#     lower cost are wins without quality cost.
+#
+# Override either via env if you ever want to swap models without redeploying.
 #
 LETTER_MODEL = os.getenv("LETTER_MODEL", "gpt-4o")
+LETTER_MODEL_INACCURACY = os.getenv("LETTER_MODEL_INACCURACY", "o3")
+
+
+def _pick_model(has_inaccuracies: bool = False, has_legal_research: bool = False,
+                is_notice: bool = False, override: str = None) -> str:
+    """Resolve which model to use for a given letter context.
+
+    Inaccuracy- and legal-research-driven letters need reasoning → o3.
+    Notice of Dispute and plain template letters → gpt-4o.
+    Explicit `override` always wins.
+    """
+    if override:
+        return override
+    if has_inaccuracies or has_legal_research:
+        return LETTER_MODEL_INACCURACY
+    return LETTER_MODEL
+
 
 # Retry settings — applied on 429 / timeout / transient connection errors.
 _RETRY_MAX_ATTEMPTS = int(os.getenv("LETTER_RETRY_MAX", "4"))
@@ -827,7 +857,7 @@ def generate_letter(prompt, model=None, has_inaccuracies=False,
         system_prompt = SYSTEM_PROMPT_BASE
 
     response = _chat_create_with_retry(
-        model=model or LETTER_MODEL,
+        model=_pick_model(has_inaccuracies, has_legal_research, is_notice, model),
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
@@ -914,7 +944,7 @@ async def generate_letter_async(prompt, model=None, has_inaccuracies=False,
         system_prompt = SYSTEM_PROMPT_BASE
 
     response = await _chat_create_with_retry_async(
-        model=model or LETTER_MODEL,
+        model=_pick_model(has_inaccuracies, has_legal_research, is_notice, model),
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
@@ -1015,7 +1045,13 @@ async def generate_letters_batch(tasks):
 
 async def generate_dual_letters_async(cra_prompt, furnisher_prompt, model=None,
                                       has_inaccuracies=False, has_legal_research=False):
-    """Async version of generate_dual_letters — both letters generated concurrently."""
+    """Async version of generate_dual_letters — both letters generated concurrently.
+
+    Dual letters are inherently the high-stakes, FCRA-strategy path
+    (CRA letter + direct furnisher letter under § 1681s-2(b) / § 1022.43).
+    Routes to LETTER_MODEL_INACCURACY (o3 by default) regardless of flags
+    so quality is consistent across the dual-letter strategy.
+    """
     if has_legal_research:
         cra_system = SYSTEM_PROMPT_WITH_LEGAL_RESEARCH
     elif has_inaccuracies:
@@ -1023,7 +1059,8 @@ async def generate_dual_letters_async(cra_prompt, furnisher_prompt, model=None,
     else:
         cra_system = SYSTEM_PROMPT_BASE
 
-    resolved_model = model or LETTER_MODEL
+    # Dual-letter strategy always uses the reasoning model
+    resolved_model = model or LETTER_MODEL_INACCURACY
 
     cra_task = _chat_create_with_retry_async(
         model=resolved_model,
@@ -1274,10 +1311,14 @@ def generate_dual_letters(cra_prompt, furnisher_prompt, model=None,
     1. A CRA letter (through e-OSCAR, preserving § 1681s-2(b) rights)
     2. A direct furnisher letter (bypassing e-OSCAR under 12 CFR § 1022.43)
 
+    Dual letters are inherently the high-stakes, FCRA-strategy path.
+    Routes to LETTER_MODEL_INACCURACY (o3 by default) regardless of flags
+    so quality is consistent across the dual-letter strategy.
+
     Args:
         cra_prompt: The filled prompt for the CRA letter.
         furnisher_prompt: The filled prompt for the furnisher letter.
-        model: OpenAI model to use. Defaults to LETTER_MODEL env var (gpt-4o).
+        model: OpenAI model to use. Defaults to LETTER_MODEL_INACCURACY env var (o3).
         has_inaccuracies: If True, uses enhanced system prompt for CRA letter.
         has_legal_research: If True, uses legal research system prompt for CRA letter.
 
@@ -1292,7 +1333,8 @@ def generate_dual_letters(cra_prompt, furnisher_prompt, model=None,
     else:
         cra_system = SYSTEM_PROMPT_BASE
 
-    resolved_model = model or LETTER_MODEL
+    # Dual-letter strategy always uses the reasoning model
+    resolved_model = model or LETTER_MODEL_INACCURACY
 
     # Generate CRA letter
     cra_response = _chat_create_with_retry(
