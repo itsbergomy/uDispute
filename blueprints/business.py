@@ -880,6 +880,65 @@ BUREAU_NAME_MAP = {
 }
 
 
+def _resolve_client_pdf_path(pdf_ref):
+    """Resolve a Client.pdf_* field (cloud URL or local filename) to a local path."""
+    if not pdf_ref:
+        return None
+    if pdf_ref.startswith('http'):
+        return download_to_temp(pdf_ref)
+    candidate = os.path.join(current_app.config["UPLOAD_FOLDER"], pdf_ref)
+    if os.path.exists(candidate):
+        return candidate
+    return None
+
+
+def _ensure_client_accounts_extracted(client):
+    """Return parsed accounts for a client, extracting + cross-referencing on
+    demand if the session doesn't have them yet. Uses every uploaded bureau
+    PDF (pdf_experian, pdf_transunion, pdf_equifax). Result is cached in the
+    session so subsequent operations don't re-parse.
+
+    Returns the merged_items list (with `bureaus` field per item), or None
+    if no PDFs are available or all parsers failed.
+    """
+    cached = session.get("client_parsed_accounts") if session.get("parsed_accounts_client_id") == client.id else None
+    if cached:
+        return cached
+
+    bureau_pdfs = {}
+    for bureau, ref in [
+        ('experian', client.pdf_experian),
+        ('transunion', client.pdf_transunion),
+        ('equifax', client.pdf_equifax),
+    ]:
+        path = _resolve_client_pdf_path(ref)
+        if path:
+            bureau_pdfs[bureau] = path
+
+    if not bureau_pdfs:
+        return None
+
+    bureau_results = {}
+    for bureau, pdf_path in bureau_pdfs.items():
+        try:
+            items = extract_negative_items_from_pdf(pdf_path)
+            if items:
+                bureau_results[bureau] = items
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+    if not bureau_results:
+        return None
+
+    from services.cross_reference import cross_reference
+    merged_items, _summary = cross_reference(bureau_results)
+
+    session["client_parsed_accounts"] = merged_items
+    session["parsed_accounts_client_id"] = client.id
+    return merged_items
+
+
 def _group_business_accounts_by_bureau(parsed_accounts):
     """Group parsed accounts by bureau, handling both single-report (item['bureau'])
     and multi-report (item['bureaus'] = [...]) formats. Each account is added to
@@ -920,9 +979,9 @@ def generate_notice_of_dispute(client_id):
     if client.business_user_id != current_user.id:
         abort(403)
 
-    parsed_accounts = session.get("client_parsed_accounts") if session.get("parsed_accounts_client_id") == client_id else None
+    parsed_accounts = _ensure_client_accounts_extracted(client)
     if not parsed_accounts:
-        flash("No accounts extracted. Click 'Extract Accounts' first.", "error")
+        flash("No credit report PDFs found for this client. Upload at least one bureau report first.", "error")
         return redirect(url_for("business.view_client", client_id=client.id))
 
     accounts_by_bureau = _group_business_accounts_by_bureau(parsed_accounts)
