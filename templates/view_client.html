@@ -611,12 +611,13 @@
             Generate formal Notice of Dispute letters for each bureau — required under FDCPA § 1692g.
           </p>
         </div>
-        <form method="POST" action="{{ url_for('business.generate_notice_of_dispute', client_id=client.id) }}" style="display:inline;">
+        <form method="POST" action="{{ url_for('business.generate_notice_of_dispute', client_id=client.id) }}" style="display:inline;"
+              onsubmit="document.getElementById('noticeSpin').classList.remove('hidden'); document.getElementById('noticeText').textContent='Generating…'; document.getElementById('noticeBtn').disabled=true;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <button type="submit" id="noticeBtn"
                   class="glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge px-5 py-2 text-sm font-semibold inline-flex items-center gap-2"
                   style="position:relative;overflow:hidden;"
-                  {% if not client_parsed_accounts %}disabled title="Extract accounts first" style="opacity:0.5;cursor:not-allowed;"{% endif %}>
+                  {% if not client.pdf_experian and not client.pdf_transunion and not client.pdf_equifax %}disabled title="Upload a credit report PDF first" style="opacity:0.5;cursor:not-allowed;"{% endif %}>
             <svg class="h-3.5 w-3.5 hidden animate-spin" id="noticeSpin" viewBox="0 0 24 24" fill="none">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4A4 4 0 008 12H4z"/>
