@@ -982,7 +982,9 @@ def handle_generation(pipeline):
     parsed_accounts = strategy_data.get('negative_items', [])
 
     # ── Notice of Dispute: hardcoded template, no AI ──
-    if strategy == 'notice_of_dispute':
+    # Frontend sends 'notice' (see business_dashboard.html); accept both
+    # for backwards compatibility with any older saved configs.
+    if strategy in ('notice', 'notice_of_dispute'):
         return _generate_notice_of_dispute(pipeline, client_data, accounts_data, round_number)
 
     # Load custom letter template if needed

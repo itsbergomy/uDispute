@@ -875,35 +875,64 @@ BUREAU_ADDRESSES = {
 }
 
 
+BUREAU_NAME_MAP = {
+    'experian': 'Experian', 'transunion': 'TransUnion', 'equifax': 'Equifax',
+}
+
+
+def _group_business_accounts_by_bureau(parsed_accounts):
+    """Group parsed accounts by bureau, handling both single-report (item['bureau'])
+    and multi-report (item['bureaus'] = [...]) formats. Each account is added to
+    every bureau it appears on so a notice gets generated per (bureau, account)."""
+    accounts_by_bureau = {}
+    for item in parsed_accounts:
+        item_bureaus = item.get('bureaus') or []
+        if not item_bureaus:
+            single = item.get('bureau') or item.get('source_bureau') or ''
+            if single:
+                item_bureaus = [single]
+
+        title_bureaus = []
+        for b in item_bureaus:
+            norm = BUREAU_NAME_MAP.get((b or '').lower().strip())
+            if norm:
+                title_bureaus.append(norm)
+        if not title_bureaus:
+            title_bureaus = ['Unknown']
+
+        for b in title_bureaus:
+            accounts_by_bureau.setdefault(b, []).append(item)
+
+    return accounts_by_bureau
+
+
 @business_bp.route('/client/<int:client_id>/notice-of-dispute', methods=['POST'])
 @login_required
 def generate_notice_of_dispute(client_id):
-    """Generate Notice of Dispute letters for a business client — one per bureau."""
+    """Generate Notice of Dispute letters for a business client — one per bureau.
+
+    Skips PDF generation here — letters are saved as text only. PDF gets
+    rendered on mail (with the user's edits baked in) via the review screen.
+    """
     import traceback
 
     client = Client.query.get_or_404(client_id)
     if client.business_user_id != current_user.id:
         abort(403)
 
-    # Get parsed accounts from session
     parsed_accounts = session.get("client_parsed_accounts") if session.get("parsed_accounts_client_id") == client_id else None
     if not parsed_accounts:
         flash("No accounts extracted. Click 'Extract Accounts' first.", "error")
         return redirect(url_for("business.view_client", client_id=client.id))
 
-    # Group accounts by bureau
-    BUREAU_NAME_MAP = {
-        'experian': 'Experian', 'transunion': 'TransUnion', 'equifax': 'Equifax',
-    }
-    accounts_by_bureau = {}
-    for item in parsed_accounts:
-        raw = (item.get('bureau') or 'Unknown').lower().strip()
-        bureau = BUREAU_NAME_MAP.get(raw, raw.title())
-        if bureau not in accounts_by_bureau:
-            accounts_by_bureau[bureau] = []
-        accounts_by_bureau[bureau].append(item)
+    accounts_by_bureau = _group_business_accounts_by_bureau(parsed_accounts)
+    # Drop 'Unknown' bucket — can't address a notice without a bureau
+    accounts_by_bureau.pop('Unknown', None)
 
-    # Build client context
+    if not accounts_by_bureau:
+        flash("Could not determine bureaus for the parsed accounts.", "error")
+        return redirect(url_for("business.view_client", client_id=client.id))
+
     base_context = {
         'client_full_name': f"{client.first_name} {client.last_name}",
         'client_address': client.address_line1 or '',
@@ -917,8 +946,6 @@ def generate_notice_of_dispute(client_id):
 
     for bureau, accounts in accounts_by_bureau.items():
         client_context = dict(base_context)
-
-        # Bureau mailing address
         bureau_info = BUREAU_ADDRESSES.get(bureau, {})
         if bureau_info:
             client_context['bureau_address'] = (
@@ -938,34 +965,14 @@ def generate_notice_of_dispute(client_id):
             errors.append(f"{bureau}: GPT returned an empty letter.")
             continue
 
-        # Convert to PDF and upload
-        pdf_url = None
-        try:
-            upload_folder = current_app.config['UPLOAD_FOLDER']
-            os.makedirs(upload_folder, exist_ok=True)
-            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-            pdf_filename = f'Notice_{bureau}_{timestamp}.pdf'
-            pdf_path = letter_to_pdf(letter_text, os.path.join(upload_folder, pdf_filename))
-
-            if cloud_configured():
-                from services.cloud_storage import upload_from_path
-                cloud_result = upload_from_path(
-                    pdf_path,
-                    folder=f"clients/{client.id}/notices",
-                    filename=pdf_filename.rsplit('.', 1)[0]
-                )
-                if cloud_result:
-                    pdf_url = cloud_result['secure_url']
-        except Exception as e:
-            traceback.print_exc()
-            pdf_url = None
-
-        # Save as ClientDisputeLetter
+        # Save as ClientDisputeLetter — text only, no PDF yet (defer to mail)
+        account_names = ', '.join(a.get('account_name', '') for a in accounts)
         letter_record = ClientDisputeLetter(
             client_id=client.id,
             letter_text=letter_text,
             template_name=f'Notice of Dispute — {bureau}',
-            pdf_url=pdf_url,
+            pdf_url=None,
+            status='Draft',
         )
         db.session.add(letter_record)
         db.session.flush()
@@ -975,12 +982,198 @@ def generate_notice_of_dispute(client_id):
 
     if errors and not generated_ids:
         flash(f"Failed to generate notices: {'; '.join(errors)}", "error")
-    elif errors:
-        flash(f"Generated {len(generated_ids)} notice(s), but had errors: {'; '.join(errors)}", "warning")
+        return redirect(url_for("business.view_client", client_id=client.id))
+    if errors:
+        flash(f"Generated {len(generated_ids)} notice(s), with errors: {'; '.join(errors)}", "warning")
     else:
-        flash(f"Generated {len(generated_ids)} Notice of Dispute letter(s)!", "success")
+        flash(f"Generated {len(generated_ids)} Notice of Dispute letter(s) — review and mail below.", "success")
 
-    return redirect(url_for("business.view_client", client_id=client.id))
+    session['business_tier1_letter_ids'] = generated_ids
+    return redirect(url_for("business.notice_review", client_id=client.id))
+
+
+@business_bp.route('/client/<int:client_id>/notice-review', methods=['GET'])
+@login_required
+def notice_review(client_id):
+    """Editable review of generated Notice of Dispute letters (one per bureau)."""
+    client = Client.query.get_or_404(client_id)
+    if client.business_user_id != current_user.id:
+        abort(403)
+
+    letter_ids = session.get('business_tier1_letter_ids', [])
+    if letter_ids:
+        letters = ClientDisputeLetter.query.filter(
+            ClientDisputeLetter.id.in_(letter_ids),
+            ClientDisputeLetter.client_id == client.id,
+        ).order_by(ClientDisputeLetter.id).all()
+    else:
+        # Fallback: most recent Notice letters for this client
+        letters = ClientDisputeLetter.query.filter(
+            ClientDisputeLetter.client_id == client.id,
+            ClientDisputeLetter.template_name.ilike('Notice of Dispute%'),
+        ).order_by(ClientDisputeLetter.created_at.desc()).limit(3).all()
+
+    if not letters:
+        flash("No Notice of Dispute letters found. Generate them first.", "info")
+        return redirect(url_for("business.view_client", client_id=client.id))
+
+    # Each letter's bureau is parsed from `template_name` ("Notice of Dispute — Experian")
+    def _bureau_for(letter):
+        name = letter.template_name or ''
+        for b in ('Experian', 'TransUnion', 'Equifax'):
+            if b in name:
+                return b
+        return 'Unknown'
+
+    letters_with_bureau = [(L, _bureau_for(L)) for L in letters]
+
+    return render_template(
+        'business_tier1_review.html',
+        client=client,
+        letters_with_bureau=letters_with_bureau,
+        bureau_addresses=BUREAU_ADDRESSES,
+    )
+
+
+@business_bp.route('/api/client-letter/<int:letter_id>', methods=['PUT'])
+@login_required
+def update_client_letter(letter_id):
+    """Save edited text on a ClientDisputeLetter (Business mode)."""
+    letter = ClientDisputeLetter.query.get_or_404(letter_id)
+    client = Client.query.get(letter.client_id)
+    if not client or client.business_user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.get_json() or {}
+    new_text = (data.get('letter_text') or '').strip()
+    if not new_text:
+        return jsonify({'error': 'letter_text is required'}), 400
+
+    if new_text != (letter.letter_text or '').strip():
+        letter.letter_text = new_text
+        letter.pdf_url = None  # invalidate cached PDF
+        db.session.commit()
+
+    return jsonify({'id': letter.id, 'updated': True})
+
+
+@business_bp.route('/api/client-letter/<int:letter_id>/mail', methods=['POST'])
+@login_required
+def mail_client_letter(letter_id):
+    """Regenerate PDF (using current letter_text) and mail via DocuPost."""
+    import traceback
+    from services.delivery import mail_letter_via_docupost, get_docupost_token
+
+    letter = ClientDisputeLetter.query.get_or_404(letter_id)
+    client = Client.query.get(letter.client_id)
+    if not client or client.business_user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    # If form supplied edited text, persist + invalidate PDF
+    edited_text = (request.form.get('letter_text') or '').strip()
+    if edited_text and edited_text != (letter.letter_text or '').strip():
+        letter.letter_text = edited_text
+        letter.pdf_url = None
+        db.session.commit()
+
+    # Determine bureau from template_name
+    bureau = 'Unknown'
+    for b in ('Experian', 'TransUnion', 'Equifax'):
+        if b in (letter.template_name or ''):
+            bureau = b
+            break
+
+    bureau_info = BUREAU_ADDRESSES.get(bureau)
+    if not bureau_info:
+        return jsonify({'error': f'No mailing address for bureau {bureau}'}), 400
+
+    # Render PDF (regenerate even if pdf_url exists — text may have changed)
+    pdf_url = letter.pdf_url
+    if not pdf_url:
+        try:
+            upload_folder = current_app.config['UPLOAD_FOLDER']
+            os.makedirs(upload_folder, exist_ok=True)
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            pdf_filename = f'Notice_{bureau}_{timestamp}.pdf'
+            pdf_path = letter_to_pdf(letter.letter_text, os.path.join(upload_folder, pdf_filename))
+
+            if cloud_configured():
+                from services.cloud_storage import upload_from_path
+                cloud_result = upload_from_path(
+                    pdf_path,
+                    folder=f"clients/{client.id}/notices",
+                    filename=pdf_filename.rsplit('.', 1)[0],
+                )
+                if cloud_result:
+                    pdf_url = cloud_result['secure_url']
+                    letter.pdf_url = pdf_url
+                    db.session.commit()
+        except Exception as e:
+            traceback.print_exc()
+            return jsonify({'error': f'PDF generation failed: {str(e)}'}), 500
+
+    if not pdf_url:
+        return jsonify({'error': 'Could not generate PDF (Cloudinary not configured?)'}), 500
+
+    recipient = {
+        'name': bureau_info.get('name', bureau),
+        'company': bureau_info.get('name', bureau),
+        'address1': bureau_info.get('address1', ''),
+        'address2': bureau_info.get('address2', ''),
+        'city': bureau_info.get('city', ''),
+        'state': bureau_info.get('state', ''),
+        'zip': bureau_info.get('zip', ''),
+    }
+
+    sender = {
+        'name': f"{client.first_name} {client.last_name}",
+        'address1': client.address_line1 or '',
+        'address2': client.address_line2 or '',
+        'city': client.city or '',
+        'state': client.state or '',
+        'zip': client.zip_code or '',
+    }
+    if not sender['address1'] or not sender['city'] or not sender['state'] or not sender['zip']:
+        return jsonify({'error': 'Client address incomplete — fill in client profile first'}), 400
+
+    mail_options = {
+        'mail_class': request.form.get('mail_class', 'usps_first_class'),
+        'servicelevel': request.form.get('servicelevel', ''),
+        'color': 'true' if request.form.get('color') == 'true' else 'false',
+        'doublesided': 'true' if request.form.get('doublesided', 'true') == 'true' else 'false',
+        'return_envelope': 'true' if request.form.get('return_envelope') == 'true' else 'false',
+    }
+
+    token = get_docupost_token(current_user.id)
+    result = mail_letter_via_docupost(
+        pdf_url=pdf_url,
+        recipient=recipient,
+        sender=sender,
+        mail_options=mail_options,
+        api_token=token,
+    )
+
+    if not result.get('success'):
+        return jsonify({'error': result.get('error', 'DocuPost mailing failed')}), 502
+
+    letter.delivery_status = 'submitted'
+    letter.mailed_at = datetime.utcnow()
+    if result.get('letter_id'):
+        letter.docupost_letter_id = result['letter_id']
+    if result.get('cost'):
+        letter.docupost_cost = result['cost']
+    letter.mail_class = mail_options['mail_class']
+    letter.service_level = mail_options['servicelevel']
+    letter.status = 'Sent'
+    db.session.commit()
+
+    return jsonify({
+        'id': letter.id,
+        'mailed': True,
+        'mailed_at': letter.mailed_at.isoformat(),
+        'pdf_url': letter.pdf_url,
+        'tracking_number': letter.tracking_number,
+    })
 
 
 @business_bp.route('/toggle-workflow', methods=['POST'])

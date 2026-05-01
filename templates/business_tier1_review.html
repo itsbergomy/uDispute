@@ -1,0 +1,294 @@
+{# templates/business_tier1_review.html — Business mode: Notice of Dispute editable review #}
+{% extends "base_header.html" %}
+{% import '_icons.html' as icons %}
+
+{% block title %}Notice of Dispute — Review & Mail{% endblock %}
+
+{% block content %}
+<main class="px-4 py-10 max-w-3xl mx-auto">
+
+  <a href="{{ url_for('business.view_client', client_id=client.id) }}"
+     class="inline-flex items-center gap-2 mb-6 glass-btn glass-btn--ghost px-4 py-2 rounded-full text-sm"
+     style="color:var(--text-secondary);">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+    Back to Client
+  </a>
+
+  {# ── Header ── #}
+  <div class="glass-card glass-card--heavy glass-p mb-6 glass-animate-in text-center">
+    <div class="glass-icon-well mx-auto mb-4" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;border-radius:16px;">
+      {{ icons.icon_check(size=28, uid='bt1rev') }}
+    </div>
+
+    <span style="display:inline-block;font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;padding:4px 12px;border-radius:100px;background:linear-gradient(135deg, #34c759, #30d158);color:#fff;margin-bottom:0.75rem;box-shadow:0 3px 10px rgba(52,199,89,0.25), inset 0 1px 0 rgba(255,255,255,0.3);">
+      Notice of Dispute Ready
+    </span>
+
+    <h2 class="text-2xl font-bold mb-2 glass-text-3d" style="color:var(--text-primary);">
+      {{ client.first_name }} {{ client.last_name }}
+    </h2>
+    <p style="color:var(--text-secondary);font-size:0.9rem;max-width:520px;margin:0 auto;">
+      One Notice of Dispute per uploaded bureau report. Edit as needed, save your changes,
+      then mail. PDFs regenerate from your edits at mail time.
+    </p>
+  </div>
+
+  {# ── Mail Options (shared across all letters) ── #}
+  <div class="glass-card glass-p mb-6 glass-animate-in" style="animation-delay:0.08s;">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="glass-icon-well" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;">
+        {{ icons.icon_letter_sent(size=18, uid='bt1mail') }}
+      </div>
+      <div>
+        <h3 class="text-base font-semibold" style="color:var(--text-primary);">Mail Options</h3>
+        <p class="text-xs" style="color:var(--text-tertiary);">Applies when you click Mail.</p>
+      </div>
+    </div>
+
+    <div class="glass-inset rounded-xl p-4">
+      <div class="grid md:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="glass-label block text-xs mb-1">Service Class</label>
+          <select id="mailClass" class="glass-input glass-select w-full text-sm">
+            <option value="usps_first_class">USPS First Class</option>
+            <option value="usps_priority_mail">USPS Priority Mail</option>
+            <option value="usps_priority_mail_express">USPS Priority Mail Express</option>
+          </select>
+        </div>
+        <div>
+          <label class="glass-label block text-xs mb-1">Certified Options</label>
+          <select id="mailServiceLevel" class="glass-input glass-select w-full text-sm">
+            <option value="">None</option>
+            <option value="certified">Certified</option>
+            <option value="certified_return_receipt">Certified w/ Return Receipt</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid sm:grid-cols-3 gap-4">
+        <label class="flex items-center gap-2 text-sm" style="color:var(--text-primary);">
+          <input type="checkbox" id="mailColor" value="true" style="accent-color:var(--accent);"/>
+          Print in color
+        </label>
+        <label class="flex items-center gap-2 text-sm" style="color:var(--text-primary);">
+          <input type="checkbox" id="mailDoublesided" value="true" checked style="accent-color:var(--accent);"/>
+          Double-sided
+        </label>
+        <label class="flex items-center gap-2 text-sm" style="color:var(--text-primary);">
+          <input type="checkbox" id="mailReturnEnvelope" value="true" style="accent-color:var(--accent);"/>
+          Include return envelope
+        </label>
+      </div>
+    </div>
+  </div>
+
+  {# ── Letter Tabs ── #}
+  <div class="flex gap-2 mb-4 glass-animate-in" style="animation-delay:0.12s;">
+    {% for L, bureau in letters_with_bureau %}
+    <button id="tab-{{ loop.index0 }}" onclick="showLetterTab({{ loop.index0 }})"
+            class="letter-tab flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all"
+            style="{% if loop.first %}background:linear-gradient(135deg,
+              {% if bureau == 'Experian' %}#0077ed, #005bb5
+              {% elif bureau == 'TransUnion' %}#34c759, #28a745
+              {% elif bureau == 'Equifax' %}#ff3b30, #d63031
+              {% else %}#6e5ce6, #af52de{% endif %});color:#fff;box-shadow:0 4px 15px rgba(0,0,0,0.15);
+            {% else %}background:var(--glass-bg-secondary);color:var(--text-secondary);{% endif %}">
+      <span style="margin-right:4px;">
+        {% if bureau == 'Experian' %}&#x1F535;{% elif bureau == 'TransUnion' %}&#x1F7E2;{% elif bureau == 'Equifax' %}&#x1F534;{% else %}&#x26AA;{% endif %}
+      </span>
+      {{ bureau }}
+      {% if L.mailed_at %}<span class="text-xs ml-1" style="opacity:0.7;">✓</span>{% endif %}
+    </button>
+    {% endfor %}
+  </div>
+
+  {# ── Letter Panels ── #}
+  {% for L, bureau in letters_with_bureau %}
+  <div id="panel-{{ loop.index0 }}" class="letter-panel glass-card glass-card--heavy glass-p glass-animate-in"
+       style="{% if not loop.first %}display:none;{% endif %}">
+
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2">
+        <span style="font-size:1.1rem;">
+          {% if bureau == 'Experian' %}&#x1F535;{% elif bureau == 'TransUnion' %}&#x1F7E2;{% elif bureau == 'Equifax' %}&#x1F534;{% else %}&#x26AA;{% endif %}
+        </span>
+        <h3 class="text-lg font-bold" style="color:var(--text-primary);">{{ bureau }}</h3>
+      </div>
+      <div class="flex items-center gap-2">
+        {% if L.mailed_at %}
+          <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                style="background:rgba(52,199,89,0.15);color:rgba(52,199,89,0.9);">
+            Mailed {{ L.mailed_at.strftime('%b %d') }}
+          </span>
+        {% else %}
+          <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                style="background:rgba(245,158,11,0.15);color:rgba(245,158,11,0.9);">
+            Draft
+          </span>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Recipient (auto-populated, read-only) ── #}
+    {% set bureau_addr = bureau_addresses.get(bureau, {}) %}
+    {% if bureau_addr %}
+    <div class="glass-inset rounded-xl p-3 mb-3" style="font-size:0.75rem;color:var(--text-tertiary);">
+      <span class="font-semibold" style="color:var(--text-secondary);">Mailing to:</span>
+      {{ bureau_addr.get('name', bureau) }} —
+      {{ bureau_addr.get('address1', '') }},
+      {{ bureau_addr.get('city', '') }}, {{ bureau_addr.get('state', '') }} {{ bureau_addr.get('zip', '') }}
+    </div>
+    {% endif %}
+
+    {# ── Editable Letter ── #}
+    <div class="glass-inset rounded-xl p-3 mb-4">
+      <textarea rows="18" class="glass-input glass-textarea js-letter-text w-full text-sm"
+                style="background:transparent;border:none;box-shadow:none;resize:vertical;line-height:1.6;"
+                data-letter-id="{{ L.id }}">{{ L.letter_text }}</textarea>
+      <div class="flex items-center justify-between mt-2 px-1">
+        <span class="js-save-status text-xs" style="color:var(--text-tertiary);"></span>
+        <button type="button" class="js-save-letter-btn glass-btn glass-btn--ghost glass-btn--pill text-xs px-3 py-1.5"
+                data-letter-id="{{ L.id }}"
+                style="border:1px solid rgba(255,255,255,0.12);">
+          Save Edits
+        </button>
+      </div>
+    </div>
+
+    {# ── Action Buttons ── #}
+    <div class="flex flex-wrap items-center gap-3">
+      {% if L.pdf_url %}
+        <a href="{{ L.pdf_url }}" target="_blank"
+           class="glass-btn glass-btn--ghost glass-btn--pill text-xs px-4 py-2 flex items-center gap-1.5"
+           style="border:1px solid rgba(255,255,255,0.12);">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          Download PDF
+        </a>
+      {% endif %}
+
+      {% if not L.mailed_at %}
+        <button type="button" class="js-mail-letter-btn glass-btn glass-btn--primary glass-btn--pill glass-shimmer-edge text-xs px-4 py-2 flex items-center gap-1.5"
+                data-letter-id="{{ L.id }}" data-bureau="{{ bureau }}"
+                style="position:relative;overflow:hidden;">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+          </svg>
+          <span class="js-mail-btn-label">Mail to {{ bureau }}</span>
+        </button>
+      {% endif %}
+
+      {% if not loop.last %}
+        <button type="button" onclick="showLetterTab({{ loop.index }})"
+                class="glass-btn glass-btn--secondary glass-btn--pill text-xs px-4 py-2">
+          Next: {{ letters_with_bureau[loop.index][1] }} &rarr;
+        </button>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+
+</main>
+
+<script>
+var CSRF_TOKEN = '{{ csrf_token() }}';
+
+// ─── Tab switching ───
+function showLetterTab(idx) {
+  document.querySelectorAll('.letter-panel').forEach(function(p){ p.style.display = 'none'; });
+  var panel = document.getElementById('panel-' + idx);
+  if (panel) panel.style.display = 'block';
+
+  var bureauList = {{ letters_with_bureau | map(attribute=1) | list | tojson }};
+  var colorMap = {
+    'Experian':   'background:linear-gradient(135deg,#0077ed,#005bb5);color:#fff;box-shadow:0 4px 15px rgba(0,119,237,0.3);',
+    'TransUnion': 'background:linear-gradient(135deg,#34c759,#28a745);color:#fff;box-shadow:0 4px 15px rgba(52,199,89,0.3);',
+    'Equifax':    'background:linear-gradient(135deg,#ff3b30,#d63031);color:#fff;box-shadow:0 4px 15px rgba(255,59,48,0.3);'
+  };
+  var inactive = 'background:var(--glass-bg-secondary);color:var(--text-secondary);box-shadow:none;';
+  document.querySelectorAll('.letter-tab').forEach(function(tab, i){
+    tab.style.cssText = (i === idx) ? (colorMap[bureauList[i]] || inactive) : inactive;
+  });
+}
+
+// ─── Save edits ───
+(function(){
+  document.querySelectorAll('.js-save-letter-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var letterId = btn.dataset.letterId;
+      var ta = document.querySelector('textarea.js-letter-text[data-letter-id="' + letterId + '"]');
+      if (!ta) return;
+      var status = btn.parentElement.querySelector('.js-save-status');
+      if (status) status.textContent = 'Saving…';
+      btn.disabled = true; btn.style.opacity = '0.6';
+
+      fetch('/api/client-letter/' + letterId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+        body: JSON.stringify({ letter_text: ta.value }),
+      }).then(function(r){
+        if (!r.ok) throw new Error('Save failed (' + r.status + ')');
+        return r.json();
+      }).then(function(){
+        if (status) status.textContent = 'Saved ✓';
+        setTimeout(function(){ if (status) status.textContent = ''; }, 2500);
+      }).catch(function(err){
+        if (status) status.textContent = 'Error: ' + err.message;
+      }).finally(function(){
+        btn.disabled = false; btn.style.opacity = '1';
+      });
+    });
+  });
+})();
+
+// ─── Mail individual letter ───
+(function(){
+  function getMailOptions(){
+    return {
+      mail_class:      document.getElementById('mailClass').value,
+      servicelevel:    document.getElementById('mailServiceLevel').value,
+      color:           document.getElementById('mailColor').checked ? 'true' : 'false',
+      doublesided:     document.getElementById('mailDoublesided').checked ? 'true' : 'false',
+      return_envelope: document.getElementById('mailReturnEnvelope').checked ? 'true' : 'false',
+    };
+  }
+
+  document.querySelectorAll('.js-mail-letter-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var letterId = btn.dataset.letterId;
+      var bureau   = btn.dataset.bureau;
+      var ta = document.querySelector('textarea.js-letter-text[data-letter-id="' + letterId + '"]');
+      var label = btn.querySelector('.js-mail-btn-label');
+
+      if (label) label.textContent = 'Sending…';
+      btn.disabled = true; btn.style.opacity = '0.6';
+
+      var fd = new FormData();
+      fd.append('letter_text', ta ? ta.value : '');
+      var opts = getMailOptions();
+      Object.keys(opts).forEach(function(k){ fd.append(k, opts[k]); });
+
+      fetch('/api/client-letter/' + letterId + '/mail', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF_TOKEN },
+        body: fd,
+      }).then(function(r){
+        return r.json().then(function(j){ return { ok: r.ok, body: j }; });
+      }).then(function(res){
+        if (!res.ok) throw new Error(res.body.error || 'Mail failed');
+        if (label) label.textContent = 'Mailed ✓';
+        btn.style.opacity = '0.7';
+        // Reload to reflect mailed state + delivery status
+        setTimeout(function(){ window.location.reload(); }, 1200);
+      }).catch(function(err){
+        if (label) label.textContent = 'Error';
+        btn.disabled = false; btn.style.opacity = '1';
+        alert('Mailing failed: ' + err.message);
+      });
+    });
+  });
+})();
+</script>
+{% endblock %}
