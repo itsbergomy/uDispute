@@ -232,9 +232,17 @@
 
     {# ── Editable Letter ── #}
     <div class="glass-inset rounded-xl p-3 mb-4">
-      <textarea rows="16" class="glass-input glass-textarea w-full text-sm"
+      <textarea rows="16" class="glass-input glass-textarea js-letter-text w-full text-sm"
                 style="background:transparent;border:none;box-shadow:none;resize:vertical;line-height:1.6;"
                 data-letter-id="{{ L.id }}">{{ L.letter_text }}</textarea>
+      <div class="flex items-center justify-between mt-2 px-1">
+        <span class="js-save-status text-xs" style="color:var(--text-tertiary);"></span>
+        <button type="button" class="js-save-letter-btn glass-btn glass-btn--ghost glass-btn--pill text-xs px-3 py-1.5"
+                data-letter-id="{{ L.id }}"
+                style="border:1px solid rgba(255,255,255,0.12);">
+          Save Edits
+        </button>
+      </div>
     </div>
 
     {# ── Action Buttons ── #}
@@ -253,8 +261,10 @@
       {% if not L.mailed_at %}
         <form method="POST" action="{{ url_for('disputes.tier1_mail', letter_id=L.id) }}"
               class="tier1-mail-form inline-flex" data-bureau="{{ L.bureau }}"
+              data-letter-id="{{ L.id }}"
               enctype="multipart/form-data">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <input type="hidden" name="letter_text" class="js-letter-text-hidden" />
           <input type="hidden" name="mail_class" class="js-mail-class" />
           <input type="hidden" name="servicelevel" class="js-servicelevel" />
           <input type="hidden" name="color" class="js-color" />
@@ -325,6 +335,43 @@
 </main>
 
 <script>
+var CSRF_TOKEN = '{{ csrf_token() }}';
+
+// ─── Save edits button — PUT /api/letter/{id} ───
+(function(){
+  function findPanelTextarea(letterId) {
+    return document.querySelector('textarea.js-letter-text[data-letter-id="' + letterId + '"]');
+  }
+
+  document.querySelectorAll('.js-save-letter-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var letterId = btn.dataset.letterId;
+      var ta = findPanelTextarea(letterId);
+      if (!ta) return;
+
+      var status = btn.parentElement.querySelector('.js-save-status');
+      if (status) status.textContent = 'Saving…';
+      btn.disabled = true; btn.style.opacity = '0.6';
+
+      fetch('/api/letter/' + letterId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+        body: JSON.stringify({ letter_text: ta.value }),
+      }).then(function(r){
+        if (!r.ok) throw new Error('Save failed (' + r.status + ')');
+        return r.json();
+      }).then(function(){
+        if (status) status.textContent = 'Saved ✓';
+        setTimeout(function(){ if (status) status.textContent = ''; }, 2500);
+      }).catch(function(err){
+        if (status) status.textContent = 'Error: ' + err.message;
+      }).finally(function(){
+        btn.disabled = false; btn.style.opacity = '1';
+      });
+    });
+  });
+})();
+
 // ─── Carousel tab switching ───
 function showNoticeTab(idx) {
   // Hide all panels
@@ -421,6 +468,12 @@ function showNoticeTab(idx) {
     form.querySelector('.js-color').value            = opts.color;
     form.querySelector('.js-doublesided').value       = opts.doublesided;
     form.querySelector('.js-return-envelope').value   = opts.return_envelope;
+    // Pull latest letter text from this panel's textarea so user edits are
+    // sent + persisted by the mail endpoint (forces PDF regeneration).
+    var letterId = form.dataset.letterId;
+    var ta = letterId ? document.querySelector('textarea.js-letter-text[data-letter-id="' + letterId + '"]') : null;
+    var hidden = form.querySelector('.js-letter-text-hidden');
+    if (ta && hidden) hidden.value = ta.value;
     // Copy ID file into form
     var idUpload = document.getElementById('idFileUpload');
     var formFileInput = form.querySelector('.js-id-file');

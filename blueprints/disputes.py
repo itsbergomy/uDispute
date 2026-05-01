@@ -646,6 +646,49 @@ def auto_mode_action():
 
 # ─── Tier 1: Notice of Dispute ───
 
+BUREAU_NAME_MAP = {
+    'experian': 'Experian',
+    'transunion': 'TransUnion',
+    'equifax': 'Equifax',
+}
+
+
+def _group_accounts_by_bureau(items, detected_bureau=None):
+    """Group parsed accounts by the bureaus they're reported on.
+
+    Handles both formats:
+      - Multi-report (cross-reference output): item['bureaus'] = ['experian', ...]
+        → unrolled into each bureau's bucket
+      - Single-report / legacy: item['bureau'] = 'Experian' or item['source_bureau']
+        → goes into one bucket
+
+    Each account is added to EVERY bureau it appears on so a Tier 1 notice
+    is generated per (bureau, account) pair — same model as the inaccuracy
+    pipeline.
+    """
+    accounts_by_bureau = {}
+
+    for item in items:
+        item_bureaus = item.get('bureaus') or []
+        if not item_bureaus:
+            single = item.get('bureau') or item.get('source_bureau') or ''
+            if single:
+                item_bureaus = [single]
+
+        title_bureaus = []
+        for b in item_bureaus:
+            norm = BUREAU_NAME_MAP.get((b or '').lower().strip())
+            if norm:
+                title_bureaus.append(norm)
+        if not title_bureaus:
+            title_bureaus = [detected_bureau or 'Unknown']
+
+        for b in title_bureaus:
+            accounts_by_bureau.setdefault(b, []).append(item)
+
+    return accounts_by_bureau
+
+
 @disputes_bp.route('/tier1-notice', methods=['GET'])
 @login_required
 def tier1_notice():
@@ -655,23 +698,9 @@ def tier1_notice():
         flash("No accounts found. Please upload a credit report first.", "error")
         return redirect(url_for('disputes.upload_pdf'))
 
-    # Normalize bureau names — fall back to auto-detected bureau
-    detected = session.get('detected_bureau')
-    BUREAU_NAME_MAP = {
-        'experian': 'Experian',
-        'transunion': 'TransUnion',
-        'equifax': 'Equifax',
-    }
-
-    accounts_by_bureau = {}
-    for item in items:
-        raw = (item.get('bureau') or '').lower().strip()
-        bureau = BUREAU_NAME_MAP.get(raw)
-        if not bureau:
-            bureau = detected or 'Unknown'
-        if bureau not in accounts_by_bureau:
-            accounts_by_bureau[bureau] = []
-        accounts_by_bureau[bureau].append(item)
+    accounts_by_bureau = _group_accounts_by_bureau(
+        items, detected_bureau=session.get('detected_bureau')
+    )
 
     return render_template('tier1_notice.html', accounts_by_bureau=accounts_by_bureau)
 
@@ -689,22 +718,9 @@ def generate_tier1_notices():
         flash("No accounts found. Please upload a credit report first.", "error")
         return redirect(url_for('disputes.upload_pdf'))
 
-    # Normalize bureau names — fall back to auto-detected bureau
-    detected = session.get('detected_bureau')
-    BUREAU_NAME_MAP = {
-        'experian': 'Experian',
-        'transunion': 'TransUnion',
-        'equifax': 'Equifax',
-    }
-    accounts_by_bureau = {}
-    for item in items:
-        raw = (item.get('bureau') or '').lower().strip()
-        bureau = BUREAU_NAME_MAP.get(raw)
-        if not bureau:
-            bureau = detected or 'Unknown'
-        if bureau not in accounts_by_bureau:
-            accounts_by_bureau[bureau] = []
-        accounts_by_bureau[bureau].append(item)
+    accounts_by_bureau = _group_accounts_by_bureau(
+        items, detected_bureau=session.get('detected_bureau')
+    )
 
     # Build client context from current user
     user = current_user
@@ -860,6 +876,14 @@ def tier1_mail(letter_id):
     if not ml:
         flash("Letter not found.", "error")
         return redirect(url_for('disputes.tier1_review'))
+
+    # If the user edited the letter on the review screen, persist their edits
+    # AND invalidate the cached PDF so the mailed PDF reflects the edits.
+    edited_text = (request.form.get('letter_text') or '').strip()
+    if edited_text and edited_text != (ml.letter_text or '').strip():
+        ml.letter_text = edited_text
+        ml.pdf_url = None  # force regeneration below
+        db.session.commit()
 
     # ── Resolve PDF URL ──
     pdf_url = ml.pdf_url
