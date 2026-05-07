@@ -304,6 +304,62 @@ FCRA_INACCURACY_MAP = {
             "The furnisher must correct the date to match the actual origination records."
         ),
     },
+    # ── Visible-on-Report Pattern Violations ──
+    "impossible_status_reversal": {
+        "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+        "title": "Duty of Furnishers — Impossible Status Reversal",
+        "explanation": (
+            "Under {section}, the payment history grid shows the account moving from a "
+            "delinquent bucket directly to a current/✓ status in a single reporting cycle "
+            "without enough months in between for the cure to be mathematically possible. "
+            "Curing a 60-day delinquency in one cycle requires three simultaneous catch-up "
+            "payments (current month + the two missed months). The furnisher must produce "
+            "the dated payment ledger showing the catch-up payments, or correct the grid "
+            "to reflect the actual delinquency history."
+        ),
+    },
+    "non_progressive_delinquency": {
+        "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+        "title": "Duty of Furnishers — Non-Progressive Delinquency Reporting",
+        "explanation": (
+            "Under {section}, the payment history grid skips delinquency buckets in a "
+            "way that is mathematically impossible. The maximum legitimate progression "
+            "in a single reporting cycle is 30 days, so a transition such as current → 90, "
+            "or 30 → 90 (skipping 60), or current → 120 indicates either a missing "
+            "intermediate month or improperly reported delinquency. The furnisher must "
+            "produce the underlying payment records showing each missed cycle, or "
+            "correct the grid."
+        ),
+    },
+    "post_chargeoff_continued_reporting": {
+        "section": "15 U.S.C. § 1681c(a)(4) and § 1681s-2(a)(1)(A)",
+        "title": "Continued Monthly Status Updates After Charge-Off",
+        "explanation": (
+            "Under 15 U.S.C. § 1681c(a)(4), adverse information related to charged-off "
+            "accounts may not be reported beyond seven years from the date of first "
+            "delinquency. The payment history grid shows continued monthly status updates "
+            "(repossession, late, or further charge-off entries) for many months AFTER "
+            "the account was first reported as charged off. A charge-off is a terminal "
+            "credit status — the furnisher should not be re-asserting fresh adverse "
+            "monthly status. This pattern raises the concern of impermissible re-aging "
+            "that improperly extends the 7-year reporting window. The furnisher must "
+            "produce the date of first delinquency and confirm that no monthly status "
+            "after the original charge-off resets that date."
+        ),
+    },
+    "status_text_contradicts_grid": {
+        "section": "15 U.S.C. § 1681s-2(a)(1)(A)",
+        "title": "Status Text Contradicts Payment History Grid",
+        "explanation": (
+            "Under {section}, the displayed Account Status text on this tradeline is "
+            "inconsistent with the payment history grid on the same tradeline of the same "
+            "report. A consumer cannot simultaneously be 'Paying as agreed' / 'Current' "
+            "and have late buckets (30/60/90/120) or charge-off (CO) entries in the grid. "
+            "At least one of these two displayed values is inaccurate. The furnisher must "
+            "reconcile the status text to match the actual payment history shown on the "
+            "consumer's report."
+        ),
+    },
 }
 
 
@@ -346,6 +402,15 @@ def classify_inaccuracy(inaccuracy_text):
         return "unvalidated_collection"
     if 'charge-off status' in text and 'demand verification' in text:
         return "unverified_chargeoff"
+    # Visible-on-report pattern violations
+    if 'impossible' in text and ('cure' in text or 'reversal' in text or 'recover' in text):
+        return "impossible_status_reversal"
+    if ('skipped' in text or 'non-progressive' in text or 'jump' in text) and ('30' in text or '60' in text or '90' in text or '120' in text):
+        return "non_progressive_delinquency"
+    if ('after charge-off' in text or 'post-charge-off' in text or 're-aging' in text or 'continued.*monthly' in text):
+        return "post_chargeoff_continued_reporting"
+    if 'status' in text and 'grid' in text and ('contradict' in text or 'inconsistent' in text):
+        return "status_text_contradicts_grid"
     return None
 
 
@@ -657,7 +722,29 @@ _E_OSCAR_INTELLIGENCE = (
     "(c) cross-bureau discrepancies if provided, or (d) parser-detected inaccuracies. "
     "If no specific reason is available, frame as: 'I dispute the accuracy of this "
     "value and demand field-level verification with documentary proof from the "
-    "furnisher.' NEVER fabricate evidence or claim enclosures that do not exist.\n\n"
+    "furnisher.' NEVER fabricate evidence or claim enclosures that do not exist.\n"
+    "11. DISPLAY LAYER vs DATA LAYER — CRITICAL: Consumer reports use DISPLAY codes "
+    "(CO, C/O, ✓, 30, 60, 90, 120, R, K, dash, '-'). Metro 2 TRANSMISSION codes "
+    "(L for charge-off, G for collection, H for foreclosure, J for voluntary surrender, "
+    "K for repossession) live ONLY in the back-end data file the furnisher transmits "
+    "to the CRA — they DO NOT appear on consumer reports. NEVER demand that a Metro 2 "
+    "transmission code 'appear' on or 'be displayed' on the consumer's chart. NEVER "
+    "argue that a display code (CO, ✓, etc.) is 'missing the underlying Metro 2 value' "
+    "— a consumer-displayed CO IS the rendering of the underlying L; they are the same "
+    "data point at two layers. When citing Metro 2 fields, frame them as the data the "
+    "furnisher TRANSMITS (e.g., 'Field 25b Payment History Profile transmitted by the "
+    "furnisher does not align with the displayed status'), not as something missing "
+    "from the consumer's report.\n"
+    "12. ARGUE WHAT IS VISIBLE ON THE REPORT — When attacking payment history, ground "
+    "every claim in patterns the bureau can read off the consumer's own chart: status "
+    "reversals (60-day late → current the next month without enough catch-up payments), "
+    "math-impossible progressions (current → 90 in one month — max one-month "
+    "progression is 30 days), missing intermediate months (30 → ✓ → 90), continued "
+    "monthly status updates after charge-off (CO followed by 12+ months of fresh "
+    "delinquent reporting suggests re-aging or extending the 7-year window past "
+    "§ 1681c(a)(4)), or status text contradicting the grid (status 'Paying as agreed' "
+    "but grid shows 30/60/90 entries). These are reviewable inaccuracies. Invented "
+    "Metro 2 demands are dismissable.\n\n"
 )
 
 _EDUCATIONAL_NOTE = (
@@ -682,9 +769,17 @@ SYSTEM_PROMPT_WITH_INACCURACIES = (
     + _E_OSCAR_INTELLIGENCE
     + "PARSER-DETECTED INACCURACIES: Specific reporting errors have been auto-detected "
     "with FCRA violations. Incorporate each finding as a labeled DISPUTE POINT — cite "
-    "the Metro 2 field, the REPORTED value, and WHY it is factually wrong. These are "
-    "demonstrable errors (not 'unverified'), so a Code 01 response would itself violate "
-    "the FCRA.\n\n"
+    "the Metro 2 field name + number, the REPORTED value (use the display code as it "
+    "appears on the consumer report — CO, 30, 60, 90, ✓, etc.), and WHY it is factually "
+    "wrong. These are demonstrable errors (not 'unverified'), so a Code 01 response "
+    "would itself violate the FCRA.\n\n"
+    "QUOTE THE PARSER FINDINGS VERBATIM where possible. The parser has already done "
+    "the inconsistency analysis on the consumer's actual chart — your job is to "
+    "translate each finding into legal language with the proper FCRA citation. Do NOT "
+    "invent additional inaccuracies that are not in the parser findings. Do NOT "
+    "demand Metro 2 transmission codes (L, G, H, J, K) appear on the consumer's chart "
+    "— those are back-end data layer codes that never reach consumer reports. See "
+    "RULE 11 above.\n\n"
     + _EDUCATIONAL_NOTE
 )
 

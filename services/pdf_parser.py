@@ -540,6 +540,93 @@ def _detect_inaccuracies(account):
                 "are accurately reported"
             )
 
+    # ── Visible-on-report pattern detection (operates on the payment grid) ──
+    # We tokenize each row of the grid into a sequence of monthly status codes
+    # and look for: (a) impossible reversals, (b) non-progressive jumps,
+    # (c) continued monthly status updates after a charge-off was first reported.
+
+    # Token map: ✓ → 0 (current), 30 → 1, 60 → 2, 90 → 3, 120 → 4, 150 → 5,
+    # 180 → 6, CO → 7 (charge-off), R/K → 8 (repo/repossession), - → None (unavailable)
+    _BUCKET = {'CK': 0, '✓': 0, 'OK': 0, 'CUR': 0, 'CURRENT': 0,
+               '30': 1, '60': 2, '90': 3, '120': 4, '150': 5, '180': 6,
+               'CO': 7, 'C/O': 7, 'CHG': 7, 'CHARGE-OFF': 7, 'CHARGEOFF': 7,
+               'R': 8, 'K': 8, 'REPO': 8, 'REPOSSESSION': 8}
+
+    def _tokenize_row(row_text):
+        """Convert one grid row into a list of bucket integers (None for missing months)."""
+        # Split on whitespace, then map each token to a bucket
+        tokens = re.split(r'\s+', row_text.strip().upper())
+        seq = []
+        for t in tokens:
+            t = t.strip(",.;:|")
+            if not t or t in ('-', '–', '—', 'ND', 'N/A'):
+                seq.append(None)
+                continue
+            if t in _BUCKET:
+                seq.append(_BUCKET[t])
+            elif t.isdigit() and len(t) <= 4:
+                # Could be a year like "2023" — skip
+                if int(t) >= 1900:
+                    continue
+                seq.append(_BUCKET.get(t))
+            # else: ignore (unknown token)
+        return seq
+
+    impossible_reversals_found = False
+    non_progressive_found = False
+    post_co_continued = False
+
+    for line in grid_lines:
+        seq = _tokenize_row(line)
+        if len(seq) < 2:
+            continue
+        for i in range(len(seq) - 1):
+            cur, nxt = seq[i], seq[i + 1]
+            if cur is None or nxt is None:
+                continue
+            # (a) Impossible reversal: 60+ days late directly to current/✓
+            if cur >= 2 and nxt == 0:
+                impossible_reversals_found = True
+            # (b) Non-progressive jump: increase by more than 1 bucket
+            #     (e.g., current → 90, 30 → 90, current → 120). Charge-off (7)
+            #     and repo (8) jumps from any state are legitimate end-states.
+            if 0 <= cur < 7 and 0 < nxt < 7 and (nxt - cur) > 1:
+                non_progressive_found = True
+
+        # (c) Continued status updates after charge-off:
+        # if we see CO (7) followed by 6+ subsequent reportable buckets,
+        # that's continuous post-charge-off reporting
+        if 7 in seq:
+            co_idx = seq.index(7)
+            after_co = [s for s in seq[co_idx + 1:] if s is not None]
+            if len(after_co) >= 6 and any(s in (1, 2, 3, 4, 5, 6, 7, 8) for s in after_co):
+                post_co_continued = True
+
+    if impossible_reversals_found:
+        inaccuracies.append(
+            "Payment history shows an impossible status reversal — account moves "
+            "from a delinquent bucket (60+ days) directly to current/✓ in a single "
+            "reporting cycle without enough catch-up payments to mathematically cure "
+            "the delinquency"
+        )
+
+    if non_progressive_found:
+        inaccuracies.append(
+            "Payment history skips delinquency buckets in a non-progressive way "
+            "(e.g., current → 90, or 30 → 90) — maximum legitimate one-month "
+            "progression is 30 days, so a missing intermediate month indicates "
+            "either skipped reporting or improperly characterized delinquency"
+        )
+
+    if post_co_continued:
+        inaccuracies.append(
+            "Account was first reported as charge-off but the payment history "
+            "continues to show fresh monthly delinquent status (R/CO/late) for "
+            "many months after the charge-off — continued post-charge-off monthly "
+            "status updates suggest re-aging or improperly extending the 7-year "
+            "reporting window past § 1681c(a)(4)"
+        )
+
     return inaccuracies
 
 
